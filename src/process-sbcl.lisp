@@ -24,7 +24,7 @@
     (replace buffer source :start1 start :end2 count)))
 
 (defstruct process-job
-  argv input token cap start deadline
+  argv input keep-input-open token cap start deadline
   process pidfd authority wake registered
   directory gate-path status-path gate status dummy
   input-stream input-fd (offset 0)
@@ -177,7 +177,9 @@
     (when (typep stopped 'error) (error stopped))
     (when stopped (stop-job job stopped) (return-from release-job nil)))
   (close-descriptor (shiftf (process-job-gate job) nil))
-  (when (zerop (length (process-job-input job))) (close-job-input job))
+  (when (and (zerop (length (process-job-input job)))
+             (not (process-job-keep-input-open job)))
+    (close-job-input job))
   (when *process-started-hook* (funcall *process-started-hook* (process-job-process job))))
 
 (defun read-job (job which fd)
@@ -222,7 +224,8 @@
         (#.sb-posix:epipe (stop-job job :stdin-closed))
         ((#.sb-posix:eagain #.sb-posix:eintr) nil)
         (otherwise (error condition)))))
-  (when (= (process-job-offset job) (length (process-job-input job)))
+  (when (and (= (process-job-offset job) (length (process-job-input job)))
+             (not (process-job-keep-input-open job)))
     (close-job-input job)))
 
 (defun reap-job (job)
@@ -263,7 +266,8 @@
                  (loop for fd across (process-job-output-fds job) for i from 0
                        when fd collect (list i fd :input))
                  (when (process-job-status job) (list (list :control (process-job-status job) :input)))
-                 (when (and (process-job-input-fd job) (process-job-released job))
+                 (when (and (process-job-input-fd job) (process-job-released job)
+                            (< (process-job-offset job) (length (process-job-input job))))
                    (list (list :input (process-job-input-fd job) :output)))
                  (when (and (process-job-pidfd job) (not (process-job-terminal job)))
                    (list (list :child (process-job-pidfd job) :input)))
@@ -339,15 +343,23 @@
         (progn (when *operation-client* (retain-cleanup-job *operation-client* job)) nil)
         t)))
 
-(defun run-process (arguments &key input (timeout 30) (output-limit (* 16 1024 1024)) cancel-token)
+(defun run-process (arguments &key input keep-input-open (timeout 30)
+                                  (output-limit (* 16 1024 1024)) cancel-token)
+  "Execute owned argv with bounded pipes, cancellation and process cleanup.
+Private KEEP-INPUT-OPEN lets a one-shot native protocol retire naturally rather
+than receiving EOF after input is sent. Exhausted held input is never polled
+for writing; actual child exit and all stop/cleanup paths still close it."
   (check-limits timeout output-limit)
+  (unless (or (null keep-input-open) (eq keep-input-open t))
+    (invalid-argument "keep-input-open must be T or NIL"))
   (let ((argv (argument-vector arguments)) (input (octet-vector input))
         (token (or cancel-token (libtmux:make-cancellation-token))))
     (check-type token libtmux:cancellation-token)
     (unless (plusp (length argv)) (invalid-argument "An executable is required"))
     (setf (aref argv 0) (native-program (aref argv 0)))
     (let* ((start (monotonic-seconds))
-           (job (make-process-job :argv argv :input input :token token :cap output-limit
+           (job (make-process-job :argv argv :input input :keep-input-open keep-input-open
+                                  :token token :cap output-limit
                                   :start start :deadline (+ start timeout)))
            (primary nil))
       (unwind-protect

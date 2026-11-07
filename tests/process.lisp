@@ -36,6 +36,20 @@
       (is (loop for i below 131072
                 always (= (- 255 (mod i 256)) (aref error-output i)))))))
 
+(test held-input-retires-on-natural-exit-or-stop
+  "A one-shot native control command must not receive early EOF."
+  (let ((outcome (process-case "held-input" :keep-input-open t)))
+    (is (eq :succeeded (libtmux:outcome-status outcome)))
+    (is (string= "held:" (libtmux.internal::strict-text (libtmux:outcome-stdout outcome)))))
+  (let ((outcome (libtmux.internal::run-process
+                  (process-arguments "held-input" "5") :keep-input-open t
+                  :input (libtmux.internal::encode-utf8 "hello") :timeout 1)))
+    (is (eq :succeeded (libtmux:outcome-status outcome)))
+    (is (string= "held:hello" (libtmux.internal::strict-text (libtmux:outcome-stdout outcome)))))
+  (let ((outcome (process-case "wait" :keep-input-open t :timeout 0.1)))
+    (is (eq :deadline (libtmux:outcome-reason outcome)))
+    (is (eq :unknown (libtmux:outcome-status outcome)))))
+
 (test raw-bytes-argv-and-owned-outcomes
   (let* ((outcome (process-case "bytes"))
          (bytes (libtmux:outcome-stdout outcome)))

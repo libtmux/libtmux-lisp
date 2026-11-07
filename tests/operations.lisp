@@ -128,8 +128,8 @@
   ((keep-entry :initarg :keep-entry)))
 
 (defmethod libtmux.internal::execute-command :around
-    ((transport receipt-loss-transport) argv &key input timeout output-limit cancel-token)
-  (declare (ignore input timeout output-limit cancel-token))
+    ((transport receipt-loss-transport) argv &key input timeout output-limit cancel-token keep-input-open)
+  (declare (ignore input timeout output-limit cancel-token keep-input-open))
   (let ((outcome (call-next-method)))
     (when (find "if-shell" argv :test #'equal)
       (let* ((bytes (libtmux:outcome-stdout outcome))

@@ -1,5 +1,6 @@
 """Deterministic process fixtures: readiness and signals, no polling sleeps."""
 import os
+import select
 import signal
 import sys
 
@@ -21,6 +22,19 @@ elif mode == "bytes":
     os.write(1, bytes(range(256)))
 elif mode == "argv":
     os.write(1, "\0".join(sys.argv[2:]).encode())
+elif mode == "held-input":
+    expected = int(sys.argv[2]) if len(sys.argv) > 2 else 0
+    data = b""
+    while len(data) < expected:
+        chunk = os.read(0, expected - len(data))
+        if not chunk:
+            raise RuntimeError("Premature input EOF")
+        data += chunk
+    poller = select.poll()
+    poller.register(0, select.POLLIN | select.POLLHUP)
+    if poller.poll(0):
+        raise RuntimeError("Input retired before the child's natural completion")
+    os.write(1, b"held:" + data)
 elif mode == "failed":
     os.write(1, b"partial")
     os.write(2, b"failed")

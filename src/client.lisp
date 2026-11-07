@@ -2,15 +2,15 @@
 
 (defclass subprocess-transport () ())
 
-(defgeneric execute-command (transport argv &key input timeout output-limit cancel-token)
+(defgeneric execute-command (transport argv &key input timeout output-limit cancel-token keep-input-open)
   (:documentation "Internal transport protocol. Return an owned command outcome."))
 
 (defmethod execute-command ((transport subprocess-transport) argv
                             &key input (timeout 30) (output-limit (* 16 1024 1024))
-                              cancel-token)
+                              cancel-token keep-input-open)
   (declare (ignore transport))
   (run-process argv :input input :timeout timeout :output-limit output-limit
-                    :cancel-token cancel-token))
+                    :cancel-token cancel-token :keep-input-open keep-input-open))
 
 (defun version-components (text)
   (let* ((version (string-trim '(#\Space #\Tab #\Newline #\Return) text))
@@ -165,10 +165,10 @@ failure signals CLEANUP-FAILED; the active owner still retains cleanup duty."))
             (when name (list "-L" name)) (when path (list "-S" path))
             (when config (list "-f" config)) (coerce arguments 'list))))
 
-(defun execute-tmux (client arguments token timeout output-limit input)
+(defun execute-tmux (client arguments token timeout output-limit input &key keep-input-open)
   (execute-command (slot-value client 'libtmux::transport)
                    (client-argv client arguments) :input input :timeout timeout
-                   :output-limit output-limit :cancel-token token))
+                   :output-limit output-limit :cancel-token token :keep-input-open keep-input-open))
 
 (in-package #:libtmux)
 
