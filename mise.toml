@@ -1,0 +1,44 @@
+min_version = "2026.11.3"
+
+# .tool-versions owns the pins; these tables supply HTTP backend options.
+[tools."http:sbcl"]
+version = '{{ read_file(path=".tool-versions") | regex_replace(pattern="(?s).*http:sbcl +([0-9.]+).*", rep="$1") }}'
+strip_components = 1
+bin_path = "."
+# Keep the upstream launcher so it resolves its core and contributed modules.
+rename_exe = { "run-sbcl.sh" = "sbcl" }
+
+[tools."http:sbcl".platforms.linux-x64]
+url = "https://prdownloads.sourceforge.net/sbcl/sbcl-{{ version }}-x86-64-linux-binary.tar.bz2"
+checksum = "sha256:96e26b0be3aa6ca2a3f03dfd5fc117647fffb96790a9c235e8dcf27df2eba726"
+
+[tools."http:asdf-lisp"]
+version = '{{ read_file(path=".tool-versions") | regex_replace(pattern="(?s).*http:asdf-lisp +([0-9.]+).*", rep="$1") }}'
+url = "https://asdf.common-lisp.dev/archives/asdf-{{ version }}.lisp"
+checksum = "sha256:874e8f235ea633a090c7ab2665b1f624d1910eb7f6fc10349a596085c1cbb189"
+bin = "asdf.lisp"
+
+[tasks.check]
+description = "Load the ASDF system with the pinned Common Lisp toolchain"
+run = '''
+sbcl \
+  --noinform \
+  --no-sysinit \
+  --no-userinit \
+  --non-interactive \
+  --load "{{ tools['http:asdf-lisp'].path }}/asdf.lisp" \
+  --eval '(asdf:load-asd (truename "libtmux.asd"))' \
+  --eval '(asdf:load-system "libtmux")' \
+  --eval '(format t "~&Loaded libtmux ~A (SBCL ~A, ASDF ~A)~%" (asdf:component-version (asdf:find-system "libtmux")) (lisp-implementation-version) (asdf:asdf-version))'
+'''
+
+[tasks.repl]
+description = "Start SBCL with the pinned ASDF release and local system"
+run = '''
+sbcl \
+  --noinform \
+  --no-sysinit \
+  --no-userinit \
+  --load "{{ tools['http:asdf-lisp'].path }}/asdf.lisp" \
+  --eval '(asdf:load-asd (truename "libtmux.asd"))'
+'''
