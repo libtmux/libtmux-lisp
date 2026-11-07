@@ -66,8 +66,8 @@ $ mise exec -- tools/lisp.sh tools/check-floor.lisp /path/to/tmux-3.3/tmux
 This check asserts the executable's release, expects `unsupported-tmux`, and
 checks that opening the client created no daemon socket.
 
-Control/events, source filtering, the workspace entry point, shared-site
-rendering, benchmarks and the complete full-suite compatibility matrix remain
-pending. MCP is excluded by policy. The
+Control/events, source filtering, shared-site rendering, benchmarks and the
+complete full-suite compatibility matrix remain pending. MCP is excluded by
+policy. The
 [capability table](docs/capabilities.md) separates implemented behavior from
 those gaps. A passing core package or example does not cover them.

@@ -65,8 +65,9 @@ window, pane, argv, or integer-token bounds.
 
 For trusted in-process data, [`make-workspace`](workspace-api.md#make-workspace-function)
 accepts the equivalent closed keyword plist with vectors or finite proper
-lists. It copies retained strings and containers. `:layout` uses a Common Lisp
-keyword such as `:tiled`; JSON uses the corresponding string.
+lists. It copies retained strings and containers. Session names cannot contain
+periods or colons; names also reject characters tmux would rewrite. `:layout`
+uses a Common Lisp keyword such as `:tiled`; JSON uses the corresponding string.
 
 ## Plan locally, then apply explicitly
 
@@ -99,7 +100,8 @@ The result separates the important facts:
 
 `result-outcomes` returns a fresh vector in dispatch order. Each member is the
 core outcome with status, phase, diagnostics, elapsed time, and optional
-replacement observation. An exact second apply returns false from
+replacement observation. Successfully dispatched commands remain present even
+when later workspace state validation fails. An exact second apply returns false from
 `result-created-p` and an empty outcome vector.
 
 ## Use the CLI without an implicit server
@@ -141,8 +143,13 @@ image or enter the debugger.
 [`plan-workspace`](workspace-api.md#plan-workspace-function) matches an existing
 session by name, then proves the exact number of named window links, every
 declared index, and each pane count. Extra, missing, duplicate, or mismatched
-topology signals `workspace-conflict`. No delete, restart, reorder, or compensating
-mutation runs.
+topology signals `workspace-conflict`. During creation, later explicit indexes
+are reserved before automatic windows, and redundant same-index moves dispatch
+nothing. Pane creation and final order follow the declaration. Each split uses
+the pane just created and its larger captured dimension; intermediate tiled
+layouts prevent repeatedly halving one shrinking pane. The requested layout
+runs after the final pane exists. No delete, restart, or compensating mutation
+runs.
 
 Command, cwd, and named layout values are creation inputs. They are not inferred
 from later pane state. A pane may change process or directory without turning an

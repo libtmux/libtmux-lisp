@@ -89,6 +89,64 @@
         (signals libtmux.workspace:workspace-conflict
           (libtmux.workspace:apply-workspace client workspace))))))
 
+(test workspace-apply-handles-zero-index-reservations-and-ordered-large-layouts
+  (with-tmux-fixture (fixture)
+    (with-fixture-client (client fixture)
+      (let* ((zero
+               (libtmux.workspace:make-workspace
+                '(:schema "libtmux.lisp.workspace/1"
+                  :session (:name "zero-first"
+                            :windows
+                            #((:name "main" :index 0
+                               :panes #((:command #("/bin/cat")))))))))
+             (reserved
+               (libtmux.workspace:make-workspace
+                '(:schema "libtmux.lisp.workspace/1"
+                  :session (:name "reserved-zero"
+                            :windows
+                            #((:name "floating"
+                               :panes #((:command #("/bin/cat"))))
+                              (:name "zero" :index 0
+                               :panes #((:command #("/bin/cat")))))))))
+             (directory (fixture-directory fixture))
+             (paths (loop for name in '("a" "b" "c" "d" "e" "f")
+                          for path = (merge-pathnames (format nil "pane-~A/" name)
+                                                      directory)
+                          do (ensure-directories-exist path)
+                          collect (string-right-trim "/" (namestring path))))
+             (large
+               (libtmux.workspace:make-workspace
+                `(:schema "libtmux.lisp.workspace/1"
+                  :session (:name "large-layout"
+                            :windows
+                            #((:name "six" :layout :main-vertical
+                               :panes ,(map 'vector
+                                            (lambda (path)
+                                              (list :cwd path
+                                                    :command #("/bin/cat")))
+                                            paths))))))))
+        (libtmux.workspace:apply-workspace client zero)
+        (libtmux.workspace:apply-workspace client reserved)
+        (fixture-ok fixture "set-option" "-g" "default-size" "80x9")
+        (let* ((result (libtmux.workspace:apply-workspace client large))
+               (snapshot (libtmux.workspace:result-snapshot result))
+               (zero-session (find "zero-first" (libtmux:sessions snapshot)
+                                   :key #'libtmux:name :test #'string=))
+               (reserved-session (find "reserved-zero" (libtmux:sessions snapshot)
+                                       :key #'libtmux:name :test #'string=))
+               (large-session (find "large-layout" (libtmux:sessions snapshot)
+                                    :key #'libtmux:name :test #'string=))
+               (large-window (libtmux:window
+                              (aref (libtmux:window-links large-session) 0))))
+          (is (= 0 (libtmux:index (aref (libtmux:window-links zero-session) 0))))
+          (is (= 0 (libtmux:index
+                    (find "zero" (libtmux:window-links reserved-session)
+                          :key (lambda (link) (libtmux:name (libtmux:window link)))
+                          :test #'string=))))
+          (is (= 6 (length (libtmux:panes large-window))))
+          (is (equal paths (map 'list #'libtmux:current-path
+                                (libtmux:panes large-window)))))))))
+
 (test workspace-cli-applies-only-to-the-explicit-owned-endpoint
   (with-tmux-fixture (fixture)
     (let ((path (merge-pathnames "cli-workspace.json" (fixture-directory fixture))))

@@ -2,6 +2,12 @@
 
 (in-suite workspace)
 
+(defclass explosive-workspace-key () ())
+
+(defmethod print-object ((object explosive-workspace-key) stream)
+  (declare (ignore object stream))
+  (error "Workspace validation invoked an untrusted printer"))
+
 (defun example-workspace-data ()
   (list :schema (copy-seq "libtmux.lisp.workspace/1")
         :session
@@ -90,6 +96,44 @@
                                            :panes #((:command #("-bad")))))))))
     (signals-workspace :invalid-workspace
       (workspace-call :make-workspace data))))
+
+(test workspace-native-data-rejects-unpreserved-names-and-opaque-keys
+  (dolist (name '("floor:colon" "floor.period"))
+    (signals-workspace :invalid-workspace
+      (workspace-call
+       :make-workspace
+       `(:schema "libtmux.lisp.workspace/1"
+         :session (:name ,name :windows #((:name "main" :panes #(()))))))))
+  (signals-workspace :invalid-workspace
+    (workspace-call
+     :make-workspace
+     (list :schema "libtmux.lisp.workspace/1"
+           :session (list :name "safe" :windows
+                          (vector (list :name (format nil "bad~%name")
+                                        :panes #(())))))))
+  (signals-workspace :invalid-workspace
+    (workspace-call
+     :make-workspace
+     (list (make-instance 'explosive-workspace-key) t))))
+
+(test workspace-plan-reserves-explicit-indexes-before-unspecified-windows
+  (let* ((workspace
+           (workspace-call
+            :make-workspace
+            '(:schema "libtmux.lisp.workspace/1"
+              :session (:name "reserved"
+                        :windows #((:name "floating" :panes #(()))
+                                   (:name "zero" :index 0 :panes #(()))
+                                   (:name "automatic" :panes #(())))))))
+         (steps (workspace-call :plan-steps
+                                (workspace-call :plan-workspace workspace))))
+    (is (equal '(:create-session :move-window :create-window :create-window)
+               (map 'list (lambda (step) (workspace-call :step-action step)) steps)))
+    (is (= 1 (getf (workspace-call :step-data (aref steps 1)) :index)))
+    (is (string= "zero"
+                 (getf (workspace-call :step-data (aref steps 2)) :window-name)))
+    (is (string= "automatic"
+                 (getf (workspace-call :step-data (aref steps 3)) :window-name)))))
 
 (test workspace-native-data-rejects-cycles-and-limit-exhaustion
   (let ((cycle (list :schema "libtmux.lisp.workspace/1")))
@@ -228,7 +272,8 @@
 (test workspace-file-loading-is-bounded-and-requires-a-regular-file
   (let* ((directory (uiop:ensure-directory-pathname
                      (sb-posix:mkdtemp "/tmp/libtmux-workspace-XXXXXX")))
-         (path (merge-pathnames "workspace.json" directory)))
+         (path (merge-pathnames "workspace.json" directory))
+         (fifo (merge-pathnames "workspace.fifo" directory)))
     (unwind-protect
          (progn
            (with-open-file (stream path :direction :output :if-exists :error
@@ -246,7 +291,10 @@
                (is (eq :max-input-bytes
                        (workspace-call :workspace-limit condition)))))
            (signals-workspace :invalid-workspace-document
-             (workspace-call :read-workspace #P"/dev/null")))
+             (workspace-call :read-workspace #P"/dev/null"))
+           (sb-posix:mkfifo (namestring fifo) #o600)
+           (signals-workspace :invalid-workspace-document
+             (workspace-call :read-workspace fifo)))
       (uiop:delete-directory-tree directory :validate t))))
 
 (defun fake-workspace-outcome (&key value (present-p t))
@@ -291,6 +339,47 @@
                       :step-action (workspace-call :failed-step condition))))
              (is (typep (libtmux:error-cause condition)
                         'libtmux:command-failed))))
+      (libtmux:close-client client))))
+
+(test workspace-apply-retains-outcome-when-post-command-state-validation-fails
+  (let* ((workspace (workspace-call :make-workspace (example-workspace-data)))
+         (initial (workspace-snapshot :name "other"))
+         (created (workspace-snapshot))
+         (foreign (workspace-snapshot :name "foreign"
+                                      :windows '(("foreign" 8 1))))
+         (client (make-instance 'libtmux:client))
+         (calls 0)
+         (second-outcome nil)
+         (libtmux.workspace::*fetch-snapshot-function*
+           (lambda (ignored-client &rest options)
+             (declare (ignore ignored-client options))
+             initial))
+         (libtmux.workspace::*execute-step-function*
+           (lambda (step ignored-client state options)
+             (declare (ignore step ignored-client options))
+             (incf calls)
+             (if (= calls 1)
+                 (let* ((session (aref (libtmux:sessions created) 0))
+                        (window (libtmux:window (aref (libtmux:window-links session) 0))))
+                   (values (fake-workspace-outcome)
+                           (libtmux.workspace::make-apply-state
+                            :session session :window window)))
+                 (let ((window (aref (libtmux:windows foreign) 0)))
+                   (setf second-outcome (fake-workspace-outcome :value window))
+                   (libtmux.workspace::state-with-window state window second-outcome))))))
+    (unwind-protect
+         (handler-case
+             (progn
+               (workspace-call :apply-workspace client workspace)
+               (fail "Post-command state validation succeeded"))
+           (condition (condition)
+             (unless (workspace-condition-p condition :workspace-apply-failed)
+               (error condition))
+             (let ((outcomes (workspace-call :result-outcomes condition)))
+               (is (= 2 (length outcomes)))
+               (is (eq second-outcome (aref outcomes 1))))
+             (is (eq second-outcome
+                     (libtmux:error-outcome (libtmux:error-cause condition))))))
       (libtmux:close-client client))))
 
 (test workspace-apply-retains-successful-mutations-when-final-proof-fails

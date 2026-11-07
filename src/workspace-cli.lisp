@@ -142,8 +142,7 @@ client without terminating the server. STDOUT receives one JSON result or help.
 STDERR receives concise usage or condition diagnostics. MAIN does not call
 UIOP:QUIT, close caller streams, or enter the debugger.
 
-Related functions: LIBTMUX.WORKSPACE:READ-WORKSPACE,
-LIBTMUX.WORKSPACE:PLAN-WORKSPACE, and LIBTMUX.WORKSPACE:APPLY-WORKSPACE."
+See also: READ-WORKSPACE, PLAN-WORKSPACE, APPLY-WORKSPACE."
   (handler-case
       (run-command arguments stdout)
     (cli-usage-error (condition)

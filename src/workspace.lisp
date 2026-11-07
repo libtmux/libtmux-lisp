@@ -192,8 +192,8 @@ See also: RESULT-SNAPSHOT, RESULT-CREATED-P, APPLY-WORKSPACE."
     (loop for cursor on value by #'cddr
           for key = (first cursor)
           do (unless (member key allowed :test #'eq)
-               (fail-workspace (format nil "~S is not allowed in ~A" key description)
-                               :path (path+ path key)))
+               (fail-workspace (format nil "Unknown key in ~A" description)
+                               :path (path+ path :unknown-key)))
              (when (member key seen :test #'eq)
                (fail-workspace (format nil "~S occurs more than once in ~A" key description)
                                :path (path+ path key)))
@@ -226,6 +226,20 @@ See also: RESULT-SNAPSHOT, RESULT-CREATED-P, APPLY-WORKSPACE."
                             description (if empty-p "" "nonempty "))
                     :path path))
   (copy-seq value))
+
+(defun owned-tmux-name (value path description &key session-p)
+  (let ((name (owned-text value path description)))
+    (when (or (and session-p (find-if (lambda (character)
+                                       (find character ".:"))
+                                     name))
+              (find-if (lambda (character)
+                         (let ((code (char-code character)))
+                           (or (< code 32) (= code 127) (char= character #\\))))
+                       name))
+      (fail-workspace
+       (format nil "~A contains characters tmux cannot preserve" description)
+       :path path))
+    name))
 
 (defun normalized-command (value path max-argv)
   (let ((arguments (finite-sequence value path "Command")))
@@ -274,7 +288,7 @@ See also: RESULT-SNAPSHOT, RESULT-CREATED-P, APPLY-WORKSPACE."
                 (fail-workspace "Window layout must be a supported named-layout keyword"
                                 :path (path+ path :layout)))
               (%make-window-spec
-               :name (owned-text name (path+ path :name) "Window name")
+               :name (owned-tmux-name name (path+ path :name) "Window name")
                :index index :index-p index-p
                :cwd (when cwd-p (owned-text cwd (path+ path :cwd) "Window CWD"))
                :cwd-p cwd-p :layout layout :layout-p layout-p
@@ -312,8 +326,9 @@ See also: RESULT-SNAPSHOT, RESULT-CREATED-P, APPLY-WORKSPACE."
   "Validate closed native DATA and return an owned WORKSPACE without I/O.
 DATA is a keyword plist in schema libtmux.lisp.workspace/1. Lists and vectors
 must be finite. MAX-WINDOWS, MAX-PANES, and MAX-ARGV bound retained topology and
-commands. Unknown or duplicate keys, unsafe text, and shell-like command
-strings signal INVALID-WORKSPACE. Input containers and strings are copied.
+commands. Session names reject period and colon; all names reject characters
+tmux would rewrite. Unknown or duplicate keys, unsafe text, and shell-like
+command strings signal INVALID-WORKSPACE. Input containers and strings are copied.
 
 See also: WORKSPACE-DATA, PLAN-WORKSPACE, PARSE-WORKSPACE."
   (checked-limit max-windows :max-windows 1)
@@ -358,7 +373,8 @@ See also: WORKSPACE-DATA, PLAN-WORKSPACE, PARSE-WORKSPACE."
                                   :path #(:session :windows)))
                 (let* ((session
                          (%make-session-spec
-                          :name (owned-text name #(:session :name) "Session name")
+                          :name (owned-tmux-name name #(:session :name) "Session name"
+                                                 :session-p t)
                           :cwd (when cwd-p (owned-text cwd #(:session :cwd) "Session CWD"))
                           :cwd-p cwd-p :windows (coerce specs 'simple-vector)))
                        (normalized (normalized-data session)))
@@ -395,54 +411,68 @@ See also: MAKE-WORKSPACE, PLAN-WORKSPACE."
             (when (pane-spec-command-p pane)
               (list :command (deep-copy (pane-spec-command pane)))))))
 
+(defun append-pane-steps (steps session window)
+  (let* ((panes (window-spec-panes window))
+         (last-position (1- (length panes)))
+         (layout (and (window-spec-layout-p window) (window-spec-layout window))))
+    (loop for position from 1 to last-position
+          for pane = (aref panes position)
+          do (setf steps
+                   (append steps
+                           (list (apply #'make-step :split-pane
+                                        :direction :adaptive :target :last
+                                        (pane-step-data session window pane position)))))
+             (when (< position last-position)
+               (setf steps
+                     (append steps
+                             (list (make-step :select-layout
+                                              :window-name (window-spec-name window)
+                                              :layout :tiled))))))
+    (when layout
+      (setf steps
+            (append steps (list (make-step :select-layout
+                                           :window-name (window-spec-name window)
+                                           :layout layout)))))
+    steps))
+
+(defun first-free-index (reserved)
+  (loop for index from 0
+        unless (member index reserved :test #'=) return index))
+
 (defun creation-steps (workspace)
   (let* ((session (slot-value workspace 'session))
          (windows (session-spec-windows session))
          (first (aref windows 0))
+         (remaining (loop for position from 1 below (length windows)
+                          collect (aref windows position)))
+         (explicit (remove-if-not #'window-spec-index-p remaining))
+         (automatic (remove-if #'window-spec-index-p remaining))
+         (reserved (mapcar #'window-spec-index explicit))
          (steps
            (list (apply #'make-step :create-session
                         :session-name (session-spec-name session)
                         :window-name (window-spec-name first)
                         (first-pane-data session first)))))
-    (when (window-spec-index-p first)
+    (when (or (window-spec-index-p first) reserved)
       (setf steps
             (append steps
                     (list (make-step :move-window
                                      :window-name (window-spec-name first)
-                                     :index (window-spec-index first))))))
-    (loop for pane across (window-spec-panes first) for position from 0
-          when (plusp position)
-            do (setf steps
-                     (append steps
-                             (list (apply #'make-step :split-pane
-                                          (pane-step-data session first pane position))))))
-    (when (window-spec-layout-p first)
+                                     :index (if (window-spec-index-p first)
+                                                (window-spec-index first)
+                                                (first-free-index reserved)))))))
+    (setf steps (append-pane-steps steps session first))
+    (dolist (window (append explicit automatic))
       (setf steps
-            (append steps (list (make-step :select-layout
-                                           :window-name (window-spec-name first)
-                                           :layout (window-spec-layout first))))))
-    (loop for window across windows for window-position from 0
-          when (plusp window-position)
-            do (setf steps
-                     (append steps
-                             (list
-                              (apply #'make-step :create-window
-                                     :window-name (window-spec-name window)
-                                     (append
-                                      (when (window-spec-index-p window)
-                                        (list :index (window-spec-index window)))
-                                      (first-pane-data session window))))))
-               (loop for pane across (window-spec-panes window) for position from 0
-                     when (plusp position)
-                       do (setf steps
-                                (append steps
-                                        (list (apply #'make-step :split-pane
-                                                     (pane-step-data session window pane position))))))
-               (when (window-spec-layout-p window)
-                 (setf steps
-                       (append steps (list (make-step :select-layout
-                                                      :window-name (window-spec-name window)
-                                                      :layout (window-spec-layout window)))))))
+            (append steps
+                    (list
+                     (apply #'make-step :create-window
+                            :window-name (window-spec-name window)
+                            (append
+                             (when (window-spec-index-p window)
+                               (list :index (window-spec-index window)))
+                             (first-pane-data session window))))))
+      (setf steps (append-pane-steps steps session window)))
     (coerce steps 'simple-vector)))
 
 (defun conflict (message &optional path)
@@ -487,7 +517,9 @@ Without SNAPSHOT, return the deterministic creation plan. With SNAPSHOT, return
 that plan when the named session is absent, an empty proven no-op when topology
 matches, or signal WORKSPACE-CONFLICT before dispatch. Planning compares window
 names, declared indexes, and pane counts; creation-only cwd, argv, and layout
-are not inferred from mutable live state. No tmux I/O occurs.
+are not inferred from mutable live state. Explicit indexes are reserved before
+automatic windows. Pane creation and final order follow the declaration. No
+tmux I/O occurs.
 
 See also: PLAN-STEPS, WORKSPACE-DATA, APPLY-WORKSPACE."
   (check-type workspace workspace)
@@ -856,38 +888,58 @@ See also: READ-WORKSPACE, MAKE-WORKSPACE, WORKSPACE-DATA."
      &allow-other-keys)
   "Read one bounded regular UTF-8 JSON file and return an owned WORKSPACE.
 PATH is opened for input and never modified. MAX-INPUT-BYTES is enforced on
-bytes read even if the file changes after opening. Directories and special
-files are rejected. Other OPTIONS are forwarded to PARSE-WORKSPACE. Signals
+bytes read even if the file changes after opening. The descriptor is opened
+nonblocking, then directories and special files are rejected before reading.
+Other OPTIONS are forwarded to PARSE-WORKSPACE. Signals
 INVALID-WORKSPACE-DOCUMENT or WORKSPACE-LIMIT-EXCEEDED and closes the stream.
 
 See also: PARSE-WORKSPACE, WORKSPACE-DATA."
   (checked-limit max-input-bytes :max-input-bytes 1)
   (handler-case
-      (with-open-file (stream path :direction :input
-                                  :element-type '(unsigned-byte 8))
-        #+sbcl
-        (let ((status (sb-posix:fstat (sb-sys:fd-stream-fd stream))))
-          (unless (sb-posix:s-isreg (sb-posix:stat-mode status))
-            (fail-document "Workspace path must name a regular file"))
-          (when (> (sb-posix:stat-size status) max-input-bytes)
-            (fail-document
-             (format nil "Workspace file exceeds ~D bytes" max-input-bytes)
-             :limit :max-input-bytes)))
-        (let* ((buffer (make-array (1+ max-input-bytes)
-                                   :element-type '(unsigned-byte 8)))
-               (count (read-sequence buffer stream)))
-          (when (> count max-input-bytes)
-            (fail-document
-             (format nil "Workspace file exceeds ~D bytes" max-input-bytes)
-             :limit :max-input-bytes))
-          (let ((source
-                  (handler-case
-                      #+sbcl (sb-ext:octets-to-string
-                              buffer :start 0 :end count :external-format :utf-8)
-                      #-sbcl (map 'string #'code-char (subseq buffer 0 count))
-                    (error (cause)
-                      (fail-document "Workspace file is not valid UTF-8" :cause cause)))))
-            (apply #'parse-workspace source options))))
+      (let ((stream nil))
+        (unwind-protect
+             (progn
+               #+sbcl
+               (let ((descriptor
+                       (sb-posix:open (namestring (pathname path))
+                                      (logior sb-posix:o-rdonly
+                                              sb-posix:o-nonblock #o2000000))))
+                 (handler-case
+                     (let ((status (sb-posix:fstat descriptor)))
+                       (unless (sb-posix:s-isreg (sb-posix:stat-mode status))
+                         (fail-document "Workspace path must name a regular file"))
+                       (when (> (sb-posix:stat-size status) max-input-bytes)
+                         (fail-document
+                          (format nil "Workspace file exceeds ~D bytes" max-input-bytes)
+                          :limit :max-input-bytes))
+                       (setf stream
+                             (sb-sys:make-fd-stream
+                              descriptor :input t :element-type '(unsigned-byte 8)
+                              :buffering :full :auto-close t :file path))
+                       (setf descriptor nil))
+                   (error (condition)
+                     (when descriptor (sb-posix:close descriptor))
+                     (error condition))))
+               #-sbcl
+               (setf stream (open path :direction :input
+                                       :element-type '(unsigned-byte 8)))
+               (let* ((buffer (make-array (1+ max-input-bytes)
+                                          :element-type '(unsigned-byte 8)))
+                      (count (read-sequence buffer stream)))
+                 (when (> count max-input-bytes)
+                   (fail-document
+                    (format nil "Workspace file exceeds ~D bytes" max-input-bytes)
+                    :limit :max-input-bytes))
+                 (let ((source
+                         (handler-case
+                             #+sbcl (sb-ext:octets-to-string
+                                     buffer :start 0 :end count :external-format :utf-8)
+                             #-sbcl (map 'string #'code-char (subseq buffer 0 count))
+                           (error (cause)
+                             (fail-document "Workspace file is not valid UTF-8"
+                                            :cause cause)))))
+                   (apply #'parse-workspace source options))))
+          (when stream (close stream))))
     (workspace-error (condition) (error condition))
     (error (cause)
       (fail-document "Cannot read the workspace file" :cause cause))))
@@ -918,13 +970,14 @@ See also: PARSE-WORKSPACE, WORKSPACE-DATA."
              :outcome outcome))
     value))
 
-(defun state-with-window (state window)
+(defun state-with-window (state window outcome)
   (let ((link
           (find (apply-state-session state) (libtmux:window-links window)
                 :key #'libtmux:session :test #'libtmux:same-entity-p)))
     (unless link
       (error 'libtmux:incomplete-snapshot
-             :message "Workspace replacement window lacks its declared session link"))
+             :message "Workspace replacement window lacks its declared session link"
+             :outcome outcome))
     (make-apply-state :session (libtmux:session link) :window window)))
 
 (defun matching-state-link (state)
@@ -968,14 +1021,17 @@ See also: PARSE-WORKSPACE, WORKSPACE-DATA."
          (values outcome (make-apply-state :session session :window window))))
       (:move-window
        (ensure-step-window state data)
-       (let* ((outcome
-                (apply #'libtmux:move-window client (matching-state-link state)
-                       (apply-state-session state) (getf data :index) options))
-              (link (required-outcome-value outcome 'libtmux:window-link
-                                            "Window move")))
-         (values outcome
-                 (make-apply-state :session (libtmux:session link)
-                                   :window (libtmux:window link)))))
+       (let ((current (matching-state-link state)))
+         (if (= (libtmux:index current) (getf data :index))
+             (values nil state)
+             (let* ((outcome
+                      (apply #'libtmux:move-window client current
+                             (apply-state-session state) (getf data :index) options))
+                    (link (required-outcome-value outcome 'libtmux:window-link
+                                                  "Window move")))
+               (values outcome
+                       (make-apply-state :session (libtmux:session link)
+                                         :window (libtmux:window link)))))))
       (:create-window
        (let* ((arguments
                 (append (list :name (getf data :window-name))
@@ -991,20 +1047,31 @@ See also: PARSE-WORKSPACE, WORKSPACE-DATA."
                 (apply #'libtmux:new-window client (apply-state-session state) arguments))
               (window (required-outcome-value outcome 'libtmux:window
                                               "Window creation")))
-         (values outcome (state-with-window state window))))
+         (values outcome (state-with-window state window outcome))))
       (:split-pane
        (ensure-step-window state data)
        (let* ((panes (libtmux:panes (apply-state-window state)))
+              (target (ecase (getf data :target)
+                        (:first (aref panes 0))
+                        (:last (aref panes (1- (length panes))))))
+              (declared-direction (getf data :direction))
+              (direction
+                (if (eq declared-direction :adaptive)
+                    (if (>= (libtmux:width target) (libtmux:height target))
+                        :horizontal
+                        :vertical)
+                    declared-direction))
               (arguments
                 (append
+                 (list :direction direction)
                  (multiple-value-bind (cwd present-p) (plist-value data :cwd)
                    (when present-p (list :cwd cwd)))
                  (multiple-value-bind (command present-p) (plist-value data :command)
                    (when present-p (list :command command)))
                  options))
-              (outcome (apply #'libtmux:split-pane client (aref panes 0) arguments))
+              (outcome (apply #'libtmux:split-pane client target arguments))
               (pane (required-outcome-value outcome 'libtmux:pane "Pane split")))
-         (values outcome (state-with-window state (libtmux:window pane)))))
+         (values outcome (state-with-window state (libtmux:window pane) outcome))))
       (:select-layout
        (ensure-step-window state data)
        (let* ((outcome
@@ -1012,7 +1079,7 @@ See also: PARSE-WORKSPACE, WORKSPACE-DATA."
                        (getf data :layout) options))
               (window (required-outcome-value outcome 'libtmux:window
                                               "Layout selection")))
-         (values outcome (state-with-window state window)))))))
+         (values outcome (state-with-window state window outcome)))))))
 
 (setf *execute-step-function* #'execute-core-step)
 
@@ -1046,9 +1113,9 @@ topology. TIMEOUT and OUTPUT-LIMIT, when supplied, apply separately to each core
 operation; CANCEL-TOKEN is shared. Conflicts dispatch no mutation.
 
 Failure after dispatch signals WORKSPACE-APPLY-FAILED. RESULT-OUTCOMES retains
-every completed outcome plus a failing core outcome when available; FAILED-STEP
-identifies the planned step. Final-proof failure has no failed step. No rollback
-or automatic retry occurs.
+every dispatched outcome, including one whose post-command observation cannot
+advance workspace state; FAILED-STEP identifies the planned step. Final-proof
+failure has no failed step. No rollback or automatic retry occurs.
 
 See also: PLAN-WORKSPACE, RESULT-SNAPSHOT, RESULT-OUTCOMES, FAILED-STEP."
   (check-type client libtmux:client)
@@ -1066,7 +1133,7 @@ See also: PLAN-WORKSPACE, RESULT-SNAPSHOT, RESULT-OUTCOMES, FAILED-STEP."
             do (handler-case
                    (multiple-value-bind (outcome next-state)
                        (funcall *execute-step-function* step client state options)
-                     (push outcome outcomes)
+                     (when outcome (push outcome outcomes))
                      (setf state next-state))
                  (error (cause)
                    (apply-failure cause client step outcomes))))

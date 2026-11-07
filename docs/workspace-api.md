@@ -27,9 +27,9 @@ topology. TIMEOUT and OUTPUT-LIMIT, when supplied, apply separately to each core
 operation; CANCEL-TOKEN is shared. Conflicts dispatch no mutation.
 
 Failure after dispatch signals WORKSPACE-APPLY-FAILED. RESULT-OUTCOMES retains
-every completed outcome plus a failing core outcome when available; FAILED-STEP
-identifies the planned step. Final-proof failure has no failed step. No rollback
-or automatic retry occurs.
+every dispatched outcome, including one whose post-command observation cannot
+advance workspace state; FAILED-STEP identifies the planned step. Final-proof
+failure has no failed step. No rollback or automatic retry occurs.
 
 
 See also: [failed-step](#failed-step-function), [plan-workspace](#plan-workspace-function), [result-outcomes](#result-outcomes-function), [result-snapshot](#result-snapshot-function).
@@ -58,8 +58,9 @@ See also: [apply-workspace](#apply-workspace-function), [result-outcomes](#resul
 Validate closed native DATA and return an owned WORKSPACE without I/O.
 DATA is a keyword plist in schema libtmux.lisp.workspace/1. Lists and vectors
 must be finite. MAX-WINDOWS, MAX-PANES, and MAX-ARGV bound retained topology and
-commands. Unknown or duplicate keys, unsafe text, and shell-like command
-strings signal INVALID-WORKSPACE. Input containers and strings are copied.
+commands. Session names reject period and colon; all names reject characters
+tmux would rewrite. Unknown or duplicate keys, unsafe text, and shell-like
+command strings signal INVALID-WORKSPACE. Input containers and strings are copied.
 
 
 See also: [parse-workspace](#parse-workspace-function), [plan-workspace](#plan-workspace-function), [workspace-data](#workspace-data-function).
@@ -108,7 +109,9 @@ Without SNAPSHOT, return the deterministic creation plan. With SNAPSHOT, return
 that plan when the named session is absent, an empty proven no-op when topology
 matches, or signal WORKSPACE-CONFLICT before dispatch. Planning compares window
 names, declared indexes, and pane counts; creation-only cwd, argv, and layout
-are not inferred from mutable live state. No tmux I/O occurs.
+are not inferred from mutable live state. Explicit indexes are reserved before
+automatic windows. Pane creation and final order follow the declaration. No
+tmux I/O occurs.
 
 
 See also: [apply-workspace](#apply-workspace-function), [plan-steps](#plan-steps-function), [workspace-data](#workspace-data-function).
@@ -123,8 +126,9 @@ See also: [apply-workspace](#apply-workspace-function), [plan-steps](#plan-steps
 
 Read one bounded regular UTF-8 JSON file and return an owned WORKSPACE.
 PATH is opened for input and never modified. MAX-INPUT-BYTES is enforced on
-bytes read even if the file changes after opening. Directories and special
-files are rejected. Other OPTIONS are forwarded to PARSE-WORKSPACE. Signals
+bytes read even if the file changes after opening. The descriptor is opened
+nonblocking, then directories and special files are rejected before reading.
+Other OPTIONS are forwarded to PARSE-WORKSPACE. Signals
 INVALID-WORKSPACE-DOCUMENT or WORKSPACE-LIMIT-EXCEEDED and closes the stream.
 
 
@@ -351,7 +355,7 @@ client without terminating the server. STDOUT receives one JSON result or help.
 STDERR receives concise usage or condition diagnostics. MAIN does not call
 UIOP:QUIT, close caller streams, or enter the debugger.
 
-Related functions: LIBTMUX.WORKSPACE:READ-WORKSPACE,
-LIBTMUX.WORKSPACE:PLAN-WORKSPACE, and LIBTMUX.WORKSPACE:APPLY-WORKSPACE.
+
+See also: [apply-workspace](#apply-workspace-function), [plan-workspace](#plan-workspace-function), [read-workspace](#read-workspace-function).
 
 [Source](../src/workspace-cli.lisp)

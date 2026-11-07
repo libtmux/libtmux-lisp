@@ -46,8 +46,10 @@ The root accepts only `:schema` and `:session`. A session accepts `:name`,
 `:cwd`, optional `:layout`, and `:panes`. A pane accepts optional `:cwd` and
 optional `:command`. Unknown or duplicate keys are errors.
 
-Names are nonempty strings without NUL. Window names must be unique. A window
-has at least one pane. `:index`, when present, is a unique nonnegative integer.
+Names are nonempty strings that tmux preserves exactly. Session names exclude
+periods and colons; all names exclude NUL, control characters and backslash.
+Window names must be unique. A window has at least one pane. `:index`, when
+present, is a unique nonnegative integer.
 Commands are nonempty finite vectors or lists of NUL-free strings and cross no
 shell boundary. CWD values are nonempty NUL-free strings and remain strings;
 the library does not reinterpret remote paths through the local filesystem.
@@ -87,17 +89,19 @@ the workspace.
 The JSON grammar is closed. Duplicate and unknown members are errors. External
 names are compared as strings and are not interned. Defaults bound UTF-8 input
 bytes, nesting, node count, string length, windows, panes per window, total
-panes, and argv length. `read-workspace` additionally requires a regular file
-and bounds the bytes read. JSON null and floating-point numbers are not valid
-workspace values.
+panes, and argv length. `read-workspace` opens without blocking on special
+files, validates that same descriptor is a regular file, and bounds the bytes
+read. JSON null and floating-point numbers are not valid workspace values.
 
 ## Planning and reuse
 
 An offline plan contains `:create-session`, optional `:move-window`,
 `:create-window`, `:split-pane`, and optional `:select-layout` steps in execution
 order. The move step gives the first window an explicit requested index because
-tmux does not accept that index on `new-session`. A plan against a snapshot
-behaves as follows:
+tmux does not accept that index on `new-session`. When its index is omitted, a
+move can reserve every later explicit index; those indexed windows are created
+before remaining automatic windows. A move already at its destination is a
+zero-command step. A plan against a snapshot behaves as follows:
 
 - no session with the declared name: return the creation plan;
 - one session with exactly the declared window names, optional indexes, and
@@ -122,13 +126,18 @@ process supervision should use explicit core operations.
 either returns a no-op result or executes each step in order. The first window
 and pane are created by `libtmux:new-session`; later windows use
 `libtmux:new-window`; later panes use `libtmux:split-pane`; named layouts use
-`libtmux:select-layout`.
+`libtmux:select-layout`. Pane creation follows declaration order. Each split
+targets the pane just created and chooses its larger captured dimension; tiled
+rebalancing between splits prevents repeatedly halving one shrinking pane. The
+declared layout is applied once every pane exists. An omitted final layout
+remains unmanaged.
 
-Every successful operation's `libtmux:command-outcome` is retained in the
-result. If a later step fails, `workspace-apply-failed` retains completed
-outcomes and the failing step. The condition makes no rollback claim. Callers
-must inspect core outcome status and dispatch phase before deciding whether a
-retry is safe.
+Every dispatched operation's `libtmux:command-outcome` is retained in the
+result, including a successful mutation whose replacement observation cannot
+advance workspace execution state. If a later step fails,
+`workspace-apply-failed` retains completed outcomes and the failing step. The
+condition makes no rollback claim. Callers must inspect core outcome status and
+dispatch phase before deciding whether a retry is safe.
 
 After a successful creation, apply acquires one replacement snapshot and proves
 that it now plans as a no-op. Failure to prove the final topology is reported;

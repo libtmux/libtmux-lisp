@@ -280,10 +280,13 @@
       (let* ((symbol (find-symbol "MAIN" :libtmux.workspace.cli))
              (*package* (find-package :libtmux.workspace.cli)))
         (format out "## Command-line adapter~%~%The separate `libtmux/workspace/cli` system exports one testable entry point. See [read-workspace](#read-workspace-function), [plan-workspace](#plan-workspace-function), and [apply-workspace](#apply-workspace-function).~%~%")
-        (format out "<a id=\"main-function\"></a>~%~%### main~%~%`~A`~%~%~A~%~%~A~%~%"
-                (signature-text (cons symbol (sb-introspect:function-lambda-list symbol)))
-                (required-documentation symbol 'function)
-                (source-link symbol (function-kind symbol)))))))
+        (multiple-value-bind (documentation related)
+            (documentation-parts symbol 'function :libtmux.workspace)
+          (format out "<a id=\"main-function\"></a>~%~%### main~%~%`~A`~%~%~A~%~%"
+                  (signature-text (cons symbol (sb-introspect:function-lambda-list symbol)))
+                  documentation)
+          (when related (format out "~A~%~%" related))
+          (format out "~A~%~%" (source-link symbol (function-kind symbol))))))))
 
 (defun render-modules ()
   (with-output-to-string (out)
