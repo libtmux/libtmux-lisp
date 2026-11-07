@@ -5,13 +5,15 @@
                     ((equal (first arguments) "query") :query)
                     ((equal (first arguments) "regex") :regex)
                     ((equal (first arguments) "json") :json)
+                    ((equal (first arguments) "workspace") :workspace)
                     ((equal (first arguments) "integration") :integration)
-                    (t (error "Expected unit, query, regex, json or integration")))))
+                    (t (error "Expected unit, query, regex, json, workspace or integration")))))
   (asdf:load-system (ecase suite
                       (:unit "libtmux/tests")
                       (:query "libtmux/tests/query")
                       (:regex "libtmux/tests/regex")
                       (:json "libtmux/tests/json")
+                      (:workspace "libtmux/tests/workspace")
                       (:integration "libtmux/tests/integration")))
   (format t "~&SBCL ~A; ASDF ~A; UIOP ~A~%"
           (lisp-implementation-version) (asdf:asdf-version)

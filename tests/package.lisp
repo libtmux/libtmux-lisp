@@ -8,6 +8,7 @@
 (def-suite query)
 (def-suite regex)
 (def-suite json)
+(def-suite workspace)
 (def-suite integration)
 
 (defun run-suite (name)
@@ -16,4 +17,5 @@
           (:query 'query)
           (:regex 'regex)
           (:json 'json)
+          (:workspace 'workspace)
           (:integration 'integration))))

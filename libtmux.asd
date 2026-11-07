@@ -104,6 +104,14 @@
   :components ((:file "src/json"
                       :description "Closed versioned filter documents with bounded event decoding.")))
 
+(defsystem "libtmux/workspace"
+  :description "Owned workspace descriptions, pure plans and explicit application"
+  :depends-on ("libtmux" "com.inuoe.jzon")
+  :in-order-to ((test-op (test-op "libtmux/tests/workspace")))
+  :serial t
+  :components ((:file "src/workspace"
+                      :description "Closed workspace data, bounded JSON, pure topology plans and explicit apply.")))
+
 (defsystem "libtmux/tests/query"
   :description "Local native-query semantic tests"
   :depends-on ("libtmux/tests" "libtmux/query")
@@ -133,6 +141,16 @@
              (declare (ignore operation component))
              (unless (uiop:symbol-call :libtmux.tests :run-suite :json)
                (error "libtmux JSON tests failed"))))
+
+(defsystem "libtmux/tests/workspace"
+  :description "Local workspace validation and planning tests"
+  :depends-on ("libtmux/tests" "libtmux/workspace")
+  :serial t
+  :components ((:file "tests/workspace"))
+  :perform (test-op (operation component)
+             (declare (ignore operation component))
+             (unless (uiop:symbol-call :libtmux.tests :run-suite :workspace)
+               (error "libtmux workspace tests failed"))))
 
 (defsystem "libtmux/tests/integration"
   :description "Owned tmux fixtures and external-operation tests"
