@@ -115,6 +115,23 @@ The caller owns the isolated daemon; repeating this recipe there is an error."
        (q:matching *wide-active-filter* (tm:panes snapshot))))
 ;;; docs:end
 
+;;; docs:relation
+(defparameter *active-session-filter*
+  (q:compile-filter
+   :session
+   '(:any :session/window-links
+     (:is :link/window
+      (:any :window/panes
+       (:= :pane/active t))))))
+
+(defun active-session-data (snapshot)
+  "Return owned data for sessions with an active pane; no I/O."
+  (map 'vector #'tm:entity-data
+       (q:items
+        (q:where (q:from (tm:sessions snapshot) :model :session)
+                 *active-session-filter*))))
+;;; docs:end
+
 ;;; docs:buffers
 (defun round-trip-bytes (client)
   "Store and retrieve a named binary buffer, including NUL and invalid UTF-8."

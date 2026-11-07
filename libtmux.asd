@@ -77,15 +77,15 @@
                (error "libtmux unit tests failed"))))
 
 (defsystem "libtmux/query"
-  :description "Validated native scalar queries over captured observations"
+  :description "Validated native queries over captured observations"
   :depends-on ("libtmux")
   :in-order-to ((test-op (test-op "libtmux/tests/query")))
   :serial t
   :components ((:file "src/query"
-                      :description "Owned scalar expressions, local predicates and strict cardinality.")))
+                      :description "Owned expressions, relation traversal, eager query sets and strict cardinality.")))
 
 (defsystem "libtmux/tests/query"
-  :description "Local scalar-query semantic tests"
+  :description "Local native-query semantic tests"
   :depends-on ("libtmux/tests" "libtmux/query")
   :serial t
   :components ((:file "tests/query"))

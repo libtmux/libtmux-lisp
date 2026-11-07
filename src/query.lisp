@@ -5,6 +5,7 @@ Loading this package adds no transport dependency and performs no tmux I/O.")
   (:export
    #:compiled-filter #:compile-filter #:predicate #:matching
    #:fields #:expression #:required-fields #:required-relations #:explain
+   #:query-set #:from #:where #:where-if #:order-by #:items #:query-set-model
    #:one #:one-or-none
    #:invalid-filter #:invalid-query-target #:query-limit-exceeded
    #:no-match #:ambiguous-match
@@ -99,10 +100,16 @@ Loading this package adds no transport dependency and performs no tmux I/O.")
    (expression :initarg :expression)
    (root :initarg :root)
    (required-fields :initarg :required-fields)
+   (required-relations :initarg :required-relations)
    (registry-version :initarg :registry-version)
    (limits :initarg :limits)
    (execution-limit :initarg :execution-limit))
-  (:documentation "An owned validated scalar expression and reusable local evaluator."))
+  (:documentation "An owned validated expression and reusable local evaluator."))
+
+(defclass query-set ()
+  ((contents :initarg :contents)
+   (model :initarg :model :initform nil))
+  (:documentation "An eager owned local selection with optional captured-model metadata."))
 
 (defconstant +default-max-depth+ 64)
 (defconstant +default-max-input-visits+ 10000)
@@ -317,7 +324,27 @@ Loading this package adds no transport dependency and performs no tmux I/O.")
     (record-requirement key requirements seen)
     field))
 
-(defun compile-node (model form requirements seen limits &optional path)
+(defun relation-field (model form operator requirements seen)
+  (let* ((key (second form))
+         (field (checked-field model key operator))
+         (kind (libtmux.internal::field-spec-kind field))
+         (cardinality (libtmux.internal::field-spec-cardinality field))
+         (expected-cardinality (if (eq operator :is) :one :many)))
+    (unless (eq kind :relation)
+      (let ((*diagnostic-expected* :relation)
+            (*diagnostic-received* kind))
+        (fail-filter model form "Operator ~S requires a relation field" operator)))
+    (unless (eq cardinality expected-cardinality)
+      (let ((*diagnostic-expected* expected-cardinality)
+            (*diagnostic-received* cardinality))
+        (fail-filter model form "Operator ~S requires a ~S relation"
+                     operator expected-cardinality)))
+    (record-requirement key requirements seen)
+    field))
+
+(defun compile-node
+    (model form requirements seen relation-requirements relation-seen limits
+     &optional path)
   (let ((*compile-path* path))
     (unless (consp form)
       (let ((*diagnostic-expected* :nonempty-list))
@@ -327,14 +354,12 @@ Loading this package adds no transport dependency and performs no tmux I/O.")
     (unless spec
       (let ((*diagnostic-expected* :registered-query-operator)
             (*diagnostic-received* (safe-designator-summary operator)))
-        (fail-filter model form "Unsupported scalar query operator")))
-    (unless (eq :scalar (operator-spec-stage spec))
+        (fail-filter model form "Unsupported native query operator")))
+    (when (eq :regex (operator-spec-stage spec))
       (let ((*diagnostic-expected* :scalar)
             (*diagnostic-received* (operator-spec-stage spec)))
         (fail-filter model form
-                     (if (eq :regex (operator-spec-stage spec))
-                         "Operator ~S requires the unloaded libtmux/regex system"
-                         "Operator ~S belongs to the later relation-query stage")
+                     "Operator ~S requires the unloaded libtmux/regex system"
                      operator)))
     (unless (or (eq :variadic (operator-spec-arity spec))
                 (= (operator-spec-arity spec) (length (rest form))))
@@ -347,7 +372,8 @@ Loading this package adds no transport dependency and performs no tmux I/O.")
        (let ((children
                (coerce (loop for child in (rest form)
                              for index from 1
-                             collect (compile-node model child requirements seen limits
+                             collect (compile-node model child requirements seen
+                                                   relation-requirements relation-seen limits
                                                    (cons index path)))
                        'simple-vector)))
          (make-query-node
@@ -360,7 +386,8 @@ Loading this package adds no transport dependency and performs no tmux I/O.")
        (let ((children
                (coerce (loop for child in (rest form)
                              for index from 1
-                             collect (compile-node model child requirements seen limits
+                             collect (compile-node model child requirements seen
+                                                   relation-requirements relation-seen limits
                                                    (cons index path)))
                        'simple-vector)))
          (make-query-node
@@ -372,7 +399,8 @@ Loading this package adds no transport dependency and performs no tmux I/O.")
       (:not
        (unless (= 2 (length form))
          (fail-filter model form "Operator :NOT expects one child"))
-       (let ((child (compile-node model (second form) requirements seen limits
+       (let ((child (compile-node model (second form) requirements seen
+                                  relation-requirements relation-seen limits
                                   (cons 1 path))))
          (make-query-node operator
                           (lambda (entity context)
@@ -455,10 +483,45 @@ Loading this package adds no transport dependency and performs no tmux I/O.")
                     (nth-value 1 (libtmux.internal::resolved-field-value entity field))))
               (if (eq operator :present) present-p (not present-p))))
           :field key)))
-      ((:any :all :none :is :regex-search :regex-full-match)
+      ((:any :all :none :is)
+       (let* ((field (relation-field model form operator
+                                     relation-requirements relation-seen))
+              (key (libtmux.internal::field-spec-key field))
+              (target (libtmux.internal::field-spec-target field))
+              (child (compile-node target (third form) requirements seen
+                                   relation-requirements relation-seen limits
+                                   (cons 2 path))))
+         (make-query-node
+          operator
+          (lambda (entity context)
+            (multiple-value-bind (value present-p)
+                (libtmux.internal::resolved-field-value entity field)
+              (ecase operator
+                (:is
+                 (and present-p
+                      (progn
+                        (execution-checkpoint context)
+                        (evaluate-node child value context))))
+                (:any
+                 (loop for related across value
+                       thereis (progn
+                                 (execution-checkpoint context)
+                                 (evaluate-node child related context))))
+                (:all
+                 (loop for related across value
+                       always (progn
+                                (execution-checkpoint context)
+                                (evaluate-node child related context))))
+                (:none
+                 (loop for related across value
+                       never (progn
+                               (execution-checkpoint context)
+                               (evaluate-node child related context)))))))
+          :field key :children (vector child))))
+      ((:regex-search :regex-full-match)
        (fail-filter model form "Operator ~S requires an unloaded optional query system" operator))
       (otherwise
-       (fail-filter model form "Unsupported scalar query operator ~S" operator))))))
+       (fail-filter model form "Unsupported native query operator ~S" operator))))))
 
 (defun compile-filter
     (model form
@@ -469,8 +532,9 @@ Loading this package adds no transport dependency and performs no tmux I/O.")
        (max-string-length +default-max-string-length+)
        (max-retained-characters +default-max-retained-characters+)
        (max-execution-visits +default-max-execution-visits+))
-  "Compile FORM for captured MODEL into an owned local scalar filter.
-This first scalar system performs no I/O and never evaluates FORM as Lisp code.
+  "Compile FORM for captured MODEL into an owned local filter.
+Scalar and registered relation operators perform no I/O and never evaluate
+FORM as Lisp code. Regex operators require the optional regex system.
 Keyword limits bound container depth, input visits, membership size, copied
 character counts and later predicate execution. Limit failures signal
 QUERY-LIMIT-EXCEEDED; malformed or mistyped forms signal INVALID-FILTER."
@@ -502,15 +566,20 @@ QUERY-LIMIT-EXCEEDED; malformed or mistyped forms signal INVALID-FILTER."
            (owned (validated-owned-form model form limits))
            (requirements (make-array 4 :adjustable t :fill-pointer 0))
            (seen (make-hash-table :test 'eq))
-           (root (compile-node model owned requirements seen limits)))
+           (relation-requirements (make-array 4 :adjustable t :fill-pointer 0))
+           (relation-seen (make-hash-table :test 'eq))
+           (root (compile-node model owned requirements seen
+                               relation-requirements relation-seen limits)))
       (make-instance 'compiled-filter :model model :expression owned
                      :root root :required-fields (coerce requirements 'simple-vector)
+                     :required-relations
+                     (coerce relation-requirements 'simple-vector)
                      :registry-version libtmux.internal::+registry-version+
                      :limits limits
                      :execution-limit max-execution-visits))))
 
 (defun expression (filter)
-  "Return a fresh ordinary-data copy of FILTER's canonical scalar expression."
+  "Return a fresh ordinary-data copy of FILTER's canonical native expression."
   (check-type filter compiled-filter)
   (nth-value 0
     (validated-owned-form (slot-value filter 'model)
@@ -523,9 +592,9 @@ QUERY-LIMIT-EXCEEDED; malformed or mistyped forms signal INVALID-FILTER."
   (copy-seq (slot-value filter 'required-fields)))
 
 (defun required-relations (filter)
-  "Return a fresh empty vector; the scalar query system does not load relations."
+  "Return a fresh vector of relation fields in first-occurrence order."
   (check-type filter compiled-filter)
-  (make-array 0))
+  (copy-seq (slot-value filter 'required-relations)))
 
 (defun field-description (field)
   (list :key (libtmux.internal::field-spec-key field)
@@ -551,7 +620,7 @@ describe capture decoding and do not restrict native query integer operands."
   (map 'simple-vector #'field-description (libtmux.internal::model-fields model)))
 
 (defun explain (filter)
-  "Return fresh execution metadata for FILTER. The scalar system is local and acquires nothing."
+  "Return fresh execution metadata for FILTER. Query execution is local and acquires nothing."
   (check-type filter compiled-filter)
   (list :model (slot-value filter 'model)
         :registry-version (slot-value filter 'registry-version)
@@ -587,6 +656,9 @@ Each invocation receives a fresh execution budget and performs no tmux I/O."
 (defun finite-selection-vector (values max-items &optional model)
   (validated-limit model max-items :max-items 0)
   (typecase values
+    (query-set
+     (finite-selection-vector (slot-value values 'contents) max-items
+                              (or model (slot-value values 'model))))
     (string
      (error 'libtmux:invalid-argument
             :message "A query selection must be a list or non-string vector"))
@@ -618,6 +690,92 @@ Each invocation receives a fresh execution budget and performs no tmux I/O."
      (error 'libtmux:invalid-argument
             :message "A query selection must be a list or non-string vector"))))
 
+(defun query-set-model (set)
+  "Return SET's declared captured model, or NIL for untyped ordinary data."
+  (check-type set query-set)
+  (slot-value set 'model))
+
+(defun items (set)
+  "Return a fresh simple vector containing SET's selected items in order."
+  (check-type set query-set)
+  (copy-seq (slot-value set 'contents)))
+
+(defun from (values &key model (max-items +default-max-selection-items+))
+  "Copy finite VALUES into an eager local QUERY-SET.
+VALUES is a proper list, non-string vector or another query set. MODEL may name
+one registered captured entity model; omit it for unrestricted ordinary data."
+  (when (and model (not (query-model-class model)))
+    (error 'invalid-filter
+           :model (safe-designator-summary model)
+           :expected #(:session :window :pane :window-link :client)
+           :received (safe-designator-summary model)
+           :message "Unknown query-set model"))
+  (let* ((source-model (and (typep values 'query-set)
+                            (slot-value values 'model)))
+         (result-model (or model source-model))
+         (contents (finite-selection-vector values max-items result-model)))
+    (when (and model source-model (not (eq model source-model)))
+      (error 'invalid-query-target :model model :received source-model
+             :message "Cannot relabel a query set with another model"))
+    (when result-model
+      (let ((class (query-model-class result-model)))
+        (loop for value across contents
+              unless (and (typep value class)
+                          (eq result-model (libtmux:entity-model value)))
+                do (error 'invalid-query-target :model result-model
+                          :received (type-of value)
+                          :message "Query-set item does not match its declared model"))))
+    (make-instance 'query-set :contents contents :model result-model)))
+
+(defun where
+    (set filter &key (max-items +default-max-selection-items+)
+                      max-execution-visits)
+  "Return a new query set containing SET items accepted by compiled FILTER.
+Evaluation is eager and local. FILTER supplies the result model; conflicting
+declared model metadata signals INVALID-QUERY-TARGET before evaluation."
+  (check-type set query-set)
+  (check-type filter compiled-filter)
+  (let ((set-model (slot-value set 'model))
+        (filter-model (slot-value filter 'model)))
+    (when (and set-model (not (eq set-model filter-model)))
+      (error 'invalid-query-target :model filter-model :received set-model
+             :message "Query-set model does not match the compiled filter"))
+    (make-instance
+     'query-set :model filter-model
+     :contents (matching filter (slot-value set 'contents)
+                         :max-items max-items
+                         :max-execution-visits max-execution-visits))))
+
+(defun where-if
+    (set function &key (max-items +default-max-selection-items+))
+  "Return a new query set selected by native FUNCTION in input order.
+FUNCTION is called exactly once per item during this eager local traversal.
+Its effects and call order are never optimized as declarative query data."
+  (check-type set query-set)
+  (unless (functionp function)
+    (error 'libtmux:invalid-argument :message "WHERE-IF requires a function"))
+  (let* ((input (finite-selection-vector set max-items))
+         (result (make-array (min 16 (length input))
+                             :adjustable t :fill-pointer 0)))
+    (loop for value across input
+          when (funcall function value)
+            do (vector-push-extend value result))
+    (make-instance 'query-set :model (slot-value set 'model)
+                              :contents (coerce result 'simple-vector))))
+
+(defun order-by
+    (set predicate &key (key #'identity)
+                        (max-items +default-max-selection-items+))
+  "Return a new query set stably ordered by native PREDICATE and KEY.
+Sorting mutates only a private simple-vector copy; SET remains unchanged."
+  (check-type set query-set)
+  (unless (and (functionp predicate) (functionp key))
+    (error 'libtmux:invalid-argument
+           :message "ORDER-BY requires predicate and key functions"))
+  (let ((copy (finite-selection-vector set max-items)))
+    (make-instance 'query-set :model (slot-value set 'model)
+                              :contents (stable-sort copy predicate :key key))))
+
 (defun matching
     (filter values
      &key (max-items +default-max-selection-items+) max-execution-visits)
@@ -626,6 +784,9 @@ VALUES must be a finite list or non-string vector. The result preserves order,
 multiplicity and the original captured handles. MAX-ITEMS bounds validation.
 One execution budget is shared across the entire traversal; no I/O occurs."
   (check-type filter compiled-filter)
+  (when (typep values 'query-set)
+    (error 'libtmux:invalid-argument
+           :message "MATCHING accepts lists and vectors; use WHERE for a query set"))
   (let* ((model (slot-value filter 'model))
          (input (finite-selection-vector values max-items model))
          (limit (if max-execution-visits

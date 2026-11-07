@@ -43,6 +43,7 @@
             (compiled (libtmux.examples::wide-active-pane-data snapshot)))
         (assert (equal (mapcar (lambda (data) (getf data :pane/id)) native)
                        (map 'list (lambda (data) (getf data :pane/id)) compiled))))
+      (assert (= 2 (length (libtmux.examples::active-session-data snapshot))))
       (let* ((pane (aref (libtmux:panes snapshot) 0))
              (data (libtmux:entity-data pane)))
         (setf (getf data :pane/id) "changed local data")
@@ -66,4 +67,4 @@
       (assert (= 4 (length (libtmux:panes snapshot))))
       (assert (string= before-name (libtmux:name shared)))))
   (assert (= 2 (length (libtmux.examples:inspect-workspace socket-path :program program))))
-  (format t "EXAMPLES PASS: graph, links, native and compiled selection, false/presence, ownership, refresh, bytes, capture, close~%"))
+  (format t "EXAMPLES PASS: graph, links, native, compiled and relation selection, false/presence, ownership, refresh, bytes, capture, close~%"))

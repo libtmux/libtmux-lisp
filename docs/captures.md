@@ -13,7 +13,7 @@ complete graph and return the corresponding vector. Repeated fetches read
 again. Retain one snapshot when several operations should inspect the same
 observation. Filtering a retained vector will use ordinary sequence functions;
 the separate [`libtmux/query`](queries.md) system also provides validated local
-scalar filters. Relation quantifiers remain in development.
+filters, relation quantifiers and eager QuerySets.
 
 ## Entities, links and order
 

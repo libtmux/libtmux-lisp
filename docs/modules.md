@@ -38,4 +38,4 @@ These files implement the core `libtmux` system; their internal package is priva
 
 | System | Source | Responsibility |
 | --- | --- | --- |
-| `libtmux/query` | [src/query](../src/query.lisp) | Owned scalar expressions, local predicates and strict cardinality. |
+| `libtmux/query` | [src/query](../src/query.lisp) | Owned expressions, relation traversal, eager query sets and strict cardinality. |

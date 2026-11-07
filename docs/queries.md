@@ -1,9 +1,10 @@
-# Native scalar queries
+# Native queries
 
 `libtmux/query` compiles inert keyword-headed data into a reusable Common Lisp
-function over captured entities. Compilation and evaluation are local: they do
-not acquire, refresh or mutate tmux. Use an ordinary Lisp function when a
-one-off selection does not need validation or inspection.
+function over captured entities and their registered relationships. Compilation
+and evaluation are local: they do not acquire, refresh or mutate tmux. Use an
+ordinary Lisp function when a one-off selection does not need validation or
+inspection.
 
 [Query API](query-api.md) · [Captured fields](fields.md) ·
 [Runnable tutorial](tutorial.md#select-and-project-locally)
@@ -84,10 +85,56 @@ false value. A scalar comparison on an absent optional field is false, so NOT
 of that comparison is true. Use `:present` when absence must be excluded.
 Missing required capture data signals `field-unavailable`.
 
-Relation operators and QuerySet are not part of the scalar system yet. `:any`,
-`:all`, `:none` and `:is` fail explicitly until `libtmux/query` gains the
-relation implementation. Regex operators belong to the later optional
-`libtmux/regex` system.
+Regex operators belong to the later optional `libtmux/regex` system.
+
+## Traverse captured relationships
+
+Relation forms compile their child expression for the registered target model:
+
+| Form | Relation | Empty or missing behavior |
+| --- | --- | --- |
+| `(:any relation expression)` | To-many | False on an empty relation |
+| `(:all relation expression)` | To-many | True on an empty relation |
+| `(:none relation expression)` | To-many | True on an empty relation |
+| `(:is relation expression)` | To-one | False when the target is absent |
+
+This expression requires one pane to be both active and running `nvim`:
+
+```lisp
+(q:compile-filter
+ :session
+ '(:any :session/window-links
+   (:is :link/window
+    (:any :window/panes
+     (:and (:= :pane/active t)
+           (:= :pane/current-command "nvim"))))))
+```
+
+Two separate `:any` forms may match different panes. Missing or unloaded
+relationship data signals `field-unavailable`; it is not treated as a known
+empty collection. `required-relations` reports every traversed relation in
+first-occurrence order.
+
+## Keep eager local selections in a QuerySet
+
+QuerySet is an optional collection convenience, not a replacement for Common
+Lisp sequences. It owns a simple-vector container and remains eager:
+
+```lisp
+(let* ((all (q:from panes :model :pane))
+       (editors (q:where all *editors*))
+       (wide (q:where-if editors (lambda (pane) (>= (tm:width pane) 120))))
+       (ordered (q:order-by wide #'> :key #'tm:width)))
+  (q:items ordered))
+```
+
+`from`, `where`, `where-if` and `order-by` return new objects. `items` returns a
+fresh simple vector. `order-by` uses `stable-sort` on a private copy, so equal
+keys retain input order; its predicate and key follow Common Lisp's ordinary
+sorting callback contract. `where-if` calls its native function once per item
+in input order. A declared model is checked against every item; an empty
+QuerySet can carry its model explicitly, while `where` can take the model from
+its compiled filter. `one` and `one-or-none` accept QuerySets directly.
 
 ## Inspect owned query data
 
@@ -134,8 +181,9 @@ established.
 The defaults bound nesting to 64 containers, compilation to 10,000 structure
 visits, one membership to 1,000 values, one string to 65,536 characters,
 retained query text to 1,048,576 characters, selection to 100,000 items and one
-execution scope to 1,000,000 node visits. `compile-filter`, `matching`, `one`
-and `one-or-none` expose narrower keyword limits for untrusted in-process data.
+execution scope to 1,000,000 expression and relation visits. `compile-filter`,
+`matching`, QuerySet constructors, `one` and `one-or-none` expose narrower
+keyword limits for untrusted in-process data.
 
 Cycles, dotted lists, invalid operators, wrong field types and unavailable
 optional systems signal `invalid-filter`. Limit exhaustion signals its subtype

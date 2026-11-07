@@ -45,7 +45,7 @@ Use the complete unit suite after a focused change:
 (fiveam:run! 'libtmux.tests::unit)
 ```
 
-Load and run the separate scalar-query suite without contacting tmux:
+Load and run the separate native-query suite without contacting tmux:
 
 ```lisp
 (asdf:test-system "libtmux/query")
@@ -82,7 +82,7 @@ Run all local checks without contacting tmux:
 $ mise run check
 ```
 
-Run only the scalar-query inner loop:
+Run only the native-query inner loop:
 
 ```console
 $ mise run query

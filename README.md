@@ -19,9 +19,10 @@ mutations through an explicit client.
 
 **Implemented:** captured sessions, physical windows, window links and panes;
 bounded subprocess transport; cancellation; named operations, byte buffers and
-validated scalar queries. **In development:** relation queries, configuration
-APIs, control/events, streaming and the workspace consumer. MCP is intentionally
-out of scope. The `0.1.0` systems are unreleased.
+validated native queries with relationship traversal and eager QuerySets.
+**In development:** configuration APIs, control/events, streaming and the
+workspace consumer. MCP is intentionally out of scope. The `0.1.0` systems are
+unreleased.
 
 ## Install from source
 
@@ -58,8 +59,8 @@ the results and removes its daemon; it never addresses your default server.
 $ mise run examples
 ```
 
-Success includes `EXAMPLES PASS: graph, links, native and compiled selection,
-false/presence, ownership, refresh, bytes, capture, close`. Core and query
+Success includes `EXAMPLES PASS: graph, links, native, compiled and relation
+selection, false/presence, ownership, refresh, bytes, capture, close`. Core and query
 loading need ASDF/UIOP only; the example runner also needs Python 3. No Java
 runtime is involved.
 
@@ -141,13 +142,35 @@ never evaluates query data. Scalar filtering performs no tmux calls. Read the
 [query guide](docs/queries.md) for presence, limits, inspection and strict
 cardinality.
 
+Relations traverse the same captured graph. This checked query follows session
+links to physical windows and panes, then uses the eager local QuerySet:
+
+<!-- example:relation -->
+```lisp
+(defparameter *active-session-filter*
+  (q:compile-filter
+   :session
+   '(:any :session/window-links
+     (:is :link/window
+      (:any :window/panes
+       (:= :pane/active t))))))
+
+(defun active-session-data (snapshot)
+  "Return owned data for sessions with an active pane; no I/O."
+  (map 'vector #'tm:entity-data
+       (q:items
+        (q:where (q:from (tm:sessions snapshot) :model :session)
+                 *active-session-filter*))))
+```
+<!-- /example -->
+
 ## Find the right guide
 
 | Task | Start here |
 | --- | --- |
 | Load the library; inspect and build a workspace | [REPL tutorial](docs/tutorial.md) |
 | Filter with `loop`, handle false/absence, export plists | [Local data recipes](docs/tutorial.md#select-and-project-locally) |
-| Compile typed scalar filters and select exactly one result | [Native scalar queries](docs/queries.md) · [Query API](docs/query-api.md) |
+| Compile typed filters, traverse relations and compose QuerySets | [Native queries](docs/queries.md) · [Query API](docs/query-api.md) |
 | Rename, resize, move, send input, capture or use buffers | [Operation contracts](docs/operations.md) |
 | Look up signatures, multiple values and conditions | [Public API](docs/api.md) · [Captured fields](docs/fields.md) |
 | Understand deadlines, cancellation and cleanup | [Transport](docs/transport.md) |

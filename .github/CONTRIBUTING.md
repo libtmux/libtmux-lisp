@@ -53,7 +53,7 @@ Start a REPL with pinned ASDF, the Qlot environment and local system definition:
 $ mise run repl
 ```
 
-Core and scalar-query loading need ASDF/UIOP only. FiveAM is a test dependency.
+Core and native-query loading need ASDF/UIOP only. FiveAM is a test dependency.
 CL-PPCRE, Bordeaux Threads and Jzon are pinned for the separate optional
 systems that justify them. MCP is intentionally outside this port's scope.
 The runner loads pinned ASDF before `.qlot/setup.lisp` to avoid redundant
@@ -71,7 +71,7 @@ $ /usr/bin/time -p mise run check
 ```
 
 It checks source whitespace, loads the selected systems and runs the unit and
-scalar-query suites. It also checks public docstrings, generated
+native-query suites. It also checks public docstrings, generated
 API/field/operator/module references,
 the generated configuration catalog, example excerpts and local documentation
 links. Regenerate those pages with
@@ -107,7 +107,7 @@ over-budget loop before adding tests. Add tests only for critical behavior.
 Benchmarks are separate: keep each run under ten minutes and a full sweep
 under one hour. Reduce workloads instead of raising the limits.
 
-Run the scalar-query suite alone while working on local filtering:
+Run the native-query suite alone while working on local filtering:
 
 ```console
 $ mise run query

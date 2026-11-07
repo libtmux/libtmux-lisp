@@ -454,3 +454,148 @@
     (is (every (lambda (model) (plusp (length (libtmux.query:fields model))))
                '(:session :window :pane :window-link :client)))
     (signals libtmux.query:invalid-filter (libtmux.query:fields :server))))
+
+(test relation-quantifiers-preserve-child-and-empty-semantics
+  (let* ((libtmux.internal::*process-launched-hook*
+           (lambda (job)
+             (declare (ignore job))
+             (error "Relation query attempted to launch a process")))
+         (snapshot (synthetic-snapshot))
+         (window (aref (libtmux:windows snapshot) 0))
+         (sessions (libtmux:sessions snapshot))
+         (empty-clients (aref sessions 1))
+         (same-pane
+           (libtmux.query:compile-filter
+            :window
+            '(:any :window/panes
+              (:and (:= :pane/active t)
+                    (:= :pane/current-command "sh")))))
+         (different-panes
+           (libtmux.query:compile-filter
+            :window
+            '(:and
+              (:any :window/panes (:= :pane/active t))
+              (:any :window/panes (:= :pane/current-command "sh")))))
+         (any-client
+           (libtmux.query:compile-filter
+            :session '(:any :session/clients (:= :client/control-mode t))))
+         (all-clients
+           (libtmux.query:compile-filter
+            :session '(:all :session/clients (:= :client/control-mode nil))))
+         (no-clients
+           (libtmux.query:compile-filter
+            :session '(:none :session/clients (:= :client/control-mode t))))
+         (bounded
+           (libtmux.query:compile-filter
+            :window '(:any :window/panes (:= :pane/active t))
+            :max-execution-visits 3)))
+    (is (not (funcall (libtmux.query:predicate same-pane) window)))
+    (is (funcall (libtmux.query:predicate different-panes) window))
+    (is (not (funcall (libtmux.query:predicate any-client) empty-clients)))
+    (is (funcall (libtmux.query:predicate all-clients) empty-clients))
+    (is (funcall (libtmux.query:predicate no-clients) empty-clients))
+    (is (funcall (libtmux.query:predicate bounded) window))
+    (signals libtmux.query:query-limit-exceeded
+      (libtmux.query:matching bounded (vector window) :max-execution-visits 2))))
+
+(test relation-requirements-to-one-and-nested-models
+  (let* ((snapshot (synthetic-snapshot))
+         (session (aref (libtmux:sessions snapshot) 0))
+         (pane (aref (libtmux:panes snapshot) 0))
+         (filter
+           (libtmux.query:compile-filter
+            :session
+            '(:any :session/window-links
+              (:is :link/window
+               (:any :window/panes
+                (:and (:= :pane/active t)
+                      (:= :pane/current-command "nvim")))))))
+         (pane-window
+           (libtmux.query:compile-filter
+            :pane '(:is :pane/window (:= :window/name "shared"))))
+         (relations (slot-value pane 'libtmux::relations)))
+    (is (funcall (libtmux.query:predicate filter) session))
+    (is (equalp #(:pane/active :pane/current-command)
+                (libtmux.query:required-fields filter)))
+    (is (equalp #(:session/window-links :link/window :window/panes)
+                (libtmux.query:required-relations filter)))
+    (let ((inspection (libtmux.query:required-relations filter)))
+      (setf (aref inspection 0) :changed)
+      (is (eq :session/window-links
+              (aref (libtmux.query:required-relations filter) 0))))
+    (multiple-value-bind (window loaded-p) (gethash :pane/window relations)
+      (unwind-protect
+           (progn
+             (setf (gethash :pane/window relations) nil)
+             (is (not (funcall (libtmux.query:predicate pane-window) pane)))
+             (remhash :pane/window relations)
+             (signals libtmux:field-unavailable
+               (funcall (libtmux.query:predicate pane-window) pane)))
+        (if loaded-p
+            (setf (gethash :pane/window relations) window)
+            (remhash :pane/window relations))))
+    (signals libtmux.query:invalid-filter
+      (libtmux.query:compile-filter
+       :window '(:is :window/panes (:= :pane/active t))))
+    (signals libtmux.query:invalid-filter
+      (libtmux.query:compile-filter
+       :pane '(:any :pane/window (:= :window/name "shared"))))))
+
+(test eager-query-set-owns-containers-and-preserves-native-order
+  (let* ((panes (libtmux:panes (synthetic-snapshot)))
+         (first (aref panes 0))
+         (second (aref panes 1))
+         (source (vector first second first))
+         (all (libtmux.query:from source :model :pane))
+         (active-filter
+           (libtmux.query:compile-filter :pane '(:= :pane/active t))))
+    (setf (aref source 0) second)
+    (is (eq :pane (libtmux.query:query-set-model all)))
+    (let ((copy (libtmux.query:items all)))
+      (is (typep copy 'simple-vector))
+      (is (eq first (aref copy 0)))
+      (setf (aref copy 0) nil)
+      (is (eq first (aref (libtmux.query:items all) 0))))
+    (let* ((active (libtmux.query:where all active-filter))
+           (items (libtmux.query:items active)))
+      (is (eq :pane (libtmux.query:query-set-model active)))
+      (is (= 2 (length items)))
+      (is (eq first (aref items 0)))
+      (is (eq first (aref items 1)))
+      (signals libtmux.query:ambiguous-match (libtmux.query:one active))
+      (is (eq first
+              (libtmux.query:one
+               (libtmux.query:from (vector first) :model :pane)))))
+    (let ((empty (libtmux.query:where
+                  (libtmux.query:from #()) active-filter)))
+      (is (eq :pane (libtmux.query:query-set-model empty)))
+      (is (zerop (length (libtmux.query:items empty))))
+      (is (equal '(nil nil)
+                 (multiple-value-list (libtmux.query:one-or-none empty)))))))
+
+(test query-set-native-predicates-and-stable-order-remain-explicit
+  (let ((seen nil))
+    (let ((selected
+            (libtmux.query:where-if
+             (libtmux.query:from #(3 1 2 1))
+             (lambda (value) (push value seen) (oddp value)))))
+      (is (equal '(3 1 2 1) (reverse seen)))
+      (is (equalp #(3 1 1) (libtmux.query:items selected)))))
+  (let* ((a (cons 1 :a))
+         (x (cons 0 :x))
+         (b (cons 1 :b))
+         (source (vector a x b))
+         (ordered
+           (libtmux.query:order-by
+            (libtmux.query:from source) #'< :key #'car)))
+    (is (equalp (vector x a b) (libtmux.query:items ordered)))
+    (is (equalp (vector a x b) source)))
+  (let* ((panes (libtmux:panes (synthetic-snapshot)))
+         (filter (libtmux.query:compile-filter :pane '(:and))))
+    (signals libtmux.query:invalid-query-target
+      (libtmux.query:where
+       (libtmux.query:from (list (aref panes 0)) :model :window)
+       filter))
+    (signals libtmux:invalid-argument
+      (libtmux.query:matching
+       filter (libtmux.query:from #() :model :window)))))

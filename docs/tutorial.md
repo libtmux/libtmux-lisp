@@ -186,8 +186,32 @@ inspected or shared. The example package's local nickname `q` refers to
 `matching` returns a fresh simple vector in captured order. Compilation copies
 the query form and checks field types, cycles and resource limits. The returned
 predicate is ordinary Lisp code over retained observations; neither compilation
-nor matching contacts tmux. Relation quantifiers and QuerySet remain later
-stages. See the [scalar query guide](queries.md).
+nor matching contacts tmux.
+
+Traverse registered relationships without reacquiring state, and keep the eager
+selection in a QuerySet with explicit root-model metadata:
+
+<!-- example:relation -->
+```lisp
+(defparameter *active-session-filter*
+  (q:compile-filter
+   :session
+   '(:any :session/window-links
+     (:is :link/window
+      (:any :window/panes
+       (:= :pane/active t))))))
+
+(defun active-session-data (snapshot)
+  "Return owned data for sessions with an active pane; no I/O."
+  (map 'vector #'tm:entity-data
+       (q:items
+        (q:where (q:from (tm:sessions snapshot) :model :session)
+                 *active-session-filter*))))
+```
+<!-- /example -->
+
+See the [native query guide](queries.md) for quantifier identities, stable
+ordering, ownership and strict cardinality.
 
 Use both values when false and absence matter. This field is always present;
 an inactive pane returns `nil` and `t`:

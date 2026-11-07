@@ -53,7 +53,7 @@ description = "Run local unit tests (inner loop)"
 run = "tools/lisp.sh tools/test.lisp unit"
 
 [tasks.query]
-description = "Run local scalar-query tests (inner loop)"
+description = "Run local native-query tests (inner loop)"
 run = "tools/lisp.sh tools/test.lisp query"
 
 [tasks.integration]

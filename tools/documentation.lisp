@@ -130,7 +130,7 @@
   (let ((*package* (find-package :libtmux.query)) (*print-case* :downcase)
         (*print-pretty* nil) (*print-circle* t))
     (with-output-to-string (out)
-      (format out "# Scalar query API~%~%Generated from live package documentation, signatures and operator metadata by~%`mise run docs`. Edit source docstrings and the operator registry; `mise run~%check` detects drift.~%~%[Query guide](queries.md) · [Captured fields](fields.md) · [Core API](api.md)~%~%")
+      (format out "# Native query API~%~%Generated from live package documentation, signatures and operator metadata by~%`mise run docs`. Edit source docstrings and the operator registry; `mise run~%check` detects drift.~%~%[Query guide](queries.md) · [Captured fields](fields.md) · [Core API](api.md)~%~%")
       (format out "~A~%~%" (required-documentation (find-package :libtmux.query) t))
       (format out "## Functions~%~%")
       (dolist (symbol (public-symbols :libtmux.query))
@@ -151,7 +151,7 @@
                     (mapcar (lambda (superclass)
                               (string-downcase (symbol-name (class-name superclass))))
                             (sb-mop:class-direct-superclasses class))))))
-      (format out "## Operators~%~%The scalar system implements rows marked `scalar`. Relation operators remain a~%later query stage; regex operators require the optional `libtmux/regex` system.~%~%| Operator | Arity | Field kinds | Stage | Meaning |~%| --- | ---: | --- | --- | --- |~%")
+      (format out "## Operators~%~%Scalar and relation rows are implemented locally. Regex operators require the~%optional `libtmux/regex` system.~%~%| Operator | Arity | Field kinds | Stage | Meaning |~%| --- | ---: | --- | --- | --- |~%")
       (loop for spec across libtmux.query::*operator-specs*
             do (format out "| `~S` | ~A | ~{`~A`~^, ~} | `~A` | ~A |~%"
                        (libtmux.query::operator-spec-key spec)
