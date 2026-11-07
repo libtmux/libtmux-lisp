@@ -1,6 +1,7 @@
 (defpackage #:libtmux.examples
   (:use #:cl)
-  (:local-nicknames (#:tm #:libtmux))
+  (:local-nicknames (#:tm #:libtmux)
+                    (#:q #:libtmux.query))
   (:export #:inspect-workspace #:create-workspace #:observed-value))
 
 (in-package #:libtmux.examples)
@@ -99,6 +100,19 @@ The caller owns the isolated daemon; repeating this recipe there is an error."
   (loop for pane across (tm:panes snapshot)
         when (and (tm:active-p pane) (>= (tm:width pane) 40))
           collect (tm:entity-data pane)))
+;;; docs:end
+
+;;; docs:query
+(defparameter *wide-active-filter*
+  (q:compile-filter
+   :pane
+   '(:and (:= :pane/active t)
+          (:>= :pane/width 40))))
+
+(defun wide-active-pane-data (snapshot)
+  "Return owned data for captured active panes at least 40 cells wide; no I/O."
+  (map 'vector #'tm:entity-data
+       (q:matching *wide-active-filter* (tm:panes snapshot))))
 ;;; docs:end
 
 ;;; docs:buffers

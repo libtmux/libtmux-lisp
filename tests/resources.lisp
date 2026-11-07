@@ -25,6 +25,7 @@
                  (multiple-value-list
                   (libtmux:with-client (client)
                     (setf client replacement)
+                    (is (eq replacement client))
                     (values 1 nil :tail))))))
     (is (not (libtmux:client-open-p original)))
     (is (libtmux:client-open-p replacement))

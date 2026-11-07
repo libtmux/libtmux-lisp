@@ -18,9 +18,10 @@ object graph once, process its panes with ordinary sequences, and make
 mutations through an explicit client.
 
 **Implemented:** captured sessions, physical windows, window links and panes;
-bounded subprocess transport; cancellation; named operations and byte buffers.
-**In development:** declarative queries, configuration APIs, control/events,
-streaming, MCP and workspace consumers. The `0.1.0` system is unreleased.
+bounded subprocess transport; cancellation; named operations, byte buffers and
+validated scalar queries. **In development:** relation queries, configuration
+APIs, control/events, streaming and the workspace consumer. MCP is intentionally
+out of scope. The `0.1.0` systems are unreleased.
 
 ## Install from source
 
@@ -57,9 +58,10 @@ the results and removes its daemon; it never addresses your default server.
 $ mise run examples
 ```
 
-Success includes `EXAMPLES PASS: graph, links, selection, false/presence,
-ownership, refresh, bytes, capture, close`. Core loading needs ASDF/UIOP only;
-the example runner also needs Python 3. No Java runtime is involved.
+Success includes `EXAMPLES PASS: graph, links, native and compiled selection,
+false/presence, ownership, refresh, bytes, capture, close`. Core and query
+loading need ASDF/UIOP only; the example runner also needs Python 3. No Java
+runtime is involved.
 
 ## Inspect a workspace
 
@@ -112,16 +114,44 @@ Select a **window link** when session/index context matters. Rename the physical
 window to affect every link. Refresh returns a new observation; earlier captures
 retain their values. See [identity and ownership](docs/captures.md).
 
+## Compile a local query
+
+The tutorial's example package gives `libtmux` and `libtmux.query` the local
+nicknames `tm` and `q`. This checked function compiles once, filters a captured
+vector locally, and returns ordinary owned data:
+
+<!-- example:query -->
+```lisp
+(defparameter *wide-active-filter*
+  (q:compile-filter
+   :pane
+   '(:and (:= :pane/active t)
+          (:>= :pane/width 40))))
+
+(defun wide-active-pane-data (snapshot)
+  "Return owned data for captured active panes at least 40 cells wide; no I/O."
+  (map 'vector #'tm:entity-data
+       (q:matching *wide-active-filter* (tm:panes snapshot))))
+```
+<!-- /example -->
+
+`matching` returns a fresh simple vector and preserves order and duplicates.
+The compiler owns mutable operands, rejects cycles and mistyped fields, and
+never evaluates query data. Scalar filtering performs no tmux calls. Read the
+[query guide](docs/queries.md) for presence, limits, inspection and strict
+cardinality.
+
 ## Find the right guide
 
 | Task | Start here |
 | --- | --- |
 | Load the library; inspect and build a workspace | [REPL tutorial](docs/tutorial.md) |
 | Filter with `loop`, handle false/absence, export plists | [Local data recipes](docs/tutorial.md#select-and-project-locally) |
+| Compile typed scalar filters and select exactly one result | [Native scalar queries](docs/queries.md) · [Query API](docs/query-api.md) |
 | Rename, resize, move, send input, capture or use buffers | [Operation contracts](docs/operations.md) |
 | Look up signatures, multiple values and conditions | [Public API](docs/api.md) · [Captured fields](docs/fields.md) |
 | Understand deadlines, cancellation and cleanup | [Transport](docs/transport.md) |
-| Evaluate async, streaming, MCP and performance support | [Capabilities and limits](docs/capabilities.md) |
+| Evaluate async, streaming, workspace and performance support | [Capabilities and limits](docs/capabilities.md) |
 | Rerun FiveAM tests at the REPL or inspect CI coverage | [Testing](docs/testing.md) · [Verification](verification.md) |
 | Navigate all documentation | [Guide index](docs/index.md) |
 

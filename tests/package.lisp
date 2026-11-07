@@ -5,7 +5,8 @@
 (in-package #:libtmux.tests)
 
 (def-suite unit)
+(def-suite query)
 (def-suite integration)
 
 (defun run-suite (name)
-  (run! (ecase name (:unit 'unit) (:integration 'integration))))
+  (run! (ecase name (:unit 'unit) (:query 'query) (:integration 'integration))))

@@ -2,14 +2,15 @@
 (require :sb-introspect)
 (asdf:load-asd (truename "libtmux.asd"))
 (asdf:load-system "libtmux")
+(asdf:load-system "libtmux/query")
 
 (defpackage #:libtmux.documentation
   (:use #:cl)
   (:local-nicknames (#:internal #:libtmux.internal)))
 (in-package #:libtmux.documentation)
 
-(defun public-symbols ()
-  (sort (loop for symbol being the external-symbols of (find-package :libtmux)
+(defun public-symbols (&optional (package :libtmux))
+  (sort (loop for symbol being the external-symbols of (find-package package)
               collect symbol) #'string< :key #'symbol-name))
 
 (defun spelling (symbol)
@@ -125,6 +126,41 @@
       (terpri out))
     (format out "`:CLIENT` is the attached-client model, not the connection client.~%Optional integer `:pane/pid` treats tmux's zero as absence. Optional text~%treats an empty wire value as absence. Session creation time may be absent.~%Names and titles retain present empty strings. See [capture semantics](captures.md).~%")))
 
+(defun render-query-api ()
+  (let ((*package* (find-package :libtmux.query)) (*print-case* :downcase)
+        (*print-pretty* nil) (*print-circle* t))
+    (with-output-to-string (out)
+      (format out "# Scalar query API~%~%Generated from live package documentation, signatures and operator metadata by~%`mise run docs`. Edit source docstrings and the operator registry; `mise run~%check` detects drift.~%~%[Query guide](queries.md) · [Captured fields](fields.md) · [Core API](api.md)~%~%")
+      (format out "~A~%~%" (required-documentation (find-package :libtmux.query) t))
+      (format out "## Functions~%~%")
+      (dolist (symbol (public-symbols :libtmux.query))
+        (when (fboundp symbol)
+          (format out "<a id=\"~A-function\"></a>~%~%### ~A~%~%`~A`~%~%~A~%~%~A~%~%"
+                  (spelling symbol) (spelling symbol)
+                  (signature-text (cons symbol (sb-introspect:function-lambda-list symbol)))
+                  (required-documentation symbol 'function)
+                  (source-link symbol (function-kind symbol)))))
+      (format out "## Classes and conditions~%~%These objects retain owned, bounded query state; their slots are private.~%~%")
+      (dolist (symbol (public-symbols :libtmux.query))
+        (let ((class (find-class symbol nil)))
+          (when class
+            (format out "<a id=\"~A-type\"></a>~%~%### ~A~%~%~A~%~%~A~%~%Direct supertypes: ~{`~A`~^, ~}.~%~%"
+                    (spelling symbol) (spelling symbol)
+                    (required-documentation class t)
+                    (source-link symbol (if (subtypep symbol 'condition) :condition :class))
+                    (mapcar (lambda (superclass)
+                              (string-downcase (symbol-name (class-name superclass))))
+                            (sb-mop:class-direct-superclasses class))))))
+      (format out "## Operators~%~%The scalar system implements rows marked `scalar`. Relation operators remain a~%later query stage; regex operators require the optional `libtmux/regex` system.~%~%| Operator | Arity | Field kinds | Stage | Meaning |~%| --- | ---: | --- | --- | --- |~%")
+      (loop for spec across libtmux.query::*operator-specs*
+            do (format out "| `~S` | ~A | ~{`~A`~^, ~} | `~A` | ~A |~%"
+                       (libtmux.query::operator-spec-key spec)
+                       (let ((arity (libtmux.query::operator-spec-arity spec)))
+                         (if (eq arity :variadic) "variadic" arity))
+                       (libtmux.query::operator-spec-field-kinds spec)
+                       (libtmux.query::operator-spec-stage spec)
+                       (libtmux.query::operator-spec-documentation spec))))))
+
 (defun render-modules ()
   (with-output-to-string (out)
     (format out "# Source modules~%~%Generated from ASDF component descriptions by `mise run docs`.~%These files implement the core `libtmux` system; their internal package is private.~%~%[Public API](api.md) · [Architecture and boundaries](captures.md)~%~%| Source | Responsibility |~%| --- | --- |~%")
@@ -132,7 +168,16 @@
       (format out "| [~A](../~A) | ~A |~%" (asdf:component-name component)
               (enough-namestring (asdf:component-pathname component) (uiop:getcwd))
               (or (asdf/component:component-description component)
-                  (error "Missing module description: ~A" component))))))
+                  (error "Missing module description: ~A" component))))
+    (format out "~%## Separate systems~%~%| System | Source | Responsibility |~%| --- | --- | --- |~%")
+    (dolist (system-name '("libtmux/query"))
+      (let ((system (asdf:find-system system-name)))
+        (dolist (component (asdf:component-children system))
+          (format out "| `~A` | [~A](../~A) | ~A |~%" system-name
+                  (asdf:component-name component)
+                  (enough-namestring (asdf:component-pathname component) (uiop:getcwd))
+                  (or (asdf/component:component-description component)
+                      (error "Missing module description: ~A" component))))))))
 
 (defun synchronize (path text write-p)
   (let ((text (concatenate 'string (string-right-trim '(#\Newline) text)
@@ -144,6 +189,7 @@
 
 (let ((write-p (equal '("write") (uiop:command-line-arguments))))
   (synchronize "docs/api.md" (render-api) write-p)
+  (synchronize "docs/query-api.md" (render-query-api) write-p)
   (synchronize "docs/fields.md" (render-fields) write-p)
   (synchronize "docs/modules.md" (render-modules) write-p)
   (format t "Public docstrings, API signatures, fields and module documentation: PASS~%"))

@@ -1,5 +1,10 @@
 min_version = "2026.11.3"
 
+[settings]
+# Task output stays attached to the caller. This avoids mise's pipe-drain
+# grace period and keeps the documented test loops within their budgets.
+raw = true
+
 # .tool-versions owns the pins; these tables supply HTTP backend options.
 [tools."http:sbcl"]
 version = '{{ read_file(path=".tool-versions") | regex_replace(pattern="(?s).*http:sbcl +([0-9.]+).*", rep="$1") }}'
@@ -33,7 +38,7 @@ run = "qlot install --jobs 2"
 
 [tasks.check]
 description = "Run source checks and the unit suite (mid loop)"
-run = ["python3 tools/check-source.py", "python3 tools/options-catalog.py", "tools/lisp.sh tools/test.lisp unit", "tools/lisp.sh tools/documentation.lisp", "python3 tools/doc-examples.py"]
+run = ["python3 tools/check-source.py", "python3 tools/options-catalog.py", "tools/lisp.sh tools/test.lisp unit", "tools/lisp.sh tools/test.lisp query", "tools/lisp.sh tools/documentation.lisp", "python3 tools/doc-examples.py"]
 
 [tasks.catalogs]
 description = "Regenerate native configuration catalogs from committed pinned source facts"
@@ -46,6 +51,10 @@ run = ["tools/lisp.sh tools/documentation.lisp write", "python3 tools/doc-exampl
 [tasks.unit]
 description = "Run local unit tests (inner loop)"
 run = "tools/lisp.sh tools/test.lisp unit"
+
+[tasks.query]
+description = "Run local scalar-query tests (inner loop)"
+run = "tools/lisp.sh tools/test.lisp query"
 
 [tasks.integration]
 description = "Run isolated tmux integration tests (outer loop)"

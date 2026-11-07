@@ -16,7 +16,8 @@ inherited tmux variables, starts an empty-configuration daemon, runs the shipped
 Lisp examples, checks their results and terminates its own server. Assertions
 check object/link counts, false with presence, identity, ownership, literal
 names, refresh, byte buffers and local access after client closure. A failure
-exits nonzero. It loads the core without optional libraries.
+exits nonzero. It loads the core and dependency-free query system without the
+optional regex, JSON or thread libraries.
 
 Select another native tmux binary explicitly:
 
@@ -54,11 +55,11 @@ Use the same terminal to start the pinned REPL:
 $ mise run repl
 ```
 
-Load the core. The development REPL registers its ASDF definition but does
-not implicitly load the library:
+Load the query system, which depends on the core. The development REPL
+registers the ASDF definition but does not implicitly load either system:
 
 ```lisp
-(asdf:load-system "libtmux")
+(asdf:load-system "libtmux/query")
 ```
 
 Load the recipe functions. Their package declares the SBCL package-local
@@ -157,8 +158,36 @@ The [graph contract](captures.md) explains all traversal directions.
 
 This returns a nonempty list of plists from the retained graph. You can instead
 use `map`, `find-if`, `count-if`, `reduce` or `remove-if` with a native function.
-These calls do not acquire state. Declarative query and query-set systems are
-still in development; no `q:` package is currently available.
+These calls do not acquire state.
+
+Compile a reusable scalar filter when the selection should be validated,
+inspected or shared. The example package's local nickname `q` refers to
+`libtmux.query`; the library claims no global nickname.
+
+<!-- example:query -->
+```lisp
+(defparameter *wide-active-filter*
+  (q:compile-filter
+   :pane
+   '(:and (:= :pane/active t)
+          (:>= :pane/width 40))))
+
+(defun wide-active-pane-data (snapshot)
+  "Return owned data for captured active panes at least 40 cells wide; no I/O."
+  (map 'vector #'tm:entity-data
+       (q:matching *wide-active-filter* (tm:panes snapshot))))
+```
+<!-- /example -->
+
+```lisp
+(wide-active-pane-data *snapshot*)
+```
+
+`matching` returns a fresh simple vector in captured order. Compilation copies
+the query form and checks field types, cycles and resource limits. The returned
+predicate is ordinary Lisp code over retained observations; neither compilation
+nor matching contacts tmux. Relation quantifiers and QuerySet remain later
+stages. See the [scalar query guide](queries.md).
 
 Use both values when false and absence matter. This field is always present;
 an inactive pane returns `nil` and `t`:

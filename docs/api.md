@@ -444,7 +444,7 @@ An invalid caller value is retained as supplied; it need not be a keyword.
 
 [Source](../src/conditions.lisp)
 
-Applicable first argument types: [field-unavailable](#field-unavailable-type).
+Applicable first argument types: [field-unavailable](#field-unavailable-type), `invalid-filter`.
 
 <a id="error-message-function"></a>
 
@@ -468,7 +468,7 @@ Return the captured model keyword implicated in a field failure. No I/O.
 
 [Source](../src/conditions.lisp)
 
-Applicable first argument types: [field-unavailable](#field-unavailable-type).
+Applicable first argument types: [field-unavailable](#field-unavailable-type), `invalid-filter`, `invalid-query-target`.
 
 <a id="error-outcome-function"></a>
 

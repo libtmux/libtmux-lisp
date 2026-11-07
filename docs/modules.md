@@ -33,3 +33,9 @@ These files implement the core `libtmux` system; their internal package is priva
 | [src/selection](../src/selection.lisp) | Contextual next, previous and last window/pane selection. |
 | [src/placement](../src/placement.lisp) | Physical pane placement and contextual window-link operations. |
 | [src/buffers](../src/buffers.lisp) | Owned binary buffers, file transfer and explicit pane paste operations. |
+
+## Separate systems
+
+| System | Source | Responsibility |
+| --- | --- | --- |
+| `libtmux/query` | [src/query](../src/query.lisp) | Owned scalar expressions, local predicates and strict cardinality. |

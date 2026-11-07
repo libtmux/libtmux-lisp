@@ -5,7 +5,8 @@
   :homepage "https://github.com/libtmux/libtmux-lisp"
   :source-control (:git "https://github.com/libtmux/libtmux-lisp.git")
   :depends-on ("uiop")
-  :in-order-to ((test-op (test-op "libtmux/tests")))
+  :in-order-to ((test-op (test-op "libtmux/tests")
+                         (test-op "libtmux/tests/query")))
   :serial t
   :components ((:file "src/package"
                       :description "Public and internal packages; connection, observation and operation contracts.")
@@ -74,6 +75,24 @@
              (declare (ignore operation component))
              (unless (uiop:symbol-call :libtmux.tests :run-suite :unit)
                (error "libtmux unit tests failed"))))
+
+(defsystem "libtmux/query"
+  :description "Validated native scalar queries over captured observations"
+  :depends-on ("libtmux")
+  :in-order-to ((test-op (test-op "libtmux/tests/query")))
+  :serial t
+  :components ((:file "src/query"
+                      :description "Owned scalar expressions, local predicates and strict cardinality.")))
+
+(defsystem "libtmux/tests/query"
+  :description "Local scalar-query semantic tests"
+  :depends-on ("libtmux/tests" "libtmux/query")
+  :serial t
+  :components ((:file "tests/query"))
+  :perform (test-op (operation component)
+             (declare (ignore operation component))
+             (unless (uiop:symbol-call :libtmux.tests :run-suite :query)
+               (error "libtmux query tests failed"))))
 
 (defsystem "libtmux/tests/integration"
   :description "Owned tmux fixtures and external-operation tests"

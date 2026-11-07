@@ -45,6 +45,22 @@ Use the complete unit suite after a focused change:
 (fiveam:run! 'libtmux.tests::unit)
 ```
 
+Load and run the separate scalar-query suite without contacting tmux:
+
+```lisp
+(asdf:test-system "libtmux/query")
+```
+
+For interactive redefinition, load the test system explicitly:
+
+```lisp
+(asdf:load-system "libtmux/tests/query")
+```
+
+```lisp
+(fiveam:run! 'libtmux.tests::query)
+```
+
 The pinned FiveAM 1.4.3 compiles test bodies at definition time by default.
 After changing a macro used by a test, re-evaluate that test definition too.
 For a test specifically studying macro redefinition, `def-test` supports the
@@ -64,6 +80,12 @@ Run all local checks without contacting tmux:
 
 ```console
 $ mise run check
+```
+
+Run only the scalar-query inner loop:
+
+```console
+$ mise run query
 ```
 
 Run the owned live fixtures with one explicit tmux executable:

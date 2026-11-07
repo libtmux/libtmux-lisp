@@ -1,19 +1,21 @@
 # Capabilities and current limits
 
 The implemented core suits bounded, blocking SBCL/Linux tmux automation with
-captured graph traversal and explicit commands. It is not yet the complete
-query, control/events, agent and workspace suite described by the project goal.
+captured graph traversal, scalar queries and explicit commands. It is not yet
+the complete relation-query, control/events and workspace suite described by
+the project goal.
 
 | Area | Available now | Remaining work |
 | --- | --- | --- |
 | Runtime | SBCL 2.6.10, ASDF/UIOP 3.3.7, Linux x86-64, kernel 6.9+, Bash | Other implementation/OS support |
 | Acquisition | Finite CLOS snapshots, explicit window links, identity, bounds and replacement observations | Complete all-version acceptance after further operations |
-| Local processing | Ordinary lists/vectors, functions, owned plists, presence via multiple values | Declarative compiler and optional query-set |
+| Local processing | Ordinary lists/vectors, functions, owned plists, presence via multiple values and validated scalar queries | Relation queries and optional query-set |
 | Operations | Creation, rename, selection, geometry, placement, input, buffers, respawn, shell pipes | Options/hooks/environment, lifecycle/bootstrap and attached-client operations |
 | Concurrency | Synchronous calls; cancellation; one operation per client | Public asynchronous API and persistent control transport |
 | Streaming/events | Complete bounded captures and byte buffers; daemon-owned `pipe-pane` | Native event/output subscriptions, bounded delivery, loss and backpressure |
-| MCP/workspaces | No implemented module or executable | Protocols, discoverable tools, authority policy and external consumer tests |
-| Optional integrations | Dependency pins reserved | Regex, JSON and control ASDF systems |
+| Workspace | No implemented module or executable | Separate ASDF system, installed loader/CLI and owned-fixture consumer tests |
+| MCP | Intentionally excluded by project policy | Use a separately maintained external integration if one becomes suitable |
+| Optional integrations | Scalar query system is separate and dependency-free | Regex, JSON and control ASDF systems |
 | Performance | No benchmark claims | Reproducible acquisition/filter/stream workloads and latency/allocation results |
 
 The process backend services stdin/stdout/stderr through nonblocking descriptors
@@ -23,10 +25,11 @@ correctness rating to this native Common Lisp core would be misleading.
 Independent clients can perform independent operations, but their identity
 contexts differ. Do not pass one client's observations to another for mutation.
 
-No MCP setup command exists yet. An agent can read the [public API](api.md),
-[field registry](fields.md) and [tutorial](tutorial.md), but these documents are
-not an MCP server. No terminal output stream or lossless event-replay guarantee
-is implied by `pipe-pane`.
+MCP is intentionally outside this port's product scope; it is not an unfinished
+package or release gate. An agent can still read the [public API](api.md),
+[query API](query-api.md), [field registry](fields.md) and [tutorial](tutorial.md),
+but these documents are not a protocol server. No terminal output stream or
+lossless event-replay guarantee is implied by `pipe-pane`.
 
 ## Evidence and adoption
 
@@ -44,9 +47,9 @@ version as documented in the [operation contracts](operations.md).
 
 A build-versus-adopt decision should check the platform boundary, required
 operations, identity policy, synchronous concurrency model, diagnostics and
-cleanup behavior against the actual application. Teams requiring native MCP,
-subscriptions or streaming must account for that unfinished implementation.
-The single maintainer and unreleased status do not change those technical gaps.
+cleanup behavior against the actual application. Teams requiring subscriptions,
+streaming or an MCP endpoint need a separate integration. The single maintainer
+and unreleased status do not change those technical boundaries.
 
 Benchmark evidence must report workload, graph size, tmux/toolchain versions,
 acquisition counts, warm/cold timing, distributions and allocations. Test-loop

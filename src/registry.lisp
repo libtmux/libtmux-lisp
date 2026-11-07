@@ -8,6 +8,15 @@
 
 (defparameter *field-registry* (make-hash-table :test 'eq))
 (defparameter *format-registry* (make-hash-table :test 'equal))
+(defparameter *entity-model-classes*
+  '((:session . libtmux:session)
+    (:window . libtmux:window)
+    (:pane . libtmux:pane)
+    (:window-link . libtmux:window-link)
+    (:client . libtmux:attached-client)))
+
+(defun entity-model-class (model)
+  (cdr (assoc model *entity-model-classes* :test #'eq)))
 
 (defun register-field (key model kind &key format optional minimum maximum target cardinality)
   (let ((field (make-field-spec key model kind :format format :optional optional

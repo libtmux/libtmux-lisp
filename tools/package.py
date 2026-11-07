@@ -60,6 +60,17 @@ with tempfile.TemporaryDirectory(prefix="libtmux-lisp-consumer-") as directory:
         "--eval", '(require :asdf)',
         "--eval", '(asdf:load-system "libtmux")',
         "--eval", '(assert (find-package :libtmux))',
+        "--eval", '(assert (not (find-package :libtmux.query)))',
+        "--eval", '(assert (not (find-package :cl-ppcre)))',
+        "--eval", '(assert (not (find-package :com.inuoe.jzon)))',
+        "--eval", '(assert (not (find-package :bt2)))',
+    ], cwd=destination, env=environment, check=True)
+    subprocess.run([
+        "sbcl", "--noinform", "--no-sysinit", "--no-userinit", "--non-interactive",
+        "--load", str(Path(asdf) / "asdf.lisp"),
+        "--eval", '(require :asdf)',
+        "--eval", '(asdf:load-system "libtmux/query")',
+        "--eval", '(assert (find-package :libtmux.query))',
         "--eval", '(assert (not (find-package :cl-ppcre)))',
         "--eval", '(assert (not (find-package :com.inuoe.jzon)))',
         "--eval", '(assert (not (find-package :bt2)))',
@@ -73,7 +84,8 @@ with tempfile.TemporaryDirectory(prefix="libtmux-lisp-consumer-") as directory:
                        cwd=root, env=environment, check=True)
         shutil.copyfile(extracted / "dist/examples-evidence.json", output / "examples-evidence.json")
 evidence = {"artifact": archive.name, "sha256": hashlib.sha256(archive.read_bytes()).hexdigest(),
-            "elapsed_seconds": round(time.monotonic() - started, 3), "core_consumer": "PASS"}
+            "elapsed_seconds": round(time.monotonic() - started, 3),
+            "core_consumer": "PASS", "query_consumer": "PASS"}
 if arguments.examples:
     evidence["archived_examples"] = "PASS"
 (output / "package-evidence.json").write_text(json.dumps(evidence, indent=2) + "\n")

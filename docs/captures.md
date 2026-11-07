@@ -12,7 +12,8 @@ usable after the client closes.
 complete graph and return the corresponding vector. Repeated fetches read
 again. Retain one snapshot when several operations should inspect the same
 observation. Filtering a retained vector will use ordinary sequence functions;
-the declarative query system is still in development.
+the separate [`libtmux/query`](queries.md) system also provides validated local
+scalar filters. Relation quantifiers remain in development.
 
 ## Entities, links and order
 

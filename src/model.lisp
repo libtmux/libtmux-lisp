@@ -79,16 +79,28 @@ Preserve listing order and multiplicity, including repeated target names."))
     (vector (map 'vector #'owned-data value))
     (t value)))
 
-(defun raw-field-value (entity field)
-  (let ((registry (registered-field field (libtmux:entity-model entity))))
+(defun resolved-field-value (entity registry)
+  (let ((field (field-spec-key registry))
+        (model (libtmux:entity-model entity)))
+    (unless (eq model (field-spec-model registry))
+      (error 'libtmux:field-unavailable :field field :model model
+             :message (format nil "Field ~S is not registered for model ~S" field model)))
     (if (eq (field-spec-kind registry) :relation)
         (multiple-value-bind (value loaded)
             (gethash field (slot-value entity 'libtmux::relations))
           (unless loaded
-            (error 'libtmux:field-unavailable :field field :model (libtmux:entity-model entity)
+            (error 'libtmux:field-unavailable :field field :model model
                    :message (format nil "Relation ~S was not loaded in this capture" field)))
           (values value (if (eq (field-spec-cardinality registry) :many) t (not (null value)))))
-        (gethash field (slot-value entity 'libtmux::fields)))))
+        (multiple-value-bind (value present-p)
+            (gethash field (slot-value entity 'libtmux::fields))
+          (when (and (not present-p) (not (field-spec-optional registry)))
+            (error 'libtmux:field-unavailable :field field :model model
+                   :message (format nil "Required field ~S is missing from the capture" field)))
+          (values value present-p)))))
+
+(defun raw-field-value (entity field)
+  (resolved-field-value entity (registered-field field (libtmux:entity-model entity))))
 
 (defun captured-collection (snapshot model)
   (copy-seq (gethash model (slot-value snapshot 'libtmux::collections) #())))

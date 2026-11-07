@@ -42,9 +42,8 @@
                  (error 'libtmux:output-limit-exceeded :message "Capture entity limit exceeded"))
                (when (and check-budget (zerop (logand total 255))) (funcall check-budget))
                (let ((entity (make-instance
-                              (ecase model (:session 'libtmux:session) (:window 'libtmux:window)
-                                (:pane 'libtmux:pane) (:window-link 'libtmux:window-link)
-                                (:client 'libtmux:attached-client))
+                              (or (entity-model-class model)
+                                  (error "Unknown captured entity model ~S" model))
                               :snapshot snapshot :model model :identity (owned-data identity)
                               :fields (capture-fields row model))))
                  (dolist (field (model-fields model))
