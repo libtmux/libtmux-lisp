@@ -78,7 +78,8 @@ outlive the client. Public operations never expose its mutable storage."))
     (format stream "~A" (slot-value client 'state))))
 
 (defun client-open-p (client)
-  "Return whether CLIENT accepts new external operations; no tmux I/O."
+  "Return whether CLIENT's lifecycle is open; no tmux I/O.
+An active operation may still cause CLIENT-BUSY when new work is attempted."
   (libtmux.internal::call-with-lock
    (slot-value client 'lock) (lambda () (eq (slot-value client 'state) :open))))
 

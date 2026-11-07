@@ -33,7 +33,11 @@ run = "qlot install --jobs 2"
 
 [tasks.check]
 description = "Run source checks and the unit suite (mid loop)"
-run = ["python3 tools/check-source.py", "tools/lisp.sh tools/test.lisp unit"]
+run = ["python3 tools/check-source.py", "tools/lisp.sh tools/test.lisp unit", "tools/lisp.sh tools/documentation.lisp", "python3 tools/doc-examples.py"]
+
+[tasks.docs]
+description = "Regenerate API/field/module references and executable excerpts (no network)"
+run = ["tools/lisp.sh tools/documentation.lisp write", "python3 tools/doc-examples.py write"]
 
 [tasks.unit]
 description = "Run local unit tests (inner loop)"
@@ -46,6 +50,14 @@ run = "python3 tools/test-processes.py tools/lisp.sh tools/test.lisp integration
 [tasks.package]
 description = "Build a source archive and verify an isolated core consumer"
 run = "python3 tools/package.py"
+
+[tasks.examples]
+description = "Run shipped Lisp examples on an owned tmux server (outer loop)"
+run = "python3 tools/test-processes.py python3 tools/examples.py"
+
+[tasks.package-examples]
+description = "Run the shipped examples from an isolated source archive (outer loop)"
+run = "python3 tools/package.py --examples"
 
 [tasks.lint-workflows]
 description = "Validate GitHub Actions workflows with pinned actionlint"

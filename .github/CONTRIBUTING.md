@@ -70,7 +70,13 @@ $ /usr/bin/time -p mise run check
 ```
 
 It checks source whitespace, loads the selected systems and runs the unit
-suite. [verification.md](../verification.md) lists the separate integration,
+suite. It also checks public docstrings, generated API/field/module references,
+example excerpts and local documentation links. Regenerate those pages with
+`mise run docs` after a source documentation or registry change.
+`mise run examples` executes the shipped recipes and every tutorial Lisp block
+on owned tmux servers. `mise run package-examples` repeats that from an isolated
+source archive; neither task belongs in the inner or mid loop.
+[verification.md](../verification.md) lists the separate integration,
 package and installed-consumer checks and their present coverage.
 Use the [FiveAM testing guide](../docs/testing.md) for focused REPL work,
 redefinition, reruns and debugger entry. Workflow changes also require

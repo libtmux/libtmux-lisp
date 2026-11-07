@@ -7,30 +7,54 @@
   :depends-on ("uiop")
   :in-order-to ((test-op (test-op "libtmux/tests")))
   :serial t
-  :components ((:file "src/package")
-               (:file "src/conditions")
-               (:file "src/transport")
-               #+sbcl (:file "src/backend-sbcl")
-               #+sbcl (:file "src/process-sbcl")
-               (:file "src/client")
-               (:file "src/command-policy")
-               (:file "src/registry")
-               (:file "src/records")
-               (:file "src/model")
-               (:file "src/graph")
-               #+sbcl (:file "src/witness-sbcl")
-               (:file "src/capture")
-               (:file "src/command-encoding")
-               (:file "src/configuration-codec")
-               (:file "src/dispatch")
-               (:file "src/operations")
-               (:file "src/creation")
-               (:file "src/process-operations")
-               (:file "src/terminal-operations")
-               (:file "src/geometry")
-               (:file "src/selection")
-               (:file "src/placement")
-               (:file "src/buffers")))
+  :components ((:file "src/package"
+                      :description "Public and internal packages; connection, observation and operation contracts.")
+               (:file "src/conditions"
+                      :description "Typed failure conditions and retained diagnostic readers.")
+               (:file "src/transport"
+                      :description "Owned command outcomes, cancellation tokens and transport validation.")
+               #+sbcl (:file "src/backend-sbcl"
+                      :description "SBCL/Linux synchronization and native operating-system capability checks.")
+               #+sbcl (:file "src/process-sbcl"
+                      :description "Bounded subprocess lifecycle, nonblocking pipe service and cleanup ownership.")
+               (:file "src/client"
+                      :description "Connection scopes, single-operation leases and explicit raw tmux commands.")
+               (:file "src/command-policy"
+                      :description "Required built-in command meanings and daemon alias validation.")
+               (:file "src/registry"
+                      :description "Typed captured fields, relationships and wire scalar validation.")
+               (:file "src/records"
+                      :description "Reversible bounded tmux row framing and strict text decoding.")
+               (:file "src/model"
+                      :description "Captured CLOS observations, local readers, identity and owned projections.")
+               (:file "src/graph"
+                      :description "Physical-entity normalization, explicit window links and graph consistency.")
+               #+sbcl (:file "src/witness-sbcl"
+                      :description "Server generation authority using socket and Linux process identities.")
+               (:file "src/capture"
+                      :description "Explicit bounded acquisition and replacement observations.")
+               (:file "src/command-encoding"
+                      :description "Literal, format, argv and shell-source boundaries for tmux commands.")
+               (:file "src/configuration-codec"
+                      :description "Private bounded decoding of inert tmux quoted-data values.")
+               (:file "src/dispatch"
+                      :description "Target guards, dispatch evidence and independent observation outcomes.")
+               (:file "src/operations"
+                      :description "Rename, select and terminal capture operations with explicit clients.")
+               (:file "src/creation"
+                      :description "Detached session/window/pane creation from argv or explicit shell source.")
+               (:file "src/process-operations"
+                      :description "Explicit pane respawn and daemon-owned shell pipe configuration.")
+               (:file "src/terminal-operations"
+                      :description "Literal text, key input, prefix, copy mode and history operations.")
+               (:file "src/geometry"
+                      :description "Bounded pane/window dimensions and tmux layout operations.")
+               (:file "src/selection"
+                      :description "Contextual next, previous and last window/pane selection.")
+               (:file "src/placement"
+                      :description "Physical pane placement and contextual window-link operations.")
+               (:file "src/buffers"
+                      :description "Owned binary buffers, file transfer and explicit pane paste operations.")))
 
 (defsystem "libtmux/tests"
   :description "Local semantic tests for libtmux"

@@ -1,5 +1,9 @@
 (in-package #:libtmux)
 
+(defgeneric entity-model (entity)
+  (:documentation "Return :SESSION, :WINDOW, :PANE, :WINDOW-LINK or :CLIENT. No I/O.
+:CLIENT denotes an attached tmux client observation, not a connection scope."))
+
 (defclass snapshot ()
   ((context :initarg :context)
    (generation :initarg :generation)

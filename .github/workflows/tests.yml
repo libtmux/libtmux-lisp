@@ -60,6 +60,10 @@ jobs:
         env:
           LIBTMUX_TEST_TMUX: ${{ steps.tmux.outputs.binary }}
         run: /usr/bin/time -p mise run integration
+      - name: Check shipped examples and tutorial from an isolated archive
+        env:
+          LIBTMUX_TEST_TMUX: ${{ steps.tmux.outputs.binary }}
+        run: /usr/bin/time -p mise run package-examples
       - name: Save the tested tmux build
         if: steps.tmux.outputs.cache-hit != 'true'
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -73,6 +77,7 @@ jobs:
           path: |
             build/tmux/provenance/
             build/tmux/logs/
+            dist/*-evidence.json
 
   reject-plain-3-3:
     runs-on: ubuntu-26.04

@@ -1,6 +1,16 @@
 (defpackage #:libtmux
   (:use #:cl)
-  (:documentation "Native captured tmux objects and explicit external operations.")
+  (:documentation "Native Common Lisp captured tmux graphs and explicit external operations.
+OPEN-CLIENT/WITH-CLIENT establish connection scopes without starting a daemon.
+FETCH-SNAPSHOT acquires sessions, physical windows, panes, window links and
+attached clients. Captured getters, traversal and ENTITY-DATA are local and
+remain usable after closure; captured strings and containers are owned copies. REFRESH returns
+a new observation. Named mutators take CLIENT first and return COMMAND-OUTCOME;
+OUTCOME-VALUE and FIELD-VALUE return value and presence as two values.
+Operations are synchronous, bounded and cancellable, with one active operation
+per client. Typed LIBTMUX-ERROR conditions retain diagnostic outcome and cause.
+Closing a client releases owned resources and leaves the daemon alive.
+See docs/index.md for the tutorial, API reference and current capability limits.")
   (:export
    #:libtmux-error #:error-message #:error-cause #:error-outcome #:error-client
    #:invalid-argument #:unsupported-platform #:unsupported-tmux

@@ -1,5 +1,29 @@
 (in-package #:libtmux)
 
+(defgeneric error-message (condition)
+  (:documentation "Return the failure's diagnostic string. No I/O; treat it as read-only."))
+(defgeneric error-cause (condition)
+  (:documentation "Return the original underlying condition, or NIL. No I/O; may be shared."))
+(defgeneric error-outcome (condition)
+  (:documentation "Return retained COMMAND-OUTCOME evidence, or NIL before one exists.
+Inspect dispatch phase and status before deciding how to recover. No I/O."))
+(defgeneric error-client (condition)
+  (:documentation "Return the connection client associated with the failure, or NIL.
+A partially opened client may still own cleanup work; retry CLOSE-CLIENT if
+cleanup failed. Reading this slot performs no I/O."))
+(defgeneric error-feature (condition)
+  (:documentation "Return the unsupported capability's keyword identifier. No I/O."))
+(defgeneric error-setting (condition)
+  (:documentation "Return the daemon setting that violates a named command contract.
+The captured diagnostic value may be shared; treat it as read-only. No I/O."))
+(defgeneric error-field (condition)
+  (:documentation "Return the requested field key, including an unregistered key. No I/O.
+An invalid caller value is retained as supplied; it need not be a keyword."))
+(defgeneric error-model (condition)
+  (:documentation "Return the captured model keyword implicated in a field failure. No I/O."))
+(defgeneric error-target (condition)
+  (:documentation "Return the stale captured target, or NIL when unavailable. No I/O."))
+
 (define-condition libtmux-error (error)
   ((message :initarg :message :initform "Tmux operation failed"
             :reader error-message)

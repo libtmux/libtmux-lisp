@@ -1,5 +1,29 @@
 (in-package #:libtmux)
 
+(defgeneric outcome-status (outcome)
+  (:documentation "Return :SUCCEEDED, :FAILED, :UNKNOWN or :NOT-DISPATCHED. No I/O.
+These describe retained evidence, not rollback. Observation failure is separate
+from mutation success; inspect OUTCOME-OBSERVATION-ERROR and OUTCOME-VALUE."))
+(defgeneric outcome-phase (outcome)
+  (:documentation "Return retained dispatch evidence, without I/O.
+Raw process phases are :PREPARED, :LAUNCHING, :DISPATCHED and :EXITED. Named
+operations may also report :PREFLIGHT or :GUARD-REJECTED before payload dispatch.
+Phase is separate from OUTCOME-STATUS; an exited queue can have partially
+completed effects even when it reported failure."))
+(defgeneric outcome-exit-code (outcome)
+  (:documentation "Return the subprocess's integer exit status, or NIL if unknown. No I/O."))
+(defgeneric outcome-reason (outcome)
+  (:documentation "Return the retained failure reason keyword, or NIL. No I/O.
+Examples include :DEADLINE and :CANCELLED; inspect the condition and phase too."))
+(defgeneric outcome-elapsed (outcome)
+  (:documentation "Return elapsed monotonic seconds for this retained result. No I/O.
+Raw RUN-COMMAND measures its subprocess operation. Named operations include
+preflight, dispatch and follow-up acquisition in their retained outcome timing."))
+(defgeneric outcome-observation-error (outcome)
+  (:documentation "Return the condition from follow-up acquisition, or NIL. No I/O.
+A successful mutation remains :SUCCEEDED when its replacement observation
+fails. Do not repeat the mutation merely to obtain a replacement observation."))
+
 (defclass command-outcome ()
   ((status :initarg :status :reader outcome-status)
    (phase :initarg :phase :reader outcome-phase)

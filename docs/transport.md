@@ -16,7 +16,7 @@ and streams; it leaves the tmux daemon running.
 Supply `:effect :read` or `:effect :mutation` explicitly. Arguments bypass
 shell parsing, but tmux's command and format grammar still applies. This
 escape hatch does not validate captured target identities. Named entity
-operations will provide that validation.
+operations provide that validation; see the [operation contracts](operations.md).
 
 The optional `:input` is an octet vector, copied before dispatch. Standard
 output and diagnostic output are retained as bytes, including invalid UTF-8.
@@ -33,8 +33,11 @@ still owns cleanup work. Retry `close-client` on that object if cleanup failed.
 | `:unknown` | Dispatch was possible but interruption, limits or cleanup prevented a complete result |
 | `:not-dispatched` | Dispatch was prevented or the launcher positively reported an exec failure |
 
-`outcome-phase` separately records `:prepared`, `:launching`, `:dispatched` or
-`:exited`. Inspect `outcome-reason`, `outcome-exit-code` and retained diagnostics
+Raw `outcome-phase` records `:prepared`, `:launching`, `:dispatched` or
+`:exited`; named operations also use `:preflight` and `:guard-rejected`.
+Their [receipt and outcome policy](operations.md#outcomes-and-target-checks)
+requires more evidence than the raw process runner. Inspect `outcome-reason`,
+`outcome-exit-code` and retained diagnostics
 as well. A command reporting failure can already have changed tmux; these
 statuses do not promise rollback. The library never retries an uncertain
 mutation automatically.
@@ -64,8 +67,8 @@ resource problem and retry `close-client`. `client-cleanup-failures` returns a
 fresh vector of retained secondary conditions.
 
 Cleanup failure after a normal scope return signals. During an existing error
-or nonlocal exit it is recorded without replacing that exit. Captured data,
-once implemented, will remain usable locally after client closure.
+or nonlocal exit it is recorded without replacing that exit. Captured data
+remains usable locally after client closure.
 
 ## Supported process boundary
 
