@@ -1,4 +1,17 @@
+<!-- libtmux-logo -->
+<div align="center">
+  <picture>
+    <source srcset="docs/assets/logo.svg" type="image/svg+xml">
+    <img src="docs/assets/logo-512.png" width="128" height="128" alt="libtmux for Common Lisp">
+  </picture>
+</div>
+<!-- /libtmux-logo -->
+
+<div align="center">
+
 # libtmux-lisp
+
+</div>
 
 Capture and automate tmux workspaces in native Common Lisp. Acquire a CLOS
 object graph once, process its panes with ordinary sequences, and make
@@ -131,3 +144,5 @@ version matrix is a separate gate. No benchmark result is claimed.
 
 For changes, read [Contributing](.github/CONTRIBUTING.md) and
 [Writing](.github/WRITING.md). Licensed under [MIT](LICENSE).
+
+[Branding assets](docs/branding.md) include the logo, icons, and social cards.
