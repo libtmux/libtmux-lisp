@@ -1,7 +1,8 @@
 (defpackage #:libtmux.examples
   (:use #:cl)
   (:local-nicknames (#:tm #:libtmux)
-                    (#:q #:libtmux.query))
+                    (#:q #:libtmux.query)
+                    (#:j #:libtmux.json))
   (:export #:inspect-workspace #:create-workspace #:observed-value))
 
 (in-package #:libtmux.examples)
@@ -130,6 +131,29 @@ The caller owns the isolated daemon; repeating this recipe there is an error."
        (q:items
         (q:where (q:from (tm:sessions snapshot) :model :session)
                  *active-session-filter*))))
+;;; docs:end
+
+;;; docs:regex
+(defparameter *cat-command-filter*
+  (q:compile-filter
+   :pane
+   '(:regex-full-match :pane/current-command
+     (:cl-ppcre "CAT" :case-insensitive-mode t))))
+
+(defun cat-pane-data (snapshot)
+  "Return owned data for captured panes whose command is exactly cat; no I/O."
+  (map 'vector #'tm:entity-data
+       (q:matching *cat-command-filter* (tm:panes snapshot))))
+;;; docs:end
+
+;;; docs:filterdocument
+(defun round-trip-filter-document (snapshot)
+  "Round-trip the checked regex filter and apply it to one retained snapshot."
+  (let* ((document (j:write-filter *cat-command-filter*))
+         (restored (j:read-filter document :allow-regex t)))
+    (values document
+            (map 'vector #'tm:entity-data
+                 (q:matching restored (tm:panes snapshot))))))
 ;;; docs:end
 
 ;;; docs:buffers

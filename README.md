@@ -18,8 +18,8 @@ object graph once, process its panes with ordinary sequences, and make
 mutations through an explicit client.
 
 **Implemented:** captured sessions, physical windows, window links and panes;
-bounded subprocess transport; cancellation; named operations, byte buffers and
-validated native queries with relationship traversal and eager QuerySets.
+bounded subprocess transport; cancellation; named operations, byte buffers,
+validated native queries, eager QuerySets, optional regex and bounded JSON.
 **In development:** configuration APIs, control/events, streaming and the
 workspace consumer. MCP is intentionally out of scope. The `0.1.0` systems are
 unreleased.
@@ -59,9 +59,10 @@ the results and removes its daemon; it never addresses your default server.
 $ mise run examples
 ```
 
-Success includes `EXAMPLES PASS: graph, links, native, compiled and relation
-selection, false/presence, ownership, refresh, bytes, capture, close`. Core and query
-loading need ASDF/UIOP only; the example runner also needs Python 3. No Java
+Success includes `EXAMPLES PASS: graph, links, native, compiled, relation,
+regex and JSON selection, false/presence, ownership, refresh, bytes, capture,
+close`. Core and query loading need ASDF/UIOP only; optional regex/JSON use the
+locked CL-PPCRE/Jzon systems. The example runner also needs Python 3. No Java
 runtime is involved.
 
 ## Inspect a workspace
@@ -164,6 +165,44 @@ links to physical windows and panes, then uses the eager local QuerySet:
 ```
 <!-- /example -->
 
+## Add regex and a versioned filter document
+
+Optional systems keep core/query dependency-free while providing a compiled
+CL-PPCRE scanner and a bounded native JSON envelope. These checked definitions
+match the demo's `cat` panes, serialize the filter, read it with explicit regex
+permission, and evaluate the restored predicate against the same capture:
+
+<!-- example:regex -->
+```lisp
+(defparameter *cat-command-filter*
+  (q:compile-filter
+   :pane
+   '(:regex-full-match :pane/current-command
+     (:cl-ppcre "CAT" :case-insensitive-mode t))))
+
+(defun cat-pane-data (snapshot)
+  "Return owned data for captured panes whose command is exactly cat; no I/O."
+  (map 'vector #'tm:entity-data
+       (q:matching *cat-command-filter* (tm:panes snapshot))))
+```
+<!-- /example -->
+
+<!-- example:filterdocument -->
+```lisp
+(defun round-trip-filter-document (snapshot)
+  "Round-trip the checked regex filter and apply it to one retained snapshot."
+  (let* ((document (j:write-filter *cat-command-filter*))
+         (restored (j:read-filter document :allow-regex t)))
+    (values document
+            (map 'vector #'tm:entity-data
+                 (q:matching restored (tm:panes snapshot))))))
+```
+<!-- /example -->
+
+The JSON decoder rejects duplicates, unknown names, null operands and exhausted
+input/depth/node/string/membership/numeric bounds. It never interns external
+names. See [optional query interchange](docs/query-interchange.md).
+
 ## Find the right guide
 
 | Task | Start here |
@@ -171,6 +210,7 @@ links to physical windows and panes, then uses the eager local QuerySet:
 | Load the library; inspect and build a workspace | [REPL tutorial](docs/tutorial.md) |
 | Filter with `loop`, handle false/absence, export plists | [Local data recipes](docs/tutorial.md#select-and-project-locally) |
 | Compile typed filters, traverse relations and compose QuerySets | [Native queries](docs/queries.md) · [Query API](docs/query-api.md) |
+| Add CL-PPCRE or exchange bounded filter documents | [Query interchange](docs/query-interchange.md) · [JSON API](docs/json-api.md) |
 | Rename, resize, move, send input, capture or use buffers | [Operation contracts](docs/operations.md) |
 | Look up signatures, multiple values and conditions | [Public API](docs/api.md) · [Captured fields](docs/fields.md) |
 | Understand deadlines, cancellation and cleanup | [Transport](docs/transport.md) |

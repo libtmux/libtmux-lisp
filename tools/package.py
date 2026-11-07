@@ -47,13 +47,41 @@ with archive.open("wb") as stream, gzip.GzipFile(fileobj=stream, filename="", mo
         for path in sources:
             tar.add(path, arcname=Path("libtmux") / path.relative_to(root), filter=archive_metadata)
 asdf = subprocess.check_output(["mise", "where", "http:asdf-lisp"], cwd=root, text=True).strip()
+qlot_setup = root / ".qlot" / "setup.lisp"
 with tempfile.TemporaryDirectory(prefix="libtmux-lisp-consumer-") as directory:
     destination = Path(directory)
     with tarfile.open(archive) as tar:
         tar.extractall(destination, filter="data")
+    archive_asd = destination / "libtmux" / "libtmux.asd"
     environment = os.environ.copy()
-    environment["CL_SOURCE_REGISTRY"] = f'(:source-registry (:directory "{destination}/libtmux/") :ignore-inherited-configuration)'
-    environment["ASDF_OUTPUT_TRANSLATIONS"] = f'(:output-translations (t "{destination}/fasl/") :ignore-inherited-configuration)'
+    environment["CL_SOURCE_REGISTRY"] = (
+        f'(:source-registry (:directory "{destination}/libtmux/") '
+        ":ignore-inherited-configuration)"
+    )
+    environment["ASDF_OUTPUT_TRANSLATIONS"] = (
+        f'(:output-translations (t "{destination}/fasl/") '
+        ":ignore-inherited-configuration)"
+    )
+    query_rejects_unloaded_regex = (
+        "(handler-case "
+        "(progn "
+        "(libtmux.query:compile-filter "
+        ":pane (quote (:regex-search :pane/current-command (:cl-ppcre \"nvim\")))) "
+        "(error \"Regex compiled without libtmux/regex\")) "
+        "(libtmux.query:invalid-filter ()))"
+    )
+    regex_consumer_check = (
+        "(assert (typep "
+        "(libtmux.query:compile-filter "
+        ":pane (quote (:regex-search :pane/current-command (:cl-ppcre \"^n\")))) "
+        "(quote libtmux.query:compiled-filter)))"
+    )
+    json_consumer_check = (
+        "(let* ((filter (libtmux.query:compile-filter :pane (quote (:and)))) "
+        "(document (libtmux.json:write-filter filter))) "
+        "(assert (typep (libtmux.json:read-filter document) "
+        "(quote libtmux.query:compiled-filter))))"
+    )
     subprocess.run([
         "sbcl", "--noinform", "--no-sysinit", "--no-userinit", "--non-interactive",
         "--load", str(Path(asdf) / "asdf.lisp"),
@@ -71,12 +99,40 @@ with tempfile.TemporaryDirectory(prefix="libtmux-lisp-consumer-") as directory:
         "--eval", '(require :asdf)',
         "--eval", '(asdf:load-system "libtmux/query")',
         "--eval", '(assert (find-package :libtmux.query))',
+        "--eval", query_rejects_unloaded_regex,
         "--eval", '(assert (not (find-package :cl-ppcre)))',
         "--eval", '(assert (not (find-package :com.inuoe.jzon)))',
         "--eval", '(assert (not (find-package :bt2)))',
     ], cwd=destination, env=environment, check=True)
+    subprocess.run([
+        "sbcl", "--noinform", "--no-sysinit", "--no-userinit", "--non-interactive",
+        "--load", str(Path(asdf) / "asdf.lisp"),
+        "--load", str(qlot_setup),
+        "--eval", '(require :asdf)',
+        "--eval", '(setf *compile-verbose* nil *load-verbose* nil)',
+        "--eval", '(declaim (sb-ext:muffle-conditions sb-ext:compiler-note))',
+        "--eval", f'(asdf:load-asd (truename "{archive_asd}"))',
+        "--eval", f'(assert (equal (truename "{archive_asd}") (truename (asdf:system-source-file "libtmux/regex"))))',
+        "--eval", '(asdf:load-system "libtmux/regex")',
+        "--eval", '(assert (find-package :libtmux.regex))',
+        "--eval", regex_consumer_check,
+    ], cwd=destination, env=environment, check=True)
+    subprocess.run([
+        "sbcl", "--noinform", "--no-sysinit", "--no-userinit", "--non-interactive",
+        "--load", str(Path(asdf) / "asdf.lisp"),
+        "--load", str(qlot_setup),
+        "--eval", '(require :asdf)',
+        "--eval", '(setf *compile-verbose* nil *load-verbose* nil)',
+        "--eval", '(declaim (sb-ext:muffle-conditions sb-ext:compiler-note))',
+        "--eval", f'(asdf:load-asd (truename "{archive_asd}"))',
+        "--eval", f'(assert (equal (truename "{archive_asd}") (truename (asdf:system-source-file "libtmux/json"))))',
+        "--eval", '(asdf:load-system "libtmux/json")',
+        "--eval", '(assert (not (find-package :cl-ppcre)))',
+        "--eval", json_consumer_check,
+    ], cwd=destination, env=environment, check=True)
     if arguments.examples:
         extracted = destination / "libtmux"
+        environment["LIBTMUX_QLOT_SETUP"] = str(qlot_setup)
         subprocess.run(["python3", str(extracted / "tools/doc-examples.py")],
                        cwd=extracted, env=environment, check=True)
         subprocess.run(["python3", str(extracted / "tools/test-processes.py"), "python3",
@@ -85,7 +141,9 @@ with tempfile.TemporaryDirectory(prefix="libtmux-lisp-consumer-") as directory:
         shutil.copyfile(extracted / "dist/examples-evidence.json", output / "examples-evidence.json")
 evidence = {"artifact": archive.name, "sha256": hashlib.sha256(archive.read_bytes()).hexdigest(),
             "elapsed_seconds": round(time.monotonic() - started, 3),
-            "core_consumer": "PASS", "query_consumer": "PASS"}
+            "core_consumer": "PASS", "query_consumer": "PASS",
+            "regex_consumer": "PASS", "json_consumer": "PASS",
+            "optional_source": "archive"}
 if arguments.examples:
     evidence["archived_examples"] = "PASS"
 (output / "package-evidence.json").write_text(json.dumps(evidence, indent=2) + "\n")

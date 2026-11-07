@@ -38,7 +38,7 @@ run = "qlot install --jobs 2"
 
 [tasks.check]
 description = "Run source checks and the unit suite (mid loop)"
-run = ["python3 tools/check-source.py", "python3 tools/options-catalog.py", "tools/lisp.sh tools/test.lisp unit", "tools/lisp.sh tools/test.lisp query", "tools/lisp.sh tools/documentation.lisp", "python3 tools/doc-examples.py"]
+run = ["python3 tools/check-source.py", "python3 tools/options-catalog.py", "tools/lisp.sh tools/test.lisp unit", "tools/lisp.sh tools/test.lisp query", "tools/lisp.sh tools/test.lisp regex", "tools/lisp.sh tools/test.lisp json", "tools/lisp.sh tools/documentation.lisp", "python3 tools/doc-examples.py"]
 
 [tasks.catalogs]
 description = "Regenerate native configuration catalogs from committed pinned source facts"
@@ -55,6 +55,14 @@ run = "tools/lisp.sh tools/test.lisp unit"
 [tasks.query]
 description = "Run local native-query tests (inner loop)"
 run = "tools/lisp.sh tools/test.lisp query"
+
+[tasks.regex]
+description = "Run optional CL-PPCRE query tests (inner loop)"
+run = "tools/lisp.sh tools/test.lisp regex"
+
+[tasks.json]
+description = "Run optional bounded filter-codec tests (inner loop)"
+run = "tools/lisp.sh tools/test.lisp json"
 
 [tasks.integration]
 description = "Run isolated tmux integration tests (outer loop)"

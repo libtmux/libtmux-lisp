@@ -70,8 +70,8 @@ Run the timed mid loop from the repository root:
 $ /usr/bin/time -p mise run check
 ```
 
-It checks source whitespace, loads the selected systems and runs the unit and
-native-query suites. It also checks public docstrings, generated
+It checks source whitespace, loads the selected systems and runs the core,
+native-query, regex and JSON suites. It also checks public docstrings, generated
 API/field/operator/module references,
 the generated configuration catalog, example excerpts and local documentation
 links. Regenerate those pages with
@@ -111,6 +111,16 @@ Run the native-query suite alone while working on local filtering:
 
 ```console
 $ mise run query
+```
+
+Run either optional query integration independently:
+
+```console
+$ mise run regex
+```
+
+```console
+$ mise run json
 ```
 
 ## Configuration source catalogs

@@ -15,9 +15,9 @@ The runner creates a mode-0700 temporary directory and explicit socket, clears
 inherited tmux variables, starts an empty-configuration daemon, runs the shipped
 Lisp examples, checks their results and terminates its own server. Assertions
 check object/link counts, false with presence, identity, ownership, literal
-names, refresh, byte buffers and local access after client closure. A failure
-exits nonzero. It loads the core and dependency-free query system without the
-optional regex, JSON or thread libraries.
+names, refresh, byte buffers, optional regex/JSON queries and local access after
+client closure. A failure exits nonzero. It leaves the optional thread library
+unloaded.
 
 Select another native tmux binary explicitly:
 
@@ -62,8 +62,19 @@ registers the ASDF definition but does not implicitly load either system:
 (asdf:load-system "libtmux/query")
 ```
 
+Load the two optional query integrations used later in the checked walkthrough:
+
+```lisp
+(asdf:load-system "libtmux/regex")
+```
+
+```lisp
+(asdf:load-system "libtmux/json")
+```
+
 Load the recipe functions. Their package declares the SBCL package-local
-nickname `tm` for `libtmux`; the library claims no global `tm` nickname.
+nicknames `tm`, `q` and `j` for the core, query and JSON packages; the library
+claims no global short nicknames.
 
 ```lisp
 (load "examples/workspace.lisp")
@@ -212,6 +223,54 @@ selection in a QuerySet with explicit root-model metadata:
 
 See the [native query guide](queries.md) for quantifier identities, stable
 ordering, ownership and strict cardinality.
+
+## Match and serialize an optional query
+
+`libtmux/regex` adds CL-PPCRE-backed operators without adding that dependency
+to core or `libtmux/query`. The scanner is compiled once with the filter; this
+full-match example also proves that a match beginning at position zero works:
+
+<!-- example:regex -->
+```lisp
+(defparameter *cat-command-filter*
+  (q:compile-filter
+   :pane
+   '(:regex-full-match :pane/current-command
+     (:cl-ppcre "CAT" :case-insensitive-mode t))))
+
+(defun cat-pane-data (snapshot)
+  "Return owned data for captured panes whose command is exactly cat; no I/O."
+  (map 'vector #'tm:entity-data
+       (q:matching *cat-command-filter* (tm:panes snapshot))))
+```
+<!-- /example -->
+
+```lisp
+(cat-pane-data *snapshot*)
+```
+
+`libtmux/json` writes the native schema `libtmux.lisp.filter/1`. Reading regex
+is an explicit local opt-in because parser limits do not interrupt CL-PPCRE
+scanner execution:
+
+<!-- example:filterdocument -->
+```lisp
+(defun round-trip-filter-document (snapshot)
+  "Round-trip the checked regex filter and apply it to one retained snapshot."
+  (let* ((document (j:write-filter *cat-command-filter*))
+         (restored (j:read-filter document :allow-regex t)))
+    (values document
+            (map 'vector #'tm:entity-data
+                 (q:matching restored (tm:panes snapshot))))))
+```
+<!-- /example -->
+
+```lisp
+(round-trip-filter-document *snapshot*)
+```
+
+Both operations are local. The [interchange guide](query-interchange.md)
+documents the closed envelope, limits and false/empty/null distinctions.
 
 Use both values when false and absence matter. This field is always present;
 an inactive pane returns `nil` and `t`:

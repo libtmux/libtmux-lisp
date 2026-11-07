@@ -339,8 +339,8 @@ Direct supertypes: `standard-object`.
 
 ## Operators
 
-Scalar and relation rows are implemented locally. Regex operators require the
-optional `libtmux/regex` system.
+Scalar and relation rows are implemented by `libtmux/query`. Regex operators
+become available when the optional `libtmux/regex` system is loaded.
 
 | Operator | Arity | Field kinds | Stage | Meaning |
 | --- | ---: | --- | --- | --- |

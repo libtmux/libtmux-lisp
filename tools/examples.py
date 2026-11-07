@@ -69,9 +69,14 @@ for mode in ("assertions", "tutorial"):
                                   "\n".join(forms[:-1]) + checks + forms[-1])
                 extra_arguments = []
                 working_directory = root
-            subprocess.run(["sbcl", "--noinform", "--no-sysinit", "--no-userinit",
-                            "--load", str(Path(asdf) / "asdf.lisp"),
-                            "--script", str(script), *extra_arguments],
+            qlot_setup = Path(os.environ.get("LIBTMUX_QLOT_SETUP",
+                                             root / ".qlot" / "setup.lisp"))
+            lisp_command = ["sbcl", "--noinform", "--no-sysinit", "--no-userinit",
+                            "--load", str(Path(asdf) / "asdf.lisp")]
+            if qlot_setup.is_file():
+                lisp_command.extend(["--load", str(qlot_setup)])
+            lisp_command.extend(["--script", str(script), *extra_arguments])
+            subprocess.run(lisp_command,
                            input=socket + "\n", text=True, cwd=working_directory,
                            env=child_environment, check=True, timeout=20)
         finally:
@@ -93,7 +98,8 @@ evidence = {"status": "PASS", "tmux": version,
                               for path in [*sorted((root / "examples").iterdir()),
                                            root / "README.md", root / "docs/tutorial.md",
                                            root / "tools/examples.py", root / "tools/stop-example.py"] if path.is_file()},
-            "daemon_cleanup": "PASS", "optional_libraries_loaded": False}
+            "daemon_cleanup": "PASS",
+            "optional_libraries_loaded": ["cl-ppcre", "com.inuoe.jzon"]}
 evidence["tutorial_lisp_blocks"] = len(forms)
 evidence["tutorial_console_setup_cleanup"] = "PASS"
 output = Path(__file__).resolve().parents[1] / "dist"

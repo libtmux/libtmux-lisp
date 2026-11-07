@@ -179,6 +179,18 @@ Loading this package adds no transport dependency and performs no tmux I/O.")
          :received (or *diagnostic-received* (type-of form))
          :message (apply #'format nil control arguments)))
 
+(defgeneric compile-optional-node
+    (operator model form requirements seen relation-requirements relation-seen limits)
+  (:documentation "Compile an operator supplied by a separately loaded query system.")
+  (:method (operator model form requirements seen
+            relation-requirements relation-seen limits)
+    (declare (ignore requirements seen relation-requirements relation-seen limits))
+    (let ((*diagnostic-expected* :loaded-optional-query-system)
+          (*diagnostic-received* operator))
+      (fail-filter model form
+                   "Operator ~S requires its unloaded optional query system"
+                   operator))))
+
 (defun limit-error (model form path control &rest arguments)
   (error 'query-limit-exceeded :model model
          :path (coerce (reverse path) 'simple-vector)
@@ -355,18 +367,16 @@ Loading this package adds no transport dependency and performs no tmux I/O.")
       (let ((*diagnostic-expected* :registered-query-operator)
             (*diagnostic-received* (safe-designator-summary operator)))
         (fail-filter model form "Unsupported native query operator")))
-    (when (eq :regex (operator-spec-stage spec))
-      (let ((*diagnostic-expected* :scalar)
-            (*diagnostic-received* (operator-spec-stage spec)))
-        (fail-filter model form
-                     "Operator ~S requires the unloaded libtmux/regex system"
-                     operator)))
     (unless (or (eq :variadic (operator-spec-arity spec))
                 (= (operator-spec-arity spec) (length (rest form))))
       (let ((*diagnostic-expected* (operator-spec-arity spec))
             (*diagnostic-received* (length (rest form))))
         (fail-filter model form "Operator ~S expects ~D operands"
                      operator (operator-spec-arity spec))))
+    (unless (member (operator-spec-stage spec) '(:scalar :relations))
+      (return-from compile-node
+        (compile-optional-node operator model form requirements seen
+                               relation-requirements relation-seen limits)))
     (case operator
       (:and
        (let ((children
@@ -518,8 +528,6 @@ Loading this package adds no transport dependency and performs no tmux I/O.")
                                (execution-checkpoint context)
                                (evaluate-node child related context)))))))
           :field key :children (vector child))))
-      ((:regex-search :regex-full-match)
-       (fail-filter model form "Operator ~S requires an unloaded optional query system" operator))
       (otherwise
        (fail-filter model form "Unsupported native query operator ~S" operator))))))
 

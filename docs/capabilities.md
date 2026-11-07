@@ -8,13 +8,13 @@ the complete control/events and workspace suite described by the project goal.
 | --- | --- | --- |
 | Runtime | SBCL 2.6.10, ASDF/UIOP 3.3.7, Linux x86-64, kernel 6.9+, Bash | Other implementation/OS support |
 | Acquisition | Finite CLOS snapshots, explicit window links, identity, bounds and replacement observations | Complete all-version acceptance after further operations |
-| Local processing | Ordinary lists/vectors, functions, owned plists, presence via multiple values, validated relation queries and eager QuerySets | Regex and source-side filter lowering |
+| Local processing | Ordinary lists/vectors, functions, owned plists, presence via multiple values, validated relation/regex queries and eager QuerySets | Source-side filter lowering |
 | Operations | Creation, rename, selection, geometry, placement, input, buffers, respawn, shell pipes | Options/hooks/environment, lifecycle/bootstrap and attached-client operations |
 | Concurrency | Synchronous calls; cancellation; one operation per client | Public asynchronous API and persistent control transport |
 | Streaming/events | Complete bounded captures and byte buffers; daemon-owned `pipe-pane` | Native event/output subscriptions, bounded delivery, loss and backpressure |
 | Workspace | No implemented module or executable | Separate ASDF system, installed loader/CLI and owned-fixture consumer tests |
 | MCP | Intentionally excluded by project policy | Use a separately maintained external integration if one becomes suitable |
-| Optional integrations | Native query system is separate and dependency-free | Regex, JSON and control ASDF systems |
+| Optional integrations | Separate CL-PPCRE regex and bounded Jzon interchange systems | Control ASDF system |
 | Performance | No benchmark claims | Reproducible acquisition/filter/stream workloads and latency/allocation results |
 
 The process backend services stdin/stdout/stderr through nonblocking descriptors

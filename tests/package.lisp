@@ -6,7 +6,14 @@
 
 (def-suite unit)
 (def-suite query)
+(def-suite regex)
+(def-suite json)
 (def-suite integration)
 
 (defun run-suite (name)
-  (run! (ecase name (:unit 'unit) (:query 'query) (:integration 'integration))))
+  (run! (ecase name
+          (:unit 'unit)
+          (:query 'query)
+          (:regex 'regex)
+          (:json 'json)
+          (:integration 'integration))))

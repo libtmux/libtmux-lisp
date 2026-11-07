@@ -85,7 +85,33 @@ false value. A scalar comparison on an absent optional field is false, so NOT
 of that comparison is true. Use `:present` when absence must be excluded.
 Missing required capture data signals `field-unavailable`.
 
-Regex operators belong to the later optional `libtmux/regex` system.
+## Add optional regex operators
+
+Load CL-PPCRE support without changing the dependency boundary of core or
+`libtmux/query`:
+
+```lisp
+(asdf:load-system "libtmux/regex")
+```
+
+The operand is owned declarative data: the engine, pattern and closed scanner
+options. Search and full match are separate operations:
+
+```lisp
+(q:compile-filter
+ :pane
+ '(:regex-search :pane/current-command
+   (:cl-ppcre "^(n?vim)$" :case-insensitive-mode t)))
+```
+
+Supported Boolean options are `:case-insensitive-mode`, `:multi-line-mode`,
+`:single-line-mode` and `:extended-mode`. The scanner is compiled once. A match
+at position zero is true. An absent optional text field is false. Query visit
+limits do not interrupt CL-PPCRE scanner execution; use regex only with trusted
+local patterns and inputs appropriate to that engine.
+
+The separate [query interchange guide](query-interchange.md) shows bounded JSON
+round trips and the explicit regex read opt-in.
 
 ## Traverse captured relationships
 

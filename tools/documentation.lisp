@@ -3,6 +3,8 @@
 (asdf:load-asd (truename "libtmux.asd"))
 (asdf:load-system "libtmux")
 (asdf:load-system "libtmux/query")
+(asdf:load-system "libtmux/regex")
+(asdf:load-system "libtmux/json")
 
 (defpackage #:libtmux.documentation
   (:use #:cl)
@@ -151,7 +153,7 @@
                     (mapcar (lambda (superclass)
                               (string-downcase (symbol-name (class-name superclass))))
                             (sb-mop:class-direct-superclasses class))))))
-      (format out "## Operators~%~%Scalar and relation rows are implemented locally. Regex operators require the~%optional `libtmux/regex` system.~%~%| Operator | Arity | Field kinds | Stage | Meaning |~%| --- | ---: | --- | --- | --- |~%")
+      (format out "## Operators~%~%Scalar and relation rows are implemented by `libtmux/query`. Regex operators~%become available when the optional `libtmux/regex` system is loaded.~%~%| Operator | Arity | Field kinds | Stage | Meaning |~%| --- | ---: | --- | --- | --- |~%")
       (loop for spec across libtmux.query::*operator-specs*
             do (format out "| `~S` | ~A | ~{`~A`~^, ~} | `~A` | ~A |~%"
                        (libtmux.query::operator-spec-key spec)
@@ -160,6 +162,32 @@
                        (libtmux.query::operator-spec-field-kinds spec)
                        (libtmux.query::operator-spec-stage spec)
                        (libtmux.query::operator-spec-documentation spec))))))
+
+(defun render-json-api ()
+  (let ((*package* (find-package :libtmux.json)) (*print-case* :downcase)
+        (*print-pretty* nil) (*print-circle* t))
+    (with-output-to-string (out)
+      (format out "# Query JSON API~%~%Generated from live package documentation and signatures by `mise run docs`.~%Edit source docstrings; `mise run check` detects drift.~%~%[Interchange guide](query-interchange.md) · [Query guide](queries.md)~%~%")
+      (format out "~A~%~%" (required-documentation (find-package :libtmux.json) t))
+      (format out "## Functions~%~%")
+      (dolist (symbol (public-symbols :libtmux.json))
+        (when (fboundp symbol)
+          (format out "<a id=\"~A-function\"></a>~%~%### ~A~%~%`~A`~%~%~A~%~%~A~%~%"
+                  (spelling symbol) (spelling symbol)
+                  (signature-text (cons symbol (sb-introspect:function-lambda-list symbol)))
+                  (required-documentation symbol 'function)
+                  (source-link symbol (function-kind symbol)))))
+      (format out "## Conditions~%~%These types retain bounded document diagnostics; their slots are private.~%~%")
+      (dolist (symbol (public-symbols :libtmux.json))
+        (let ((class (find-class symbol nil)))
+          (when class
+            (format out "<a id=\"~A-type\"></a>~%~%### ~A~%~%~A~%~%~A~%~%Direct supertypes: ~{`~A`~^, ~}.~%~%"
+                    (spelling symbol) (spelling symbol)
+                    (required-documentation class t)
+                    (source-link symbol (if (subtypep symbol 'condition) :condition :class))
+                    (mapcar (lambda (superclass)
+                              (string-downcase (symbol-name (class-name superclass))))
+                            (sb-mop:class-direct-superclasses class)))))))))
 
 (defun render-modules ()
   (with-output-to-string (out)
@@ -170,7 +198,7 @@
               (or (asdf/component:component-description component)
                   (error "Missing module description: ~A" component))))
     (format out "~%## Separate systems~%~%| System | Source | Responsibility |~%| --- | --- | --- |~%")
-    (dolist (system-name '("libtmux/query"))
+    (dolist (system-name '("libtmux/query" "libtmux/regex" "libtmux/json"))
       (let ((system (asdf:find-system system-name)))
         (dolist (component (asdf:component-children system))
           (format out "| `~A` | [~A](../~A) | ~A |~%" system-name
@@ -190,6 +218,7 @@
 (let ((write-p (equal '("write") (uiop:command-line-arguments))))
   (synchronize "docs/api.md" (render-api) write-p)
   (synchronize "docs/query-api.md" (render-query-api) write-p)
+  (synchronize "docs/json-api.md" (render-json-api) write-p)
   (synchronize "docs/fields.md" (render-fields) write-p)
   (synchronize "docs/modules.md" (render-modules) write-p)
   (format t "Public docstrings, API signatures, fields and module documentation: PASS~%"))

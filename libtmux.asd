@@ -84,6 +84,22 @@
   :components ((:file "src/query"
                       :description "Owned expressions, relation traversal, eager query sets and strict cardinality.")))
 
+(defsystem "libtmux/regex"
+  :description "Optional CL-PPCRE operators for native captured queries"
+  :depends-on ("libtmux/query" "cl-ppcre")
+  :in-order-to ((test-op (test-op "libtmux/tests/regex")))
+  :serial t
+  :components ((:file "src/regex"
+                      :description "Validated CL-PPCRE search and full-match query operators.")))
+
+(defsystem "libtmux/json"
+  :description "Optional bounded JSON interchange for native query filters"
+  :depends-on ("libtmux/query" "com.inuoe.jzon")
+  :in-order-to ((test-op (test-op "libtmux/tests/json")))
+  :serial t
+  :components ((:file "src/json"
+                      :description "Closed versioned filter documents with bounded event decoding.")))
+
 (defsystem "libtmux/tests/query"
   :description "Local native-query semantic tests"
   :depends-on ("libtmux/tests" "libtmux/query")
@@ -93,6 +109,26 @@
              (declare (ignore operation component))
              (unless (uiop:symbol-call :libtmux.tests :run-suite :query)
                (error "libtmux query tests failed"))))
+
+(defsystem "libtmux/tests/regex"
+  :description "Optional CL-PPCRE query semantic tests"
+  :depends-on ("libtmux/tests" "libtmux/regex")
+  :serial t
+  :components ((:file "tests/regex"))
+  :perform (test-op (operation component)
+             (declare (ignore operation component))
+             (unless (uiop:symbol-call :libtmux.tests :run-suite :regex)
+               (error "libtmux regex tests failed"))))
+
+(defsystem "libtmux/tests/json"
+  :description "Optional bounded query-interchange semantic tests"
+  :depends-on ("libtmux/tests" "libtmux/regex" "libtmux/json")
+  :serial t
+  :components ((:file "tests/json"))
+  :perform (test-op (operation component)
+             (declare (ignore operation component))
+             (unless (uiop:symbol-call :libtmux.tests :run-suite :json)
+               (error "libtmux JSON tests failed"))))
 
 (defsystem "libtmux/tests/integration"
   :description "Owned tmux fixtures and external-operation tests"

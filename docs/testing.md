@@ -61,6 +61,16 @@ For interactive redefinition, load the test system explicitly:
 (fiveam:run! 'libtmux.tests::query)
 ```
 
+The optional systems keep their own suites and remain local:
+
+```lisp
+(asdf:test-system "libtmux/regex")
+```
+
+```lisp
+(asdf:test-system "libtmux/json")
+```
+
 The pinned FiveAM 1.4.3 compiles test bodies at definition time by default.
 After changing a macro used by a test, re-evaluate that test definition too.
 For a test specifically studying macro redefinition, `def-test` supports the
@@ -86,6 +96,16 @@ Run only the native-query inner loop:
 
 ```console
 $ mise run query
+```
+
+Run the regex or JSON inner loop:
+
+```console
+$ mise run regex
+```
+
+```console
+$ mise run json
 ```
 
 Run the owned live fixtures with one explicit tmux executable:
