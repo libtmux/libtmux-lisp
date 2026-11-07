@@ -95,6 +95,8 @@ $ gh workflow run tests.yml \
 ```
 
 Qlot dependencies use a cache keyed by the toolchain configuration and lock.
+It contains both `.qlot` and Qlot's shared cache, because installed systems
+link to source directories outside the project.
 Tmux builds use exact keys containing source/archive identities, build recipe,
 runner image, architecture, compiler and dependency versions. Runtime libraries
 are installed before restoring a binary. Reuse checks provenance, binary hash,
