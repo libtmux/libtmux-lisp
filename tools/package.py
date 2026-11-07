@@ -20,7 +20,7 @@ started = time.monotonic()
 output = root / "dist"
 output.mkdir(exist_ok=True)
 archive = output / "libtmux-source.tar.gz"
-sources = [root / name for name in ("libtmux.asd", "LICENSE", "README.md", "qlfile", "qlfile.lock",
+sources = [root / name for name in ("libtmux.asd", "LICENSE", "README.md", "CHANGELOG.md", "qlfile", "qlfile.lock",
                                    "mise.toml", ".tool-versions", "AGENTS.md", "verification.md")]
 sources += sorted((root / "src").rglob("*.lisp"))
 sources += sorted((root / "tests").rglob("*.lisp"))
