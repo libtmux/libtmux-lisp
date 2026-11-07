@@ -176,7 +176,8 @@ See the [field reference](fields.md) for types and optional values.
 
 ## Handle command and observation outcomes
 
-Creation and named mutations return `command-outcome`. A successful command
+Creation and named mutations return
+[command-outcome](api.md#command-outcome-type). A successful command
 can have no replacement observation because the target disappeared afterward.
 Check the observation separately; this helper never retries the mutation:
 
@@ -209,7 +210,10 @@ observation. Observations from a different connection are not interchangeable
 operational targets, even when their numeric IDs match.
 
 External failures signal typed conditions. A handler can inspect
-`error-outcome`, `outcome-status`, `outcome-phase`, `outcome-exit-code` and owned
+[error-outcome](api.md#error-outcome-function),
+[outcome-status](api.md#outcome-status-function),
+[outcome-phase](api.md#outcome-phase-function),
+[outcome-exit-code](api.md#outcome-exit-code-function) and owned
 diagnostic bytes. Missing completion evidence can mean the mutation already
 happened; an automatic retry can duplicate effects. The
 [operation guide](operations.md#outcomes-and-target-checks) defines these cases.

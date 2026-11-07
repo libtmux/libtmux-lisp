@@ -73,7 +73,8 @@ owned data after closing its client:
 ```
 <!-- /example -->
 
-`fetch-snapshot` contacts tmux. Traversal and projection inside the loops are
+[libtmux:fetch-snapshot](docs/api.md#fetch-snapshot-function) contacts tmux.
+Traversal and projection inside the loops are
 local. Returned strings and sequence containers belong to the caller.
 Acquisition spans an interval; it is not a transaction over a changing daemon.
 
@@ -118,8 +119,10 @@ resources and leaves tmux running. Daemon bootstrap currently requires tmux
 itself; the tutorial supplies the complete setup and cleanup.
 
 Named mutations preserve dispatch evidence and separate successful changes
-from follow-up observation failures. Inspect `command-outcome` or the condition's
-`error-outcome`; never retry an uncertain mutation blindly. See
+from follow-up observation failures. Inspect
+[command-outcome](docs/api.md#command-outcome-type) or the condition's
+[error-outcome](docs/api.md#error-outcome-function); never retry an uncertain
+mutation blindly. See
 [outcome handling](docs/tutorial.md#handle-command-and-observation-outcomes).
 
 The examples are shipped source, executed on isolated servers and checked for
