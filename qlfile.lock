@@ -1,0 +1,20 @@
+("quicklisp" .
+ (:class qlot/source/dist:source-dist
+  :initargs (:distribution "https://beta.quicklisp.org/dist/quicklisp.txt" :%version :latest)
+  :version "2026-01-01"))
+("fiveam" .
+ (:class qlot/source/github:source-github
+  :initargs (:repos "lispci/fiveam" :ref "3ba1300a9dd6bafdaef2af76d261d73bdf7e4bf0" :branch nil :tag nil)
+  :version "github-3ba1300a9dd6bafdaef2af76d261d73bdf7e4bf0"))
+("cl-ppcre" .
+ (:class qlot/source/github:source-github
+  :initargs (:repos "edicl/cl-ppcre" :ref "80fb19d104647a2c4efd5f66f65811948bf8156b" :branch nil :tag nil)
+  :version "github-80fb19d104647a2c4efd5f66f65811948bf8156b"))
+("bordeaux-threads" .
+ (:class qlot/source/github:source-github
+  :initargs (:repos "sionescu/bordeaux-threads" :ref "21619023facf4709b58d240af816f3f7b488d2f6" :branch nil :tag nil)
+  :version "github-21619023facf4709b58d240af816f3f7b488d2f6"))
+("jzon" .
+ (:class qlot/source/github:source-github
+  :initargs (:repos "Zulu-Inuoe/jzon" :ref "99b19fb18ab3555c04564a51a990db06ed1d8a23" :branch nil :tag nil)
+  :version "github-99b19fb18ab3555c04564a51a990db06ed1d8a23"))

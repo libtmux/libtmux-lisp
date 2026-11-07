@@ -1,2 +1,4 @@
 http:sbcl 2.6.10
 http:asdf-lisp 3.3.7
+http:qlot 1.8.4
+actionlint 1.7.12

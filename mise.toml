@@ -7,6 +7,8 @@ strip_components = 1
 bin_path = "."
 # Keep the upstream launcher so it resolves its core and contributed modules.
 rename_exe = { "run-sbcl.sh" = "sbcl" }
+# Qlot respawns the native executable; it must also find the core in SBCL_HOME.
+postinstall = { run = 'test -e "$MISE_TOOL_INSTALL_PATH/obj/sbcl-home/sbcl.core" || ln -s ../../output/sbcl.core "$MISE_TOOL_INSTALL_PATH/obj/sbcl-home/sbcl.core"', when = "always" }
 
 [tools."http:sbcl".platforms.linux-x64]
 url = "https://prdownloads.sourceforge.net/sbcl/sbcl-{{ version }}-x86-64-linux-binary.tar.bz2"
@@ -18,19 +20,36 @@ url = "https://asdf.common-lisp.dev/archives/asdf-{{ version }}.lisp"
 checksum = "sha256:874e8f235ea633a090c7ab2665b1f624d1910eb7f6fc10349a596085c1cbb189"
 bin = "asdf.lisp"
 
+[tools."http:qlot"]
+version = '{{ read_file(path=".tool-versions") | regex_replace(pattern="(?s).*http:qlot +([0-9.]+).*", rep="$1") }}'
+url = "https://github.com/fukamachi/qlot/releases/download/{{ version }}/qlot-{{ version }}.tar.gz"
+checksum = "sha256:1b97df7d7ac3b32f6350d0519a048792f2c4da497d43e6346bbe47e488b50ff4"
+strip_components = 1
+bin_path = "bin"
+
+[tasks.setup]
+description = "Install the locked project-local Lisp dependencies (network)"
+run = "qlot install --jobs 2"
+
 [tasks.check]
-description = "Load the ASDF system with the pinned Common Lisp toolchain"
-run = '''
-sbcl \
-  --noinform \
-  --no-sysinit \
-  --no-userinit \
-  --non-interactive \
-  --load "{{ tools['http:asdf-lisp'].path }}/asdf.lisp" \
-  --eval '(asdf:load-asd (truename "libtmux.asd"))' \
-  --eval '(asdf:load-system "libtmux")' \
-  --eval '(format t "~&Loaded libtmux ~A (SBCL ~A, ASDF ~A)~%" (asdf:component-version (asdf:find-system "libtmux")) (lisp-implementation-version) (asdf:asdf-version))'
-'''
+description = "Run source checks and the unit suite (mid loop)"
+run = ["python3 tools/check-source.py", "tools/lisp.sh tools/test.lisp unit"]
+
+[tasks.unit]
+description = "Run local unit tests (inner loop)"
+run = "tools/lisp.sh tools/test.lisp unit"
+
+[tasks.integration]
+description = "Run isolated tmux integration tests (outer loop)"
+run = "python3 tools/test-processes.py tools/lisp.sh tools/test.lisp integration"
+
+[tasks.package]
+description = "Build a source archive and verify an isolated core consumer"
+run = "python3 tools/package.py"
+
+[tasks.lint-workflows]
+description = "Validate GitHub Actions workflows with pinned actionlint"
+run = "actionlint"
 
 [tasks.repl]
 description = "Start SBCL with the pinned ASDF release and local system"
@@ -40,5 +59,6 @@ sbcl \
   --no-sysinit \
   --no-userinit \
   --load "{{ tools['http:asdf-lisp'].path }}/asdf.lisp" \
+  --load .qlot/setup.lisp \
   --eval '(asdf:load-asd (truename "libtmux.asd"))'
 '''

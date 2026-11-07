@@ -9,9 +9,11 @@
 # Common Lisp build output and saved images
 *.fasl
 *.core
+__pycache__/
 
 # Local environment and tool state
 /.cache/
+/.qlot/
 /.direnv/
 /.envrc.local
 .env
