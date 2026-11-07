@@ -19,7 +19,17 @@
                (:file "src/model")
                (:file "src/graph")
                #+sbcl (:file "src/witness-sbcl")
-               (:file "src/capture")))
+               (:file "src/capture")
+               (:file "src/command-encoding")
+               (:file "src/dispatch")
+               (:file "src/operations")
+               (:file "src/creation")
+               (:file "src/process-operations")
+               (:file "src/terminal-operations")
+               (:file "src/geometry")
+               (:file "src/selection")
+               (:file "src/placement")
+               (:file "src/buffers")))
 
 (defsystem "libtmux/tests"
   :description "Local semantic tests for libtmux"
@@ -40,7 +50,13 @@
   :serial t
   :components ((:file "tests/fixture")
                (:file "tests/process")
-               (:file "tests/capture"))
+               (:file "tests/capture")
+               (:file "tests/operations")
+               (:file "tests/creation")
+               (:file "tests/geometry")
+               (:file "tests/placement")
+               (:file "tests/buffers")
+               (:file "tests/pane-processes"))
   :perform (test-op (operation component)
              (declare (ignore operation component))
              (unless (uiop:symbol-call :libtmux.tests :run-suite :integration)
