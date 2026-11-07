@@ -72,4 +72,5 @@
       (assert (= 4 (length (libtmux:panes snapshot))))
       (assert (string= before-name (libtmux:name shared)))))
   (assert (= 2 (length (libtmux.examples:inspect-workspace socket-path :program program))))
-  (format t "EXAMPLES PASS: graph, links, native, compiled, relation, regex and JSON selection, false/presence, ownership, refresh, bytes, capture, close~%"))
+  (libtmux.examples:terminate-owned-server socket-path :program program)
+  (format t "EXAMPLES PASS: graph, links, native, compiled, relation, regex and JSON selection, false/presence, ownership, refresh, bytes, capture, close, terminate~%"))

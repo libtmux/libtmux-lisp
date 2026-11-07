@@ -61,7 +61,9 @@
                (:file "src/placement"
                       :description "Physical pane placement and contextual window-link operations.")
                (:file "src/buffers"
-                      :description "Owned binary buffers, file transfer and explicit pane paste operations.")))
+                      :description "Owned binary buffers, file transfer and explicit pane paste operations.")
+               (:file "src/termination"
+                      :description "Exact entity deletion and separately proven explicit server termination.")))
 
 (defsystem "libtmux/tests"
   :description "Local semantic tests for libtmux"
@@ -140,6 +142,7 @@
                (:file "tests/process")
                (:file "tests/capture")
                (:file "tests/operations")
+               (:file "tests/termination")
                (:file "tests/creation")
                (:file "tests/geometry")
                (:file "tests/placement")

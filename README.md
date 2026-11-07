@@ -21,7 +21,8 @@ mutations through an explicit client.
 bounded subprocess transport; cancellation; named operations, byte buffers,
 validated native queries, eager QuerySets, optional regex and bounded JSON;
 [typed option, hook and environment mutations](docs/operations.md#configuration-mutations)
-for the exact reviewed tmux catalogs through 3.8.
+for the exact reviewed tmux catalogs through 3.8; explicit entity and server
+termination with retained outcome evidence.
 **In development:** decoded configuration readers, control/events, streaming
 and the workspace consumer. MCP is intentionally out of scope. The `0.1.0`
 systems are unreleased.
@@ -63,9 +64,9 @@ $ mise run examples
 
 Success includes `EXAMPLES PASS: graph, links, native, compiled, relation,
 regex and JSON selection, false/presence, ownership, refresh, bytes, capture,
-close`. Core and query loading need ASDF/UIOP only; optional regex/JSON use the
-locked CL-PPCRE/Jzon systems. The example runner also needs Python 3. No Java
-runtime is involved.
+close, terminate`. Core and query loading need ASDF/UIOP only; optional
+regex/JSON use the locked CL-PPCRE/Jzon systems. The example runner also needs
+Python 3. No Java runtime is involved.
 
 ## Inspect a workspace
 
@@ -213,7 +214,7 @@ names. See [optional query interchange](docs/query-interchange.md).
 | Filter with `loop`, handle false/absence, export plists | [Local data recipes](docs/tutorial.md#select-and-project-locally) |
 | Compile typed filters, traverse relations and compose QuerySets | [Native queries](docs/queries.md) · [Query API](docs/query-api.md) |
 | Add CL-PPCRE or exchange bounded filter documents | [Query interchange](docs/query-interchange.md) · [JSON API](docs/json-api.md) |
-| Rename, resize, move, send input, capture or use buffers | [Operation contracts](docs/operations.md) |
+| Rename, resize, move, send input, capture, use buffers or terminate explicit targets | [Operation contracts](docs/operations.md) |
 | Look up signatures, multiple values and conditions | [Public API](docs/api.md) · [Captured fields](docs/fields.md) |
 | Understand deadlines, cancellation and cleanup | [Transport](docs/transport.md) |
 | Evaluate async, streaming, workspace and performance support | [Capabilities and limits](docs/capabilities.md) |
@@ -223,8 +224,10 @@ names. See [optional query interchange](docs/query-interchange.md).
 Public calls block. Each client accepts one external operation at a time;
 concurrent reuse signals `client-busy`. Internal nonblocking pipe service does
 not provide an asynchronous application API. Closing a client releases its
-resources and leaves tmux running. Daemon bootstrap currently requires tmux
-itself; the tutorial supplies the complete setup and cleanup.
+resources and leaves tmux running. [`kill-server`](docs/api.md#kill-server-function)
+is a separate explicit operation that proves the daemon accepted during its
+preflight exited. Daemon bootstrap currently requires tmux itself; the tutorial
+supplies the complete setup and cleanup.
 
 Named mutations preserve dispatch evidence and separate successful changes
 from follow-up observation failures. Inspect

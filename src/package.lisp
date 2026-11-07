@@ -37,6 +37,7 @@ See docs/index.md for the tutorial, API reference and current capability limits.
    #:list-buffers #:set-buffer #:show-buffer #:load-buffer #:save-buffer #:paste-buffer #:delete-buffer
    #:set-option #:unset-option #:set-hook #:unset-hook
    #:set-environment #:unset-environment #:remove-environment
+   #:kill-pane #:kill-window #:kill-session #:kill-server
    #:command-outcome #:outcome-status #:outcome-phase #:outcome-arguments
    #:outcome-stdout #:outcome-stderr #:outcome-exit-code #:outcome-reason
    #:outcome-elapsed #:outcome-value #:outcome-observation-error

@@ -37,6 +37,8 @@ daemon bootstrap is a separate unfinished part of the implementation.
 | [`set-option`](api.md#set-option-function), [`unset-option`](api.md#unset-option-function) | Typed live-catalog option mutation in one explicit table |
 | [`set-hook`](api.md#set-hook-function), [`unset-hook`](api.md#unset-hook-function) | Tmux command-source installation/removal; never evaluates source as Lisp |
 | [`set-environment`](api.md#set-environment-function), [`unset-environment`](api.md#unset-environment-function), [`remove-environment`](api.md#remove-environment-function) | Raw global/session environment value, deletion or tombstone |
+| [`kill-pane`](api.md#kill-pane-function), [`kill-window`](api.md#kill-window-function), [`kill-session`](api.md#kill-session-function) | Exact captured entity; outcome without replacement |
+| [`kill-server`](api.md#kill-server-function) | Retained live daemon; proven process exit or uncertain outcome |
 
 Creation defaults to detached mode. Selection uses explicit captured targets.
 `new-window :index` chooses a free session index. `split-pane` accepts
@@ -253,6 +255,29 @@ and diagnostics, and never retry uncertain mutations. Decoded configuration
 readers remain under development; use [`run-command`](api.md#run-command-function)
 only when raw tmux argv and its weaker target contract are intentional.
 
+## Explicit termination
+
+[`kill-pane`](api.md#kill-pane-function),
+[`kill-window`](api.md#kill-window-function) and
+[`kill-session`](api.md#kill-session-function) accept one captured physical
+target. The same preflight and last-moment guards used by other named mutations
+reject a missing, replaced or foreign-generation target. These functions do not
+expose tmux's broad `-a` forms. Killing a physical window removes all its links;
+killing a session removes that session's links and any now-unreferenced panes.
+
+[`kill-server`](api.md#kill-server-function) is deliberately separate from
+[`close-client`](api.md#close-client-function). Closing releases library-owned
+resources and leaves tmux alive. Server termination succeeds only after a
+pre-dispatch receipt and readiness of the pidfd retained for the daemon accepted
+during this call's preflight prove both dispatch and process exit. Daemon death
+without the receipt remains `:unknown` because another actor could have
+terminated it. After observed death, the client remains open but its generation
+is invalidated; retained captures still support local traversal and projection.
+
+All four operations are destructive and never retry automatically. Select the
+target once, establish cardinality before dispatch, and inspect a retained
+condition outcome when completion is uncertain.
+
 ## Outcomes and target checks
 
 Mutators return `command-outcome`. `outcome-value` returns a value and presence
@@ -267,6 +292,9 @@ still has status `:succeeded`, no value, and an `outcome-observation-error`.
 | Completion receipt and nonzero process exit | `:failed` |
 | Successful process exit with diagnostic output | `:unknown` |
 | Dispatched operation lacks required receipts, or transport lost completion | `:unknown` |
+| Server pidfd proves exit but the pre-dispatch receipt is missing | `:unknown` |
+| Server receipt and retained pidfd both prove explicit termination | `:succeeded`, phase `:server-terminated` |
+| Server exit wait fails after dispatch | `:unknown`, reason `:server-exit-unobserved`; cause retained |
 
 The outcome retains exit status, diagnostic bytes, effective arguments and
 elapsed time. A failed command queue can have completed effects; it does not

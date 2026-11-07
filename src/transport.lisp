@@ -8,8 +8,9 @@ from mutation success; inspect OUTCOME-OBSERVATION-ERROR and OUTCOME-VALUE."))
   (:documentation "Return retained dispatch evidence, without I/O.
 Raw process phases are :PREPARED, :LAUNCHING, :DISPATCHED and :EXITED. Named
 operations may also report :PREFLIGHT or :GUARD-REJECTED before payload dispatch.
-Phase is separate from OUTCOME-STATUS; an exited queue can have partially
-completed effects even when it reported failure."))
+Explicit server termination reports :SERVER-TERMINATED only after retained
+pidfd readiness proves exit. Phase is separate from OUTCOME-STATUS; an exited
+queue can have partially completed effects even when it reported failure."))
 (defgeneric outcome-exit-code (outcome)
   (:documentation "Return the subprocess's integer exit status, or NIL if unknown. No I/O."))
 (defgeneric outcome-reason (outcome)

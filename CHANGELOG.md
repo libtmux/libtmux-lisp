@@ -13,3 +13,5 @@
   filter documents without widening the core/query dependency boundary.
 - Add typed option, hook and environment mutations with exact live-catalog
   validation, explicit table scopes and guarded command outcomes.
+- Add exact pane, window and session deletion plus separately proven server
+  termination with retained dispatch, pidfd and uncertainty evidence.

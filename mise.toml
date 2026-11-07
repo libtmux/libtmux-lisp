@@ -66,7 +66,7 @@ run = "tools/lisp.sh tools/test.lisp json"
 
 [tasks.integration]
 description = "Run isolated tmux integration tests (outer loop)"
-run = "python3 tools/test-processes.py tools/lisp.sh tools/test.lisp integration"
+run = ["python3 tools/test-processes.py tools/lisp.sh tools/test.lisp integration", "python3 tools/test-processes.py python3 tests/test-example-cleanup.py"]
 
 [tasks.package]
 description = "Build a source archive and verify an isolated core consumer"

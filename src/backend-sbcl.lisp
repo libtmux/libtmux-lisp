@@ -34,6 +34,9 @@
 (sb-alien:define-alien-routine ("eventfd" eventfd-open) sb-alien:int
   (initial sb-alien:unsigned-int) (flags sb-alien:int))
 
+(defun cancellation-event-open ()
+  (eventfd-open 0 (logior #o2000000 sb-posix:o-nonblock)))
+
 (defun close-descriptor (fd) (sb-posix:close fd))
 
 (defun wake-operation (fd)

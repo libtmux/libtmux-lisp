@@ -3,7 +3,8 @@
   (:local-nicknames (#:tm #:libtmux)
                     (#:q #:libtmux.query)
                     (#:j #:libtmux.json))
-  (:export #:inspect-workspace #:create-workspace #:observed-value))
+  (:export #:inspect-workspace #:create-workspace #:observed-value
+           #:terminate-owned-server))
 
 (in-package #:libtmux.examples)
 
@@ -167,4 +168,14 @@ The caller owns the isolated daemon; repeating this recipe there is an error."
       (assert (eq :succeeded (tm:outcome-status outcome)))
       (assert (equalp bytes actual))
       actual)))
+;;; docs:end
+
+;;; docs:termination
+(defun terminate-owned-server (socket-path &key (program "tmux"))
+  "Terminate the explicitly selected owned server and return its proven outcome."
+  (tm:with-client (client :program program :socket-path socket-path)
+    (let ((outcome (tm:kill-server client)))
+      (assert (eq :succeeded (tm:outcome-status outcome)))
+      (assert (eq :server-terminated (tm:outcome-phase outcome)))
+      outcome)))
 ;;; docs:end

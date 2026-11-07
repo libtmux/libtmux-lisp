@@ -46,6 +46,17 @@ $ export LIBTMUX_DEMO_DIR="$(mktemp -d /tmp/libtmux-lisp-demo-XXXXXXXX)" && \
         -x 120 \
         -y 40 \
         -- /bin/cat && \
+  env -u TMUX \
+    -u TMUX_PANE \
+    tmux \
+      -S "$LIBTMUX_DEMO_DIR/tmux.sock" \
+      display-message \
+        -p '#{pid}' \
+        > "$LIBTMUX_DEMO_DIR/server-witness.txt" && \
+  stat \
+    -Lc '%d %i' \
+    "$LIBTMUX_DEMO_DIR/tmux.sock" \
+    >> "$LIBTMUX_DEMO_DIR/server-witness.txt" && \
   printf '%s\n' "$LIBTMUX_DEMO_DIR/tmux.sock"
 ```
 
@@ -438,6 +449,31 @@ This handler inspects evidence and returns; it never retries a command.
 Post-dispatch cancellation of a mutation can have a different status or phase.
 See the [condition reference](api.md#command-cancelled-type).
 
+## Terminate the owned server
+
+Closing a client leaves its daemon alive. This checked helper uses the separate
+[`kill-server`](api.md#kill-server-function) operation only for the explicit
+socket passed by the caller. It accepts success only after the operation proves
+both dispatch and daemon exit:
+
+<!-- example:termination -->
+```lisp
+(defun terminate-owned-server (socket-path &key (program "tmux"))
+  "Terminate the explicitly selected owned server and return its proven outcome."
+  (tm:with-client (client :program program :socket-path socket-path)
+    (let ((outcome (tm:kill-server client)))
+      (assert (eq :succeeded (tm:outcome-status outcome)))
+      (assert (eq :server-terminated (tm:outcome-phase outcome)))
+      outcome)))
+```
+<!-- /example -->
+
+Run it only for the private tutorial endpoint:
+
+```lisp
+(terminate-owned-server *socket-path*)
+```
+
 ## Clean up
 
 Exit the REPL:
@@ -449,11 +485,11 @@ Exit the REPL:
 In the original shell, terminate only the daemon created for this tutorial:
 
 ```console
-$ python3 tools/stop-example.py "$LIBTMUX_DEMO_DIR"
+$ python3 tools/stop-example.py --already-terminated "$LIBTMUX_DEMO_DIR"
 ```
 
-The helper sends `kill-server` to the explicit demo endpoint, waits for its
-daemon to exit through a Linux pidfd, then removes the owned receipt and stale
-socket file. Tmux 3.3a can leave its socket behind after exit.
-Closing a library client leaves the daemon and its panes alive. Server
-termination is a separate step here; a named lifecycle API is unfinished.
+The helper proves the retained daemon PID exited, rejects a replaced socket,
+then removes the owned witness, receipt and stale socket file. Tmux 3.3a can
+leave its socket behind after exit. The automated runner executes the same Lisp
+termination function before this file cleanup. If an earlier example fails, it
+uses the retained witness to terminate and reap only this tutorial daemon.

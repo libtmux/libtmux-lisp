@@ -141,6 +141,13 @@ See docs/index.md for the tutorial, API reference and current capability limits.
 [unset-hook](#unset-hook-function)
 [unset-option](#unset-option-function)
 
+**Terminate explicit targets**
+
+[kill-pane](#kill-pane-function)
+[kill-server](#kill-server-function)
+[kill-session](#kill-session-function)
+[kill-window](#kill-window-function)
+
 **Inspect failure evidence**
 
 [error-actual-version](#error-actual-version-function)
@@ -649,6 +656,71 @@ operational condition; a failed follow-up is distinct from mutation failure.
 
 [Source](../src/placement.lisp)
 
+<a id="kill-pane-function"></a>
+
+### kill-pane
+
+`(kill-pane client pane &key cancel-token timeout output-limit)`
+
+Delete exactly the captured physical PANE and return a COMMAND-OUTCOME.
+The live pane identity is checked before dispatch. Other panes are preserved.
+Signals STALE-TARGET when PANE disappeared or belongs to another generation.
+Never retries the mutation.
+
+
+See also: [kill-server](#kill-server-function), [kill-session](#kill-session-function), [kill-window](#kill-window-function).
+
+[Source](../src/termination.lisp)
+
+<a id="kill-server-function"></a>
+
+### kill-server
+
+`(kill-server client &key cancel-token timeout output-limit)`
+
+Terminate CLIENT's preflight-accepted daemon and return a COMMAND-OUTCOME.
+Success requires both a pre-dispatch receipt and observed exit of the server
+process accepted during this call. Missing evidence signals OUTCOME-UNKNOWN;
+cancellation or a deadline never causes an automatic retry. The connection
+CLIENT stays open but its generation is invalidated after observed server death.
+A failed exit wait retains :SERVER-EXIT-UNOBSERVED and the underlying
+ERROR-CAUSE. CLOSE-CLIENT never calls this function.
+
+
+See also: [close-client](#close-client-function), [kill-session](#kill-session-function), [outcome-phase](#outcome-phase-function), [outcome-status](#outcome-status-function).
+
+[Source](../src/termination.lisp)
+
+<a id="kill-session-function"></a>
+
+### kill-session
+
+`(kill-session client session &key cancel-token timeout output-limit)`
+
+Delete exactly the captured SESSION and return a COMMAND-OUTCOME.
+Tmux removes that session's links and panes no longer referenced elsewhere.
+The live identity is checked before dispatch; the mutation is never retried.
+
+
+See also: [kill-pane](#kill-pane-function), [kill-server](#kill-server-function), [kill-window](#kill-window-function).
+
+[Source](../src/termination.lisp)
+
+<a id="kill-window-function"></a>
+
+### kill-window
+
+`(kill-window client window &key cancel-token timeout output-limit)`
+
+Delete exactly the captured physical WINDOW and return a COMMAND-OUTCOME.
+Every link to that physical window is removed by tmux. Other windows remain.
+The live identity is checked before dispatch; the mutation is never retried.
+
+
+See also: [kill-pane](#kill-pane-function), [kill-server](#kill-server-function), [kill-session](#kill-session-function).
+
+[Source](../src/termination.lisp)
+
 <a id="last-pane-function"></a>
 
 ### last-pane
@@ -913,8 +985,9 @@ Applicable first argument types: [command-outcome](#command-outcome-type).
 Return retained dispatch evidence, without I/O.
 Raw process phases are :PREPARED, :LAUNCHING, :DISPATCHED and :EXITED. Named
 operations may also report :PREFLIGHT or :GUARD-REJECTED before payload dispatch.
-Phase is separate from OUTCOME-STATUS; an exited queue can have partially
-completed effects even when it reported failure.
+Explicit server termination reports :SERVER-TERMINATED only after retained
+pidfd readiness proves exit. Phase is separate from OUTCOME-STATUS; an exited
+queue can have partially completed effects even when it reported failure.
 
 [Source](../src/transport.lisp)
 

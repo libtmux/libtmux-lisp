@@ -8,6 +8,7 @@ from pathlib import Path
 import re
 import shutil
 import subprocess
+import sys
 import tempfile
 import time
 
@@ -28,6 +29,7 @@ version = subprocess.check_output([program, "-V"], env=environment, text=True).s
 asdf = subprocess.check_output(["mise", "where", "http:asdf-lisp"], text=True).strip()
 for mode in ("assertions", "tutorial"):
     with tempfile.TemporaryDirectory(prefix="libtmux-lisp-example-") as directory:
+        tutorial_terminated = False
         socket = str(Path(directory) / "tmux.sock")
         command = [program, "-S", socket]
         child_environment = environment.copy()
@@ -46,6 +48,8 @@ for mode in ("assertions", "tutorial"):
                 subprocess.run(command + ["-f", "/dev/null", "new-session", "-d", "-s", "work",
                                           "-n", "editor", "-x", "120", "-y", "40", "--", "/bin/cat"],
                                env=child_environment, check=True, timeout=10)
+            if mode == "tutorial" and os.environ.get("LIBTMUX_TEST_FAIL_TUTORIAL_BEFORE_TERMINATION"):
+                raise RuntimeError("Injected tutorial failure before termination")
             script = root / "examples/run.lisp"
             extra_arguments = [program, socket]
             working_directory = directory
@@ -53,6 +57,8 @@ for mode in ("assertions", "tutorial"):
                 forms = re.findall(r"^```lisp\n(.*?)^```$", markdown, re.M | re.S)
                 if not forms or forms[-1].strip() != "(uiop:quit)":
                     raise RuntimeError("Tutorial must end with an explicit REPL exit")
+                if len(forms) < 2 or forms[-2].strip() != "(terminate-owned-server *socket-path*)":
+                    raise RuntimeError("Tutorial must terminate its explicitly owned server before exit")
                 script = Path(directory) / "tutorial.lisp"
                 checks = '''
 (assert (equal '(2 3 4 4)
@@ -66,7 +72,8 @@ for mode in ("assertions", "tutorial"):
 (format t "TUTORIAL PASS: every Lisp block executed in reading order~%")
 '''
                 script.write_text('(asdf:load-asd (truename "libtmux.asd"))\n' +
-                                  "\n".join(forms[:-1]) + checks + forms[-1])
+                                  "\n".join(forms[:-2]) + checks +
+                                  "\n".join(forms[-2:]))
                 extra_arguments = []
                 working_directory = root
             qlot_setup = Path(os.environ.get("LIBTMUX_QLOT_SETUP",
@@ -79,11 +86,20 @@ for mode in ("assertions", "tutorial"):
             subprocess.run(lisp_command,
                            input=socket + "\n", text=True, cwd=working_directory,
                            env=child_environment, check=True, timeout=20)
+            tutorial_terminated = mode == "tutorial"
         finally:
             if mode == "tutorial" and "LIBTMUX_DEMO_DIR" in child_environment:
+                original_failure = sys.exc_info()[0] is not None
                 cleanup = next(block for block in console if "tools/stop-example.py" in block)
-                subprocess.run(["bash", "-c", cleanup], cwd=root, env=child_environment,
-                               check=True, timeout=3)
+                if not tutorial_terminated:
+                    cleanup = cleanup.replace("--already-terminated ", "")
+                try:
+                    subprocess.run(["bash", "-c", cleanup], cwd=root, env=child_environment,
+                                   check=True, timeout=3)
+                except Exception as cleanup_error:
+                    if not original_failure:
+                        raise
+                    print(f"Cleanup also failed: {cleanup_error}", file=sys.stderr)
             else:
                 subprocess.run(command + ["-N", "kill-server"], env=environment,
                                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=2)

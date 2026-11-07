@@ -11,7 +11,7 @@ Provisioning uses the network; verification does not install dependencies.
 | `mise run json` | Inner | Optional bounded filter documents, allowlists, false/empty/null distinctions and regex opt-in |
 | `mise run check` | Mid | Source whitespace, all local unit suites, exported docstrings, generated references, excerpts and local documentation links |
 | `mise run lint-workflows` | Mid | GitHub Actions syntax, expressions and shell checks |
-| `mise run integration` | Outer | Bounded transport, cancellation/cleanup, linked graphs, attached clients, daemon replacement, named operations and typed configuration mutations |
+| `mise run integration` | Outer | Bounded transport, cancellation/cleanup, linked graphs, attached clients, daemon replacement, named operations, typed configuration mutations, exact target/server termination and tutorial failure cleanup |
 | `mise run package` | Outer | Source archive plus isolated core/query/regex/JSON consumers and dependency-boundary checks |
 | `mise run examples` | Outer | Shipped Lisp recipes, all tutorial Lisp blocks, literal console setup/cleanup, worker consumption signals and owned daemon cleanup |
 | `mise run package-examples` | Outer | Archive-local links and examples executed using the extracted artifact's own scripts |
@@ -52,9 +52,10 @@ path and `/dev/null` configuration. Child environments omit `TMUX` and
 Tests never address the default server.
 
 The integration runner is a dedicated child-process subreaper. It verifies
-that no test-owned worker or tmux daemon survives the test image. Production
-loading does not change the application's process-reaping policy. Readiness
-FIFOs, semaphores and pidfds coordinate tests without polling sleeps.
+that no test-owned worker or tmux daemon survives the test image, including an
+injected tutorial failure before its Lisp termination call. Production loading
+does not change the application's process-reaping policy. Readiness FIFOs,
+semaphores and pidfds coordinate tests without polling sleeps.
 
 Verify the unsupported release separately with the exact 3.3 executable:
 
