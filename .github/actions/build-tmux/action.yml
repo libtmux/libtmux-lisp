@@ -1,0 +1,55 @@
+name: Build pinned tmux
+description: Restore and validate an exact tmux build, or compile its checked source.
+inputs:
+  version:
+    description: An exact version in tools/tmux-sources.json
+    required: true
+outputs:
+  binary:
+    description: Absolute path to the validated tmux binary
+    value: ${{ github.workspace }}/build/tmux/bin/${{ inputs.version }}/tmux
+  cache-key:
+    description: Source, runner image, compiler and dependency build identity
+    value: ${{ steps.plan.outputs.key }}
+  cache-hit:
+    description: Whether GitHub restored an exact cache entry
+    value: ${{ steps.cache.outputs.cache-hit }}
+runs:
+  using: composite
+  steps:
+    - name: Install tmux build and runtime dependencies
+      shell: bash
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y --no-install-recommends \
+          autoconf automake byacc build-essential pkg-config libevent-dev libncurses-dev
+    - name: Identify the pinned source and build environment
+      id: plan
+      shell: bash
+      env:
+        TMUX_VERSION: ${{ inputs.version }}
+      run: |
+        python3 tools/provision-tmux.py \
+          --manifest tools/tmux-sources.json \
+          --version "$TMUX_VERSION" \
+          --output-dir build/tmux \
+          --cache-dir .cache/tmux \
+          --print-cache-key >> "$GITHUB_OUTPUT"
+    - name: Restore exact tmux build
+      id: cache
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: build/tmux
+        key: ${{ steps.plan.outputs.key }}
+    - name: Validate or build tmux
+      shell: bash
+      env:
+        TMUX_VERSION: ${{ inputs.version }}
+      run: |
+        python3 tools/provision-tmux.py \
+          --manifest tools/tmux-sources.json \
+          --version "$TMUX_VERSION" \
+          --output-dir build/tmux \
+          --cache-dir .cache/tmux \
+          --jobs 2 \
+          --reuse

@@ -1,0 +1,96 @@
+{
+  "repository": "https://github.com/tmux/tmux",
+  "cells": [
+    {
+      "tmux": "3.3",
+      "commit": "87fe00e8b44901240fc22d7120c1b31e4331f6f5",
+      "archive_url": "https://codeload.github.com/tmux/tmux/tar.gz/87fe00e8b44901240fc22d7120c1b31e4331f6f5",
+      "archive_sha256": "49e0e0b070da39f3c7d6c3b8aaeba03ec4c83168fad93bc6ff12133573a9a17f",
+      "purpose": "reject-below-floor"
+    },
+    {
+      "tmux": "3.3a",
+      "commit": "0b355ae8114511e1ff6359272b164f1cdf718e80",
+      "archive_url": "https://codeload.github.com/tmux/tmux/tar.gz/0b355ae8114511e1ff6359272b164f1cdf718e80",
+      "archive_sha256": "0ae7be6d76f7078d10b7472e593c56c4f2816d12c0f62c9cc9ccf74e0a45e429",
+      "purpose": "supported"
+    },
+    {
+      "tmux": "3.4",
+      "commit": "9ae69c3795ab5ef6b4d760f6398cd9281151f632",
+      "archive_url": "https://codeload.github.com/tmux/tmux/tar.gz/9ae69c3795ab5ef6b4d760f6398cd9281151f632",
+      "archive_sha256": "2093fbcad6ee65f69c96edd5826496acfb15c60f63957dcf758f353fb20b189c",
+      "purpose": "supported"
+    },
+    {
+      "tmux": "3.5",
+      "commit": "ac44566c9c7e3e94d23be6def4c7ae83472543f5",
+      "archive_url": "https://codeload.github.com/tmux/tmux/tar.gz/ac44566c9c7e3e94d23be6def4c7ae83472543f5",
+      "archive_sha256": "f39cf322d859f0e4d5cf4dcabf16aca883b7f0d1e81162ca381532b88a877ad8",
+      "purpose": "supported"
+    },
+    {
+      "tmux": "3.5a",
+      "commit": "549c35b06165f6ae023115eb76f83f2cbf945395",
+      "archive_url": "https://codeload.github.com/tmux/tmux/tar.gz/549c35b06165f6ae023115eb76f83f2cbf945395",
+      "archive_sha256": "2fe6de767124c34d75ed7097fa3a4c9bb65fb8fc394ebee22bd7c0ecf0720fa0",
+      "purpose": "supported"
+    },
+    {
+      "tmux": "3.6",
+      "commit": "0dac7fe434d029a4f0b819cba8eb7963df291990",
+      "archive_url": "https://codeload.github.com/tmux/tmux/tar.gz/0dac7fe434d029a4f0b819cba8eb7963df291990",
+      "archive_sha256": "77fe1a04229aa5a3ff2983f844dd7cd7cae30658cfa5288136403abb0c061139",
+      "purpose": "supported"
+    },
+    {
+      "tmux": "3.6a",
+      "commit": "cc117b5048f77a4842820f8ebbe3a86e5c077224",
+      "archive_url": "https://codeload.github.com/tmux/tmux/tar.gz/cc117b5048f77a4842820f8ebbe3a86e5c077224",
+      "archive_sha256": "aa152594b343387681123aca872c2589e9e1b2496b57647e0311520054de1ba2",
+      "purpose": "supported"
+    },
+    {
+      "tmux": "3.6b",
+      "commit": "0623d1e968423ad0c192e0d8debf1258671063d5",
+      "archive_url": "https://codeload.github.com/tmux/tmux/tar.gz/0623d1e968423ad0c192e0d8debf1258671063d5",
+      "archive_sha256": "2c212f7ee2d925b01ec20ab5bb3a906c17b6a8652fe521fcaaf498f800b4d1fa",
+      "purpose": "supported"
+    },
+    {
+      "tmux": "3.7",
+      "commit": "81f88f8517c9fc5371b56cf117530c6b477c96ac",
+      "archive_url": "https://codeload.github.com/tmux/tmux/tar.gz/81f88f8517c9fc5371b56cf117530c6b477c96ac",
+      "archive_sha256": "68e6ab145f4c9aebc39aafef5de7ec5067b9fbf4fa033341ccf656040c0fdb9c",
+      "purpose": "supported"
+    },
+    {
+      "tmux": "3.7a",
+      "commit": "0e418b62d259ce8da8970f75732cc6632ee4c3a0",
+      "archive_url": "https://codeload.github.com/tmux/tmux/tar.gz/0e418b62d259ce8da8970f75732cc6632ee4c3a0",
+      "archive_sha256": "60cd7da0a209e627546d873cadee84a3f5d26460569a638d902db24a50106f51",
+      "purpose": "supported"
+    },
+    {
+      "tmux": "3.7b",
+      "commit": "e802909de06012a4df6209d55e86487c56223163",
+      "archive_url": "https://codeload.github.com/tmux/tmux/tar.gz/e802909de06012a4df6209d55e86487c56223163",
+      "archive_sha256": "781df1a5ee239b023d3847ba68e3a3a6a8f174c478b5e40888fe6f068366e3f6",
+      "purpose": "supported"
+    },
+    {
+      "tmux": "3.7c",
+      "commit": "e476c1230b958df0cb12977517d24b3dc931375b",
+      "archive_url": "https://codeload.github.com/tmux/tmux/tar.gz/e476c1230b958df0cb12977517d24b3dc931375b",
+      "archive_sha256": "7c530752cd0633b980214c3dbaeae6d889feed152d6360e26b8d9661033d7348",
+      "purpose": "supported"
+    },
+    {
+      "tmux": "3.8",
+      "commit": "7f2a35ad3321f9ba57a1062ca73b1f3ff26aca53",
+      "archive_url": "https://codeload.github.com/tmux/tmux/tar.gz/7f2a35ad3321f9ba57a1062ca73b1f3ff26aca53",
+      "archive_sha256": "73e7ce4288b65642d6e1da0f861a68921691acf189defd4f73fba6cea29e9c74",
+      "purpose": "supported"
+    }
+  ]
+}
