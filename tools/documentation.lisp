@@ -338,6 +338,19 @@
           (com.inuoe.jzon:write-value writer "libtmux.lisp.api/1")
           (com.inuoe.jzon:write-key writer "port")
           (com.inuoe.jzon:write-value writer "lisp")
+          (com.inuoe.jzon:write-key writer "library")
+          (com.inuoe.jzon:with-object writer
+            (com.inuoe.jzon:write-key writer "version")
+            (com.inuoe.jzon:write-value
+             writer (asdf:component-version (asdf:find-system "libtmux"))))
+          (com.inuoe.jzon:write-key writer "runtime")
+          (com.inuoe.jzon:with-object writer
+            (com.inuoe.jzon:write-key writer "implementation")
+            (com.inuoe.jzon:write-value writer (lisp-implementation-type))
+            (com.inuoe.jzon:write-key writer "implementationVersion")
+            (com.inuoe.jzon:write-value writer (lisp-implementation-version))
+            (com.inuoe.jzon:write-key writer "asdfVersion")
+            (com.inuoe.jzon:write-value writer (asdf:asdf-version)))
           (com.inuoe.jzon:write-key writer "source")
           (com.inuoe.jzon:with-object writer
             (com.inuoe.jzon:write-key writer "repository")
