@@ -38,7 +38,7 @@ run = "qlot install --jobs 2"
 
 [tasks.check]
 description = "Run source checks and the unit suite (mid loop)"
-run = ["python3 tools/check-source.py", "python3 tools/options-catalog.py", "tools/lisp.sh tools/test.lisp unit", "tools/lisp.sh tools/test.lisp query", "tools/lisp.sh tools/test.lisp regex", "tools/lisp.sh tools/test.lisp json", "tools/lisp.sh tools/test.lisp workspace", "tools/lisp.sh tools/documentation.lisp", "python3 tools/doc-examples.py"]
+run = ["python3 tools/check-source.py", "python3 tools/options-catalog.py", "tools/lisp.sh tools/test.lisp unit", "tools/lisp.sh tools/test.lisp query", "tools/lisp.sh tools/test.lisp regex", "tools/lisp.sh tools/test.lisp json", "tools/lisp.sh tools/test.lisp workspace", "tools/lisp.sh tools/documentation.lisp artifact", "python3 tools/check-documentation-artifact.py", "python3 tools/doc-examples.py"]
 
 [tasks.catalogs]
 description = "Regenerate native configuration catalogs from committed pinned source facts"
@@ -47,6 +47,10 @@ run = "python3 tools/options-catalog.py write"
 [tasks.docs]
 description = "Regenerate API/field/module references and executable excerpts (no network)"
 run = ["tools/lisp.sh tools/documentation.lisp write", "python3 tools/doc-examples.py write"]
+
+[tasks.docs-artifact]
+description = "Export and verify the native revision-bound API artifact"
+run = ["tools/lisp.sh tools/documentation.lisp artifact", "python3 tools/check-documentation-artifact.py"]
 
 [tasks.unit]
 description = "Run local unit tests (inner loop)"

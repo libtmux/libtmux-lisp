@@ -105,6 +105,272 @@
     ("Terminate explicit targets" "termination")
     ("Inspect failure evidence" "conditions")))
 
+(defparameter *artifact-packages*
+  '(("libtmux" :libtmux "libtmux" "core" "src/package.lisp")
+    ("libtmux.json" :libtmux.json "libtmux/json" "core" "src/json.lisp")
+    ("libtmux.query" :libtmux.query "libtmux/query" "core" "src/query.lisp")
+    ("libtmux.workspace" :libtmux.workspace "libtmux/workspace" "workspace"
+     "src/workspace.lisp")
+    ("libtmux.workspace.cli" :libtmux.workspace.cli "libtmux/workspace/cli"
+     "workspace" "src/workspace-cli.lisp")))
+
+(defun git-output (&rest arguments)
+  (string-right-trim
+   '(#\Newline #\Return)
+   (uiop:run-program (cons "git" arguments)
+                     :output :string :error-output :string)))
+
+(defun repository-path (pathname)
+  (substitute #\/ #\\
+              (enough-namestring (truename pathname) (truename (uiop:getcwd)))))
+
+(defun artifact-source-files ()
+  (sort
+   (remove-duplicates
+    (append (mapcar #'repository-path (directory "src/*.lisp"))
+            (mapcar #'repository-path (directory "*.asd"))
+            '("tools/documentation.lisp"))
+    :test #'string=)
+   #'string<))
+
+(defun sha256-file (path)
+  (first (uiop:split-string
+          (uiop:run-program (list "sha256sum" path)
+                            :output :string :error-output :string))))
+
+(defun tracked-dirty-p (paths)
+  (plusp (length (apply #'git-output "status" "--porcelain" "--" paths))))
+
+(defun definition-source (symbol kind)
+  (or (first (sb-introspect:find-definition-sources-by-name symbol kind))
+      (error "Missing source location for ~A ~A" kind symbol)))
+
+(defun top-level-form-offset (path index)
+  "Return the byte offset of trusted source form INDEX in PATH."
+  (with-open-file (stream path :direction :input)
+    (let ((*package* (find-package :cl-user))
+          (*read-eval* nil)
+          (eof (gensym "EOF")))
+      (loop for number from 0
+            for offset = (file-position stream)
+            for form = (read stream nil eof)
+            until (eq form eof)
+            when (= number index) return offset
+            do (when (and (consp form) (eq (first form) 'in-package))
+                 (setf *package*
+                       (or (find-package (string (second form)))
+                           (error "Unknown package in ~A: ~S" path (second form)))))
+            finally (error "Source form ~D is absent from ~A" index path)))))
+
+(defun source-line (source)
+  (let* ((path (sb-introspect:definition-source-pathname source))
+         (offset (or (sb-introspect:definition-source-character-offset source)
+                     (let ((path-components
+                             (sb-introspect:definition-source-form-path source)))
+                       (and path-components
+                            (top-level-form-offset path (first path-components)))))))
+    (unless (and offset path) (error "Missing source position for ~A" path))
+    (with-open-file (stream path :direction :input :element-type '(unsigned-byte 8))
+      (1+ (loop repeat offset
+                for byte = (read-byte stream nil nil)
+                while byte
+                count (= byte 10))))))
+
+(defun native-identity (symbol kind)
+  (let* ((package (string-downcase (package-name (symbol-package symbol))))
+         (name (spelling symbol))
+         (collision (and (fboundp symbol) (find-class symbol nil))))
+    (format nil "~A:~A~A" package name
+            (if collision
+                (ecase kind (:function "/function") (:type "/type"))
+                ""))))
+
+(defun referenced-symbols (symbol references package)
+  (loop for candidate in (public-symbols package)
+        when (and (not (eq candidate symbol))
+                  (symbol-mentioned-p candidate references))
+          collect candidate))
+
+(defun documentation-structure (symbol type &optional (package (symbol-package symbol)))
+  (let* ((documentation (required-documentation symbol type))
+         (marker (format nil "~%See also: "))
+         (position (search marker documentation :from-end t))
+         (text (if position (subseq documentation 0 position) documentation))
+         (references (and position
+                          (referenced-symbols
+                           symbol (subseq documentation (+ position (length marker)))
+                           package)))
+         (paragraph (search (format nil "~%~%") text))
+         (summary (string-trim '(#\Space #\Tab #\Newline #\Return)
+                               (if paragraph (subseq text 0 paragraph) text)))
+         (body (and paragraph
+                    (string-trim '(#\Space #\Tab #\Newline #\Return)
+                                 (subseq text (+ paragraph 2))))))
+    (values summary (and body (plusp (length body)) body) references)))
+
+(defun write-string-array (writer values)
+  (com.inuoe.jzon:with-array writer
+    (dolist (value values) (com.inuoe.jzon:write-value writer value))))
+
+(defun write-artifact-documentation (writer symbol type package)
+  (multiple-value-bind (summary body references)
+      (documentation-structure symbol type package)
+    (com.inuoe.jzon:with-object writer
+      (com.inuoe.jzon:write-key writer "summary")
+      (com.inuoe.jzon:write-value writer summary)
+      (when body
+        (com.inuoe.jzon:write-key writer "body")
+        (com.inuoe.jzon:write-value writer body))
+      (when references
+        (com.inuoe.jzon:write-key writer "seeAlso")
+        (write-string-array
+         writer
+         (mapcar (lambda (reference)
+                   (native-identity reference
+                                    (if (fboundp reference) :function :type)))
+                 references))))))
+
+(defun write-artifact-source (writer symbol kind)
+  (let ((source (definition-source symbol kind)))
+    (com.inuoe.jzon:with-object writer
+      (com.inuoe.jzon:write-key writer "file")
+      (com.inuoe.jzon:write-value
+       writer (repository-path (sb-introspect:definition-source-pathname source)))
+      (com.inuoe.jzon:write-key writer "line")
+      (com.inuoe.jzon:write-value writer (source-line source)))))
+
+(defun write-function-artifact (writer symbol package)
+  (let ((kind (function-kind symbol)))
+    (com.inuoe.jzon:with-object writer
+      (com.inuoe.jzon:write-key writer "id")
+      (com.inuoe.jzon:write-value writer (native-identity symbol :function))
+      (com.inuoe.jzon:write-key writer "name")
+      (com.inuoe.jzon:write-value writer (spelling symbol))
+      (com.inuoe.jzon:write-key writer "kind")
+      (com.inuoe.jzon:write-value writer "function")
+      (com.inuoe.jzon:write-key writer "signature")
+      (com.inuoe.jzon:write-value
+       writer (signature-text (cons symbol (sb-introspect:function-lambda-list symbol))))
+      (com.inuoe.jzon:write-key writer "modifiers")
+      (write-string-array writer (if (eq kind :macro) '("macro") '()))
+      (com.inuoe.jzon:write-key writer "generic")
+      (com.inuoe.jzon:write-value writer
+                                  (typep (fdefinition symbol) 'generic-function))
+      (com.inuoe.jzon:write-key writer "documentation")
+      (write-artifact-documentation writer symbol 'function package)
+      (com.inuoe.jzon:write-key writer "source")
+      (write-artifact-source writer symbol kind))))
+
+(defun write-type-artifact (writer symbol package)
+  (let* ((condition-p (nth-value 0 (subtypep symbol 'condition)))
+         (kind (if condition-p :condition :class))
+         (class (find-class symbol)))
+    (com.inuoe.jzon:with-object writer
+      (com.inuoe.jzon:write-key writer "id")
+      (com.inuoe.jzon:write-value writer (native-identity symbol :type))
+      (com.inuoe.jzon:write-key writer "name")
+      (com.inuoe.jzon:write-value writer (spelling symbol))
+      (com.inuoe.jzon:write-key writer "kind")
+      (com.inuoe.jzon:write-value writer (if condition-p "exception" "class"))
+      (com.inuoe.jzon:write-key writer "modifiers")
+      (write-string-array writer '("opaque"))
+      (com.inuoe.jzon:write-key writer "supertypes")
+      (write-string-array
+       writer
+       (mapcar (lambda (superclass)
+                 (let ((name (class-name superclass)))
+                   (if (and (symbolp name) (symbol-package name))
+                       (format nil "~A:~A"
+                               (string-downcase (package-name (symbol-package name)))
+                               (spelling name))
+                       (princ-to-string name))))
+               (sb-mop:class-direct-superclasses class)))
+      (com.inuoe.jzon:write-key writer "documentation")
+      (write-artifact-documentation writer class t package)
+      (com.inuoe.jzon:write-key writer "source")
+      (write-artifact-source writer symbol kind))))
+
+(defun write-package-artifact (writer spec)
+  (destructuring-bind (name designator system product source-file) spec
+    (let ((package (find-package designator)))
+      (com.inuoe.jzon:with-object writer
+        (com.inuoe.jzon:write-key writer "name")
+        (com.inuoe.jzon:write-value writer name)
+        (com.inuoe.jzon:write-key writer "system")
+        (com.inuoe.jzon:write-value writer system)
+        (com.inuoe.jzon:write-key writer "product")
+        (com.inuoe.jzon:write-value writer product)
+        (com.inuoe.jzon:write-key writer "documentation")
+        (multiple-value-bind (summary body)
+            (let* ((text (required-documentation package t))
+                   (paragraph (search (format nil "~%~%") text)))
+              (values (if paragraph (subseq text 0 paragraph) text)
+                      (and paragraph (subseq text (+ paragraph 2)))))
+          (com.inuoe.jzon:with-object writer
+            (com.inuoe.jzon:write-key writer "summary")
+            (com.inuoe.jzon:write-value writer summary)
+            (when body
+              (com.inuoe.jzon:write-key writer "body")
+              (com.inuoe.jzon:write-value writer body))))
+        (com.inuoe.jzon:write-key writer "source")
+        (com.inuoe.jzon:with-object writer
+          (com.inuoe.jzon:write-key writer "file")
+          (com.inuoe.jzon:write-value writer source-file)
+          (com.inuoe.jzon:write-key writer "line")
+          (com.inuoe.jzon:write-value writer 1))
+        (com.inuoe.jzon:write-key writer "symbols")
+        (com.inuoe.jzon:with-array writer
+          (dolist (symbol (public-symbols package))
+            (when (fboundp symbol) (write-function-artifact writer symbol package))
+            (when (find-class symbol nil) (write-type-artifact writer symbol package))))))))
+
+(defun write-api-artifact (path)
+  (let* ((files (artifact-source-files))
+         (revision (git-output "rev-parse" "HEAD"))
+         (exporter-revision
+           (git-output "log" "-1" "--format=%H" "--" "tools/documentation.lisp")))
+    (ensure-directories-exist path)
+    (uiop:with-output-file (stream path :if-exists :supersede)
+      (com.inuoe.jzon:with-writer
+          (writer :stream stream :pretty t :max-depth nil)
+        (com.inuoe.jzon:with-object writer
+          (com.inuoe.jzon:write-key writer "schema")
+          (com.inuoe.jzon:write-value writer "libtmux.lisp.api/1")
+          (com.inuoe.jzon:write-key writer "port")
+          (com.inuoe.jzon:write-value writer "lisp")
+          (com.inuoe.jzon:write-key writer "source")
+          (com.inuoe.jzon:with-object writer
+            (com.inuoe.jzon:write-key writer "repository")
+            (com.inuoe.jzon:write-value writer "libtmux/libtmux-lisp")
+            (com.inuoe.jzon:write-key writer "revision")
+            (com.inuoe.jzon:write-value writer revision)
+            (com.inuoe.jzon:write-key writer "dirty")
+            (com.inuoe.jzon:write-value writer (tracked-dirty-p files))
+            (com.inuoe.jzon:write-key writer "files")
+            (com.inuoe.jzon:with-array writer
+              (dolist (file files)
+                (com.inuoe.jzon:with-object writer
+                  (com.inuoe.jzon:write-key writer "path")
+                  (com.inuoe.jzon:write-value writer file)
+                  (com.inuoe.jzon:write-key writer "sha256")
+                  (com.inuoe.jzon:write-value writer (sha256-file file))))))
+          (com.inuoe.jzon:write-key writer "exporter")
+          (com.inuoe.jzon:with-object writer
+            (com.inuoe.jzon:write-key writer "name")
+            (com.inuoe.jzon:write-value writer "libtmux.documentation")
+            (com.inuoe.jzon:write-key writer "version")
+            (com.inuoe.jzon:write-value writer 1)
+            (com.inuoe.jzon:write-key writer "revision")
+            (com.inuoe.jzon:write-value writer exporter-revision)
+            (com.inuoe.jzon:write-key writer "dirty")
+            (com.inuoe.jzon:write-value
+             writer (tracked-dirty-p '("tools/documentation.lisp"))))
+          (com.inuoe.jzon:write-key writer "packages")
+          (com.inuoe.jzon:with-array writer
+            (dolist (spec *artifact-packages*)
+              (write-package-artifact writer spec)))))))
+  (format t "Native API artifact: PASS (~A)~%" path))
+
 (defun type-reference (class)
   (let ((symbol (class-name class)))
     (if (eq (symbol-package symbol) (find-package :libtmux))
@@ -315,11 +581,17 @@
         (unless (and (probe-file path) (string= text (uiop:read-file-string path)))
           (error "Stale documentation: ~A; run mise run docs" path)))))
 
-(let ((write-p (equal '("write") (uiop:command-line-arguments))))
+(let* ((arguments (uiop:command-line-arguments))
+       (write-p (equal '("write") arguments))
+       (artifact-p (and arguments (string= "artifact" (first arguments))))
+       (artifact-path (or (second arguments) "docs/_build/api.json")))
+  (unless (or (null arguments) write-p artifact-p)
+    (error "Usage: tools/documentation.lisp [write|artifact [PATH]]"))
   (synchronize "docs/api.md" (render-api) write-p)
   (synchronize "docs/query-api.md" (render-query-api) write-p)
   (synchronize "docs/json-api.md" (render-json-api) write-p)
   (synchronize "docs/workspace-api.md" (render-workspace-api) write-p)
   (synchronize "docs/fields.md" (render-fields) write-p)
   (synchronize "docs/modules.md" (render-modules) write-p)
+  (when artifact-p (write-api-artifact artifact-path))
   (format t "Public docstrings, API signatures, fields and module documentation: PASS~%"))
