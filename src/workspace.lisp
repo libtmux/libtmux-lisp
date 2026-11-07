@@ -498,3 +498,396 @@ See also: PLAN-STEPS, WORKSPACE-DATA, APPLY-WORKSPACE."
                    :steps (if session
                               (progn (prove-topology workspace session) #())
                               (creation-steps workspace)))))
+
+(defconstant +default-max-input-bytes+ 1048576)
+(defconstant +default-max-depth+ 32)
+(defconstant +default-max-nodes+ 10000)
+(defconstant +default-max-string-length+ 65536)
+(defconstant +default-max-windows+ 100)
+(defconstant +default-max-panes+ 1000)
+(defconstant +default-max-argv+ 256)
+(defconstant +default-max-integer-digits+ 32)
+
+(defstruct (json-object (:constructor make-json-object (entries)))
+  entries)
+
+(defun fail-document (message &key (path #()) limit cause)
+  (error (if limit 'workspace-limit-exceeded 'invalid-workspace-document)
+         :message message :path (deep-copy (coerce path 'simple-vector))
+         :limit limit :cause cause))
+
+(defun document-path+ (path component)
+  (concatenate 'simple-vector path (vector (deep-copy component))))
+
+(defun bounded-utf-8-size (source limit)
+  (let ((size 0))
+    (loop for character across source
+          for code = (char-code character)
+          do (incf size (cond ((<= code #x7f) 1)
+                              ((<= code #x7ff) 2)
+                              ((<= code #xffff) 3)
+                              (t 4)))
+             (when (> size limit)
+               (fail-document
+                (format nil "Workspace document exceeds ~D UTF-8 bytes" limit)
+                :limit :max-input-bytes)))
+    size))
+
+(defun json-number-delimiter-p (character)
+  (member character
+          '(#\Space #\Tab #\Return #\Linefeed #\, #\] #\} #\{ #\[ #\:)
+          :test #'char=))
+
+(defun validate-json-integers (source limit)
+  (let ((index 0) (length (length source)) (in-string nil) (escaped nil))
+    (loop while (< index length)
+          for character = (char source index)
+          do (cond
+               (in-string
+                (cond (escaped (setf escaped nil))
+                      ((char= character #\\) (setf escaped t))
+                      ((char= character #\") (setf in-string nil)))
+                (incf index))
+               ((char= character #\")
+                (setf in-string t)
+                (incf index))
+               ((or (digit-char-p character)
+                    (and (char= character #\-)
+                         (< (1+ index) length)
+                         (digit-char-p (char source (1+ index)))))
+                (let ((cursor index))
+                  (loop while (and (< cursor length)
+                                   (not (json-number-delimiter-p (char source cursor))))
+                        do (incf cursor))
+                  (let* ((first-digit (if (char= character #\-) (1+ index) index))
+                         (digits (- cursor first-digit)))
+                    (unless (loop for position from first-digit below cursor
+                                  always (digit-char-p (char source position)))
+                      (fail-document "Workspace documents accept integer JSON numbers only"
+                                     :path #()))
+                    (when (> digits limit)
+                      (fail-document
+                       (format nil "A numeric token exceeds ~D decimal digits" limit)
+                       :limit :max-integer-digits))
+                    (setf index cursor))))
+               (t (incf index))))))
+
+(defun parse-json-events (source max-depth max-nodes max-string-length)
+  (let ((nodes 0))
+    (labels ((checkpoint (path)
+               (when (> (incf nodes) max-nodes)
+                 (fail-document
+                  (format nil "Workspace document exceeds ~D JSON nodes" max-nodes)
+                  :path path :limit :max-nodes)))
+             (read-event (parser event value depth path)
+               (checkpoint path)
+               (case event
+                 (:value value)
+                 (:begin-array
+                  (when (> depth max-depth)
+                    (fail-document
+                     (format nil "Workspace document exceeds nesting depth ~D" max-depth)
+                     :path path :limit :max-depth))
+                  (let ((items (make-array 4 :adjustable t :fill-pointer 0))
+                        (index 0))
+                    (loop
+                      (multiple-value-bind (next-event next-value)
+                          (com.inuoe.jzon:parse-next parser)
+                        (cond
+                          ((eq next-event :end-array) (return))
+                          ((null next-event)
+                           (fail-document "Unexpected end of JSON array" :path path))
+                          (t
+                           (vector-push-extend
+                            (read-event parser next-event next-value (1+ depth)
+                                        (document-path+ path index))
+                            items)
+                           (incf index)))))
+                    (coerce items 'simple-vector)))
+                 (:begin-object
+                  (when (> depth max-depth)
+                    (fail-document
+                     (format nil "Workspace document exceeds nesting depth ~D" max-depth)
+                     :path path :limit :max-depth))
+                  (let ((entries nil) (seen (make-hash-table :test 'equal)))
+                    (loop
+                      (multiple-value-bind (next-event key)
+                          (com.inuoe.jzon:parse-next parser)
+                        (cond
+                          ((eq next-event :end-object) (return))
+                          ((null next-event)
+                           (fail-document "Unexpected end of JSON object" :path path))
+                          ((not (eq next-event :object-key))
+                           (fail-document "Expected a JSON object member" :path path))
+                          ((gethash key seen)
+                           (fail-document "A JSON object member occurs more than once"
+                                          :path (document-path+ path key)))
+                          (t
+                           (setf (gethash key seen) t)
+                           (multiple-value-bind (value-event member-value)
+                               (com.inuoe.jzon:parse-next parser)
+                             (when (null value-event)
+                               (fail-document "A JSON object member has no value"
+                                              :path (document-path+ path key)))
+                             (push (cons (copy-seq key)
+                                         (read-event parser value-event member-value
+                                                     (1+ depth)
+                                                     (document-path+ path key)))
+                                   entries))))))
+                    (make-json-object (nreverse entries))))
+                 ((:end-array :end-object :object-key)
+                  (fail-document "Unexpected JSON structural token" :path path))
+                 (otherwise
+                  (fail-document "Unexpected end of JSON input" :path path))))
+             (parse-root ()
+               (com.inuoe.jzon:with-parser
+                   (parser source :max-string-length max-string-length :key-fn nil)
+                 (multiple-value-bind (event value) (com.inuoe.jzon:parse-next parser)
+                   (unless event
+                     (fail-document "A workspace document must contain one JSON value"))
+                   (let ((result (read-event parser event value 1 #())))
+                     (multiple-value-bind (extra-event extra-value)
+                         (com.inuoe.jzon:parse-next parser)
+                       (declare (ignore extra-value))
+                       (when extra-event
+                         (fail-document "A workspace document must contain one JSON value")))
+                     result)))))
+      (handler-case (parse-root)
+        (workspace-error (condition) (error condition))
+        (com.inuoe.jzon:json-parse-limit-error (cause)
+          (fail-document "Jzon exhausted the configured string bound"
+                         :limit :max-string-length :cause cause))
+        (com.inuoe.jzon:json-error (cause)
+          (fail-document "Jzon rejected the workspace document" :cause cause))))))
+
+(defun object-member (object name)
+  (let ((entry (and (json-object-p object)
+                    (assoc name (json-object-entries object) :test #'string=))))
+    (if entry (values (cdr entry) t) (values nil nil))))
+
+(defun required-member (object name path)
+  (multiple-value-bind (value present-p) (object-member object name)
+    (unless present-p
+      (fail-document "A required workspace-document member is missing"
+                     :path (document-path+ path name)))
+    value))
+
+(defun closed-object (object allowed path description)
+  (unless (json-object-p object)
+    (fail-document (format nil "~A must be a JSON object" description) :path path))
+  (dolist (entry (json-object-entries object))
+    (unless (member (car entry) allowed :test #'string=)
+      (fail-document (format nil "A member is not allowed in ~A" description)
+                     :path (document-path+ path (car entry)))))
+  object)
+
+(defun json-string (value path description)
+  (unless (stringp value)
+    (fail-document (format nil "~A must be a JSON string" description) :path path))
+  (copy-seq value))
+
+(defun json-array (value path description)
+  (unless (and (vectorp value) (not (stringp value)))
+    (fail-document (format nil "~A must be a JSON array" description) :path path))
+  value)
+
+(defun optional-json-member (object name path function)
+  (multiple-value-bind (value present-p) (object-member object name)
+    (when present-p
+      (values (funcall function value (document-path+ path name)) t))))
+
+(defun wire-command (value path max-argv)
+  (let ((arguments (json-array value path "Command")))
+    (when (> (length arguments) max-argv)
+      (fail-document (format nil "Command contains more than ~D argv strings" max-argv)
+                     :path path :limit :max-argv))
+    (map 'simple-vector
+         (lambda (argument) (json-string argument path "Command argument"))
+         arguments)))
+
+(defun wire-pane (object path max-argv)
+  (closed-object object '("cwd" "command") path "Pane")
+  (let ((result nil))
+    (multiple-value-bind (cwd present-p)
+        (optional-json-member object "cwd" path
+                              (lambda (value member-path)
+                                (json-string value member-path "Pane cwd")))
+      (when present-p (setf result (append result (list :cwd cwd)))))
+    (multiple-value-bind (command present-p)
+        (optional-json-member object "command" path
+                              (lambda (value member-path)
+                                (wire-command value member-path max-argv)))
+      (when present-p (setf result (append result (list :command command)))))
+    result))
+
+(defun wire-layout (value path)
+  (let* ((name (json-string value path "Window layout"))
+         (entry (assoc name '(("even-horizontal" . :even-horizontal)
+                              ("even-vertical" . :even-vertical)
+                              ("main-horizontal" . :main-horizontal)
+                              ("main-vertical" . :main-vertical)
+                              ("tiled" . :tiled))
+                       :test #'string=)))
+    (unless entry
+      (fail-document "Unknown named window layout" :path path))
+    (cdr entry)))
+
+(defun wire-window (object path max-panes max-argv)
+  (closed-object object '("name" "index" "cwd" "layout" "panes") path "Window")
+  (let* ((name (json-string (required-member object "name" path)
+                            (document-path+ path "name") "Window name"))
+         (panes-source (json-array (required-member object "panes" path)
+                                   (document-path+ path "panes") "Window panes")))
+    (when (> (length panes-source) max-panes)
+      (fail-document (format nil "Window contains more than ~D panes" max-panes)
+                     :path (document-path+ path "panes") :limit :max-panes))
+    (let ((result (list :name name)))
+      (multiple-value-bind (index present-p) (object-member object "index")
+        (when present-p
+          (unless (integerp index)
+            (fail-document "Window index must be a JSON integer"
+                           :path (document-path+ path "index")))
+          (setf result (append result (list :index index)))))
+      (multiple-value-bind (cwd present-p)
+          (optional-json-member object "cwd" path
+                                (lambda (value member-path)
+                                  (json-string value member-path "Window cwd")))
+        (when present-p (setf result (append result (list :cwd cwd)))))
+      (multiple-value-bind (layout present-p)
+          (optional-json-member object "layout" path #'wire-layout)
+        (when present-p (setf result (append result (list :layout layout)))))
+      (append result
+              (list :panes
+                    (loop with panes = (make-array (length panes-source))
+                          for pane across panes-source for index from 0
+                          do (setf (aref panes index)
+                                   (wire-pane pane
+                                              (document-path+
+                                               (document-path+ path "panes") index)
+                                              max-argv))
+                          finally (return panes)))))))
+
+(defun wire-session (object path max-windows max-panes max-argv)
+  (closed-object object '("name" "cwd" "windows") path "Session")
+  (let* ((name (json-string (required-member object "name" path)
+                            (document-path+ path "name") "Session name"))
+         (windows-source (json-array (required-member object "windows" path)
+                                     (document-path+ path "windows") "Session windows")))
+    (when (> (length windows-source) max-windows)
+      (fail-document (format nil "Session contains more than ~D windows" max-windows)
+                     :path (document-path+ path "windows") :limit :max-windows))
+    (let ((result (list :name name))
+          (total-panes 0))
+      (multiple-value-bind (cwd present-p)
+          (optional-json-member object "cwd" path
+                                (lambda (value member-path)
+                                  (json-string value member-path "Session cwd")))
+        (when present-p (setf result (append result (list :cwd cwd)))))
+      (append
+       result
+       (list
+        :windows
+        (loop with windows = (make-array (length windows-source))
+              for window across windows-source for index from 0
+              for native = (wire-window
+                            window (document-path+ (document-path+ path "windows") index)
+                            max-panes max-argv)
+              do (incf total-panes (length (getf native :panes)))
+                 (when (> total-panes max-panes)
+                   (fail-document
+                    (format nil "Workspace contains more than ~D panes" max-panes)
+                    :path (document-path+ path "windows") :limit :max-panes))
+                 (setf (aref windows index) native)
+              finally (return windows)))))))
+
+(defun parse-workspace
+    (source
+     &key
+       (max-input-bytes +default-max-input-bytes+)
+       (max-depth +default-max-depth+)
+       (max-nodes +default-max-nodes+)
+       (max-string-length +default-max-string-length+)
+       (max-windows +default-max-windows+)
+       (max-panes +default-max-panes+)
+       (max-argv +default-max-argv+)
+       (max-integer-digits +default-max-integer-digits+))
+  "Parse one bounded libtmux.lisp.workspace/1 JSON string into a WORKSPACE.
+The complete document uses a closed grammar, rejects duplicate members, and
+never interns or evaluates external names. Limits bound UTF-8 bytes, nesting,
+nodes, strings, windows, total panes, argv length, and integer token digits.
+Input and retained values are copied. Signals INVALID-WORKSPACE-DOCUMENT or
+WORKSPACE-LIMIT-EXCEEDED with WORKSPACE-PATH and WORKSPACE-LIMIT diagnostics.
+
+See also: READ-WORKSPACE, MAKE-WORKSPACE, WORKSPACE-DATA."
+  (unless (stringp source)
+    (fail-document "PARSE-WORKSPACE requires a complete JSON string"))
+  (checked-limit max-input-bytes :max-input-bytes 1)
+  (checked-limit max-depth :max-depth 1)
+  (checked-limit max-nodes :max-nodes 1)
+  (checked-limit max-string-length :max-string-length 1)
+  (checked-limit max-windows :max-windows 1)
+  (checked-limit max-panes :max-panes 1)
+  (checked-limit max-argv :max-argv 0)
+  (checked-limit max-integer-digits :max-integer-digits 0)
+  (bounded-utf-8-size source max-input-bytes)
+  (validate-json-integers source max-integer-digits)
+  (let ((document (parse-json-events source max-depth max-nodes max-string-length)))
+    (closed-object document '("schema" "session") #() "Workspace")
+    (let ((schema (required-member document "schema" #())))
+      (unless (and (stringp schema) (string= schema +schema+))
+        (fail-document "Unsupported workspace-document schema" :path #("schema")))
+      (let ((native
+              (list :schema (copy-seq +schema+)
+                    :session
+                    (wire-session (required-member document "session" #())
+                                  #("session") max-windows max-panes max-argv))))
+        (handler-case
+            (make-workspace native :max-windows max-windows
+                                   :max-panes max-panes :max-argv max-argv)
+          (invalid-workspace-document (condition) (error condition))
+          (invalid-workspace (cause)
+            (fail-document "The workspace document violates the native workspace contract"
+                           :cause cause)))))))
+
+(defun read-workspace
+    (path
+     &rest options
+     &key (max-input-bytes +default-max-input-bytes+)
+     &allow-other-keys)
+  "Read one bounded regular UTF-8 JSON file and return an owned WORKSPACE.
+PATH is opened for input and never modified. MAX-INPUT-BYTES is enforced on
+bytes read even if the file changes after opening. Directories and special
+files are rejected. Other OPTIONS are forwarded to PARSE-WORKSPACE. Signals
+INVALID-WORKSPACE-DOCUMENT or WORKSPACE-LIMIT-EXCEEDED and closes the stream.
+
+See also: PARSE-WORKSPACE, WORKSPACE-DATA."
+  (checked-limit max-input-bytes :max-input-bytes 1)
+  (handler-case
+      (with-open-file (stream path :direction :input
+                                  :element-type '(unsigned-byte 8))
+        #+sbcl
+        (let ((status (sb-posix:fstat (sb-sys:fd-stream-fd stream))))
+          (unless (sb-posix:s-isreg (sb-posix:stat-mode status))
+            (fail-document "Workspace path must name a regular file"))
+          (when (> (sb-posix:stat-size status) max-input-bytes)
+            (fail-document
+             (format nil "Workspace file exceeds ~D bytes" max-input-bytes)
+             :limit :max-input-bytes)))
+        (let* ((buffer (make-array (1+ max-input-bytes)
+                                   :element-type '(unsigned-byte 8)))
+               (count (read-sequence buffer stream)))
+          (when (> count max-input-bytes)
+            (fail-document
+             (format nil "Workspace file exceeds ~D bytes" max-input-bytes)
+             :limit :max-input-bytes))
+          (let ((source
+                  (handler-case
+                      #+sbcl (sb-ext:octets-to-string
+                              buffer :start 0 :end count :external-format :utf-8)
+                      #-sbcl (map 'string #'code-char (subseq buffer 0 count))
+                    (error (cause)
+                      (fail-document "Workspace file is not valid UTF-8" :cause cause)))))
+            (apply #'parse-workspace source options))))
+    (workspace-error (condition) (error condition))
+    (error (cause)
+      (fail-document "Cannot read the workspace file" :cause cause))))

@@ -156,3 +156,95 @@
           (signals-workspace :workspace-conflict
             (workspace-call :plan-workspace workspace conflict))))
     (is (zerop calls))))
+
+(defparameter +workspace-json+
+  "{\"schema\":\"libtmux.lisp.workspace/1\",\"session\":{\"name\":\"workspace\",\"cwd\":\"/srv/app\",\"windows\":[{\"name\":\"editor\",\"index\":1,\"layout\":\"tiled\",\"panes\":[{\"command\":[\"/bin/cat\"]},{\"cwd\":\"/srv/app/sub\",\"command\":[\"/bin/cat\"]}]},{\"name\":\"shell\",\"index\":4,\"panes\":[{\"command\":[\"/bin/cat\"]}]}]}}")
+
+(test workspace-json-matches-native-owned-data
+  (let* ((native (workspace-call :make-workspace (example-workspace-data)))
+         (parsed (workspace-call :parse-workspace +workspace-json+))
+         (data (workspace-call :workspace-data parsed)))
+    (is (equalp (workspace-call :workspace-data native) data))
+    (setf (char (getf (getf data :session) :name) 0) #\X)
+    (is (string= "workspace"
+                 (getf (getf (workspace-call :workspace-data parsed) :session)
+                       :name)))))
+
+(test workspace-json-is-closed-complete-and-does-not-intern-names
+  (let ((unknown "LIBTMUX-UNTRUSTED-WORKSPACE-MEMBER-91F4"))
+    (is (null (find-symbol unknown :keyword)))
+    (dolist
+        (document
+         (list
+          "{}"
+          "null"
+          "{\"schema\":\"foreign\",\"session\":{\"name\":\"x\",\"windows\":[]}}"
+          "{\"schema\":\"libtmux.lisp.workspace/1\",\"schema\":\"libtmux.lisp.workspace/1\",\"session\":{\"name\":\"x\",\"windows\":[]}}"
+          "{\"schema\":\"libtmux.lisp.workspace/1\",\"session\":{\"name\":\"x\",\"windows\":[]},\"extra\":true}"
+          "{\"schema\":\"libtmux.lisp.workspace/1\",\"session\":null}"
+          "{\"schema\":\"libtmux.lisp.workspace/1\",\"session\":{\"name\":\"x\",\"windows\":[{\"name\":\"w\",\"index\":1.5,\"panes\":[{}]}]}}"
+          (concatenate 'string +workspace-json+ " true")
+          (format nil
+                  "{\"schema\":\"libtmux.lisp.workspace/1\",\"session\":{\"name\":\"x\",\"windows\":[],\"~A\":true}}"
+                  unknown)))
+      (signals-workspace :invalid-workspace-document
+        (workspace-call :parse-workspace document)))
+    (is (null (find-symbol unknown :keyword)))))
+
+(test workspace-json-enforces-every-structural-bound
+  (dolist (case
+           `(((:max-input-bytes 20) :max-input-bytes)
+             ((:max-depth 2) :max-depth)
+             ((:max-nodes 4) :max-nodes)
+             ((:max-string-length 8) :max-string-length)
+             ((:max-windows 1) :max-windows)
+             ((:max-panes 2) :max-panes)
+             ((:max-argv 0) :max-argv)
+             ((:max-integer-digits 0) :max-integer-digits)))
+    (destructuring-bind (arguments expected-limit) case
+      (handler-case
+          (progn
+            (apply #'workspace-call :parse-workspace +workspace-json+ arguments)
+            (fail "Expected workspace limit ~S" expected-limit))
+        (condition (condition)
+          (unless (workspace-condition-p condition :workspace-limit-exceeded)
+            (error condition))
+          (is (eq expected-limit (workspace-call :workspace-limit condition)))))))
+  (handler-case
+      (progn
+        (workspace-call :parse-workspace
+                        "{\"schema\":\"libtmux.lisp.workspace/1\",\"session\":{\"name\":\"x\",\"windows\":[],\"extra\":true}}")
+        (fail "Expected a path-bearing workspace document error"))
+    (condition (condition)
+      (unless (workspace-condition-p condition :invalid-workspace-document)
+        (error condition))
+      (let ((path (workspace-call :workspace-path condition)))
+        (is (string= "extra" (aref path (1- (length path)))))
+        (setf (char (aref path (1- (length path))) 0) #\X)
+        (is (string= "extra"
+                     (aref (workspace-call :workspace-path condition)
+                           (1- (length path)))))))))
+
+(test workspace-file-loading-is-bounded-and-requires-a-regular-file
+  (let* ((directory (uiop:ensure-directory-pathname
+                     (sb-posix:mkdtemp "/tmp/libtmux-workspace-XXXXXX")))
+         (path (merge-pathnames "workspace.json" directory)))
+    (unwind-protect
+         (progn
+           (with-open-file (stream path :direction :output :if-exists :error
+                                        :external-format :utf-8)
+             (write-string +workspace-json+ stream))
+           (is (typep (workspace-call :read-workspace path)
+                      (find-symbol "WORKSPACE" :libtmux.workspace)))
+           (handler-case
+               (progn
+                 (workspace-call :read-workspace path :max-input-bytes 20)
+                 (fail "Oversized workspace file was accepted"))
+             (condition (condition)
+               (unless (workspace-condition-p condition :workspace-limit-exceeded)
+                 (error condition))
+               (is (eq :max-input-bytes
+                       (workspace-call :workspace-limit condition)))))
+           (signals-workspace :invalid-workspace-document
+             (workspace-call :read-workspace #P"/dev/null")))
+      (uiop:delete-directory-tree directory :validate t))))
