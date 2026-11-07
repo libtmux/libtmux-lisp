@@ -248,3 +248,81 @@
            (signals-workspace :invalid-workspace-document
              (workspace-call :read-workspace #P"/dev/null")))
       (uiop:delete-directory-tree directory :validate t))))
+
+(defun fake-workspace-outcome (&key value (present-p t))
+  (make-instance 'libtmux:command-outcome
+                 :status :succeeded :phase :exited :arguments #("workspace-test")
+                 :stdout #() :stderr #() :exit-code 0 :elapsed 0.0
+                 :value value :present-p present-p))
+
+(test workspace-apply-retains-the-failing-step-and-partial-outcomes
+  (let* ((workspace (workspace-call :make-workspace (example-workspace-data)))
+         (snapshot (workspace-snapshot :name "other"))
+         (client (make-instance 'libtmux:client))
+         (calls 0)
+         (libtmux.workspace::*fetch-snapshot-function*
+           (lambda (ignored-client &rest options)
+             (declare (ignore ignored-client options))
+             snapshot))
+         (libtmux.workspace::*execute-step-function*
+           (lambda (step ignored-client state options)
+             (declare (ignore ignored-client options))
+             (incf calls)
+             (if (= calls 2)
+                 (let ((outcome (make-instance 'libtmux:command-outcome
+                                               :status :failed :phase :exited
+                                               :arguments #("failed")
+                                               :stdout #() :stderr #()
+                                               :exit-code 1 :elapsed 0.0)))
+                   (error 'libtmux:command-failed :message "injected"
+                          :outcome outcome))
+                 (values (fake-workspace-outcome) (or state step))))))
+    (unwind-protect
+         (handler-case
+             (progn
+               (workspace-call :apply-workspace client workspace)
+               (fail "Partial workspace application succeeded"))
+           (condition (condition)
+             (unless (workspace-condition-p condition :workspace-apply-failed)
+               (error condition))
+             (is (= 2 (length (workspace-call :result-outcomes condition))))
+             (is (eq :move-window
+                     (workspace-call
+                      :step-action (workspace-call :failed-step condition))))
+             (is (typep (libtmux:error-cause condition)
+                        'libtmux:command-failed))))
+      (libtmux:close-client client))))
+
+(test workspace-apply-retains-successful-mutations-when-final-proof-fails
+  (let* ((workspace (workspace-call :make-workspace (example-workspace-data)))
+         (snapshot (workspace-snapshot :name "other"))
+         (client (make-instance 'libtmux:client))
+         (fetches 0)
+         (executions 0)
+         (libtmux.workspace::*fetch-snapshot-function*
+           (lambda (ignored-client &rest options)
+             (declare (ignore ignored-client options))
+             (if (= 1 (incf fetches))
+                 snapshot
+                 (error 'libtmux:incomplete-snapshot
+                        :message "injected final proof failure"))))
+         (libtmux.workspace::*execute-step-function*
+           (lambda (step ignored-client state options)
+             (declare (ignore step ignored-client options))
+             (incf executions)
+             (values (fake-workspace-outcome) state))))
+    (unwind-protect
+         (handler-case
+             (progn
+               (workspace-call :apply-workspace client workspace)
+               (fail "Unproved workspace application succeeded"))
+           (condition (condition)
+             (unless (workspace-condition-p condition :workspace-apply-failed)
+               (error condition))
+             (is (null (workspace-call :failed-step condition)))
+             (is (= executions
+                    (length (workspace-call :result-outcomes condition))))
+             (is (= 5 executions))
+             (is (typep (libtmux:error-cause condition)
+                        'libtmux:incomplete-snapshot))))
+      (libtmux:close-client client))))

@@ -891,3 +891,194 @@ See also: PARSE-WORKSPACE, WORKSPACE-DATA."
     (workspace-error (condition) (error condition))
     (error (cause)
       (fail-document "Cannot read the workspace file" :cause cause))))
+
+(defstruct (apply-state (:constructor make-apply-state (&key session window)))
+  session window)
+
+(defparameter *fetch-snapshot-function* #'libtmux:fetch-snapshot)
+(defparameter *execute-step-function* nil)
+
+(defun operation-options (cancel-token timeout timeout-p output-limit output-limit-p)
+  (append (when cancel-token (list :cancel-token cancel-token))
+          (when timeout-p (list :timeout timeout))
+          (when output-limit-p (list :output-limit output-limit))))
+
+(defun required-outcome-value (outcome type description)
+  (unless (typep outcome 'libtmux:command-outcome)
+    (error 'libtmux:incomplete-snapshot
+           :message "Workspace executor did not return a command outcome"))
+  (unless (eq :succeeded (libtmux:outcome-status outcome))
+    (error 'libtmux:command-failed :message "Workspace step did not succeed"
+           :outcome outcome))
+  (multiple-value-bind (value present-p) (libtmux:outcome-value outcome)
+    (unless (and present-p (typep value type))
+      (error 'libtmux:incomplete-snapshot
+             :message (format nil "~A did not return a replacement observation" description)
+             :cause (libtmux:outcome-observation-error outcome)
+             :outcome outcome))
+    value))
+
+(defun state-with-window (state window)
+  (let ((link
+          (find (apply-state-session state) (libtmux:window-links window)
+                :key #'libtmux:session :test #'libtmux:same-entity-p)))
+    (unless link
+      (error 'libtmux:incomplete-snapshot
+             :message "Workspace replacement window lacks its declared session link"))
+    (make-apply-state :session (libtmux:session link) :window window)))
+
+(defun matching-state-link (state)
+  (or (find (apply-state-session state)
+            (libtmux:window-links (apply-state-window state))
+            :key #'libtmux:session :test #'libtmux:same-entity-p)
+      (error 'libtmux:incomplete-snapshot
+             :message "Workspace window lacks its current session link")))
+
+(defun ensure-step-window (state data)
+  (unless (and state (apply-state-window state)
+               (string= (getf data :window-name)
+                        (libtmux:name (apply-state-window state))))
+    (error 'libtmux:incomplete-snapshot
+           :message "Workspace execution state does not match the planned window")))
+
+(defun execute-core-step (step client state options)
+  (let ((action (step-action step))
+        (data (step-data step)))
+    (ecase action
+      (:create-session
+       (let* ((arguments
+                (append (list :name (getf data :session-name)
+                              :window-name (getf data :window-name))
+                        (multiple-value-bind (cwd present-p) (plist-value data :cwd)
+                          (when present-p (list :cwd cwd)))
+                        (multiple-value-bind (command present-p)
+                            (plist-value data :command)
+                          (when present-p (list :command command)))
+                        options))
+              (outcome (apply #'libtmux:new-session client arguments))
+              (session (required-outcome-value outcome 'libtmux:session
+                                               "Session creation"))
+              (windows (libtmux:windows session))
+              (window (find (getf data :window-name) windows
+                            :key #'libtmux:name :test #'string=)))
+         (unless (and window (= 1 (length windows)))
+           (error 'libtmux:incomplete-snapshot
+                  :message "Created session does not contain exactly its declared first window"
+                  :outcome outcome))
+         (values outcome (make-apply-state :session session :window window))))
+      (:move-window
+       (ensure-step-window state data)
+       (let* ((outcome
+                (apply #'libtmux:move-window client (matching-state-link state)
+                       (apply-state-session state) (getf data :index) options))
+              (link (required-outcome-value outcome 'libtmux:window-link
+                                            "Window move")))
+         (values outcome
+                 (make-apply-state :session (libtmux:session link)
+                                   :window (libtmux:window link)))))
+      (:create-window
+       (let* ((arguments
+                (append (list :name (getf data :window-name))
+                        (multiple-value-bind (index present-p) (plist-value data :index)
+                          (when present-p (list :index index)))
+                        (multiple-value-bind (cwd present-p) (plist-value data :cwd)
+                          (when present-p (list :cwd cwd)))
+                        (multiple-value-bind (command present-p)
+                            (plist-value data :command)
+                          (when present-p (list :command command)))
+                        options))
+              (outcome
+                (apply #'libtmux:new-window client (apply-state-session state) arguments))
+              (window (required-outcome-value outcome 'libtmux:window
+                                              "Window creation")))
+         (values outcome (state-with-window state window))))
+      (:split-pane
+       (ensure-step-window state data)
+       (let* ((panes (libtmux:panes (apply-state-window state)))
+              (arguments
+                (append
+                 (multiple-value-bind (cwd present-p) (plist-value data :cwd)
+                   (when present-p (list :cwd cwd)))
+                 (multiple-value-bind (command present-p) (plist-value data :command)
+                   (when present-p (list :command command)))
+                 options))
+              (outcome (apply #'libtmux:split-pane client (aref panes 0) arguments))
+              (pane (required-outcome-value outcome 'libtmux:pane "Pane split")))
+         (values outcome (state-with-window state (libtmux:window pane)))))
+      (:select-layout
+       (ensure-step-window state data)
+       (let* ((outcome
+                (apply #'libtmux:select-layout client (apply-state-window state)
+                       (getf data :layout) options))
+              (window (required-outcome-value outcome 'libtmux:window
+                                              "Layout selection")))
+         (values outcome (state-with-window state window)))))))
+
+(setf *execute-step-function* #'execute-core-step)
+
+(defun apply-failure (cause client step outcomes)
+  (let* ((cause-outcome
+           (and (typep cause 'libtmux:libtmux-error)
+                (libtmux:error-outcome cause)))
+         (retained
+           (if (and cause-outcome
+                    (not (find cause-outcome outcomes :test #'eq)))
+               (cons cause-outcome outcomes)
+               outcomes)))
+    (error 'workspace-apply-failed
+           :message (if step
+                        "Workspace application stopped at a planned step"
+                        "Workspace mutations completed but final topology proof failed")
+           :cause cause :outcome cause-outcome :client client :step step
+           :outcomes (coerce (nreverse retained) 'simple-vector))))
+
+(defun fetch-options (cancel-token timeout timeout-p output-limit output-limit-p)
+  (operation-options cancel-token timeout timeout-p output-limit output-limit-p))
+
+(defun apply-workspace
+    (client workspace
+     &key cancel-token (timeout nil timeout-p) (output-limit nil output-limit-p))
+  "Create or reuse WORKSPACE through explicit CLIENT and return WORKSPACE-RESULT.
+The function first calls FETCH-SNAPSHOT and PLAN-WORKSPACE. A proven match
+returns immediately with no command outcomes. A missing session executes each
+planned core mutation once, in order, then captures and proves the final
+topology. TIMEOUT and OUTPUT-LIMIT, when supplied, apply separately to each core
+operation; CANCEL-TOKEN is shared. Conflicts dispatch no mutation.
+
+Failure after dispatch signals WORKSPACE-APPLY-FAILED. RESULT-OUTCOMES retains
+every completed outcome plus a failing core outcome when available; FAILED-STEP
+identifies the planned step. Final-proof failure has no failed step. No rollback
+or automatic retry occurs.
+
+See also: PLAN-WORKSPACE, RESULT-SNAPSHOT, RESULT-OUTCOMES, FAILED-STEP."
+  (check-type client libtmux:client)
+  (check-type workspace workspace)
+  (let* ((options (fetch-options cancel-token timeout timeout-p
+                                 output-limit output-limit-p))
+         (initial (apply *fetch-snapshot-function* client options))
+         (steps (plan-steps (plan-workspace workspace initial))))
+    (when (zerop (length steps))
+      (return-from apply-workspace
+        (make-instance 'workspace-result :snapshot initial
+                                         :outcomes #() :created-p nil)))
+    (let ((state nil) (outcomes nil))
+      (loop for step across steps
+            do (handler-case
+                   (multiple-value-bind (outcome next-state)
+                       (funcall *execute-step-function* step client state options)
+                     (push outcome outcomes)
+                     (setf state next-state))
+                 (error (cause)
+                   (apply-failure cause client step outcomes))))
+      (handler-case
+          (let* ((final (apply *fetch-snapshot-function* client options))
+                 (remaining (plan-steps (plan-workspace workspace final))))
+            (unless (zerop (length remaining))
+              (error 'libtmux:incomplete-snapshot
+                     :message "Workspace session is absent after completed mutations"))
+            (make-instance 'workspace-result :snapshot final
+                                             :outcomes (coerce (nreverse outcomes)
+                                                               'simple-vector)
+                                             :created-p t))
+        (error (cause)
+          (apply-failure cause client nil outcomes))))))

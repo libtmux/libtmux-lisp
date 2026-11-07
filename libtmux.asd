@@ -154,7 +154,7 @@
 
 (defsystem "libtmux/tests/integration"
   :description "Owned tmux fixtures and external-operation tests"
-  :depends-on ("libtmux/tests")
+  :depends-on ("libtmux/tests" "libtmux/workspace")
   :serial t
   :components ((:file "tests/fixture")
                (:file "tests/process")
@@ -165,7 +165,8 @@
                (:file "tests/geometry")
                (:file "tests/placement")
                (:file "tests/buffers")
-               (:file "tests/pane-processes"))
+               (:file "tests/pane-processes")
+               (:file "tests/workspace-integration"))
   :perform (test-op (operation component)
              (declare (ignore operation component))
              (unless (uiop:symbol-call :libtmux.tests :run-suite :integration)
