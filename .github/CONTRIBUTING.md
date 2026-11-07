@@ -71,8 +71,8 @@ $ /usr/bin/time -p mise run check
 ```
 
 It checks source whitespace, loads the selected systems and runs the core,
-native-query, regex and JSON suites. It also checks public docstrings, generated
-API/field/operator/module references,
+native-query, regex, JSON and workspace suites. It also checks public
+docstrings, generated API/field/operator/module references,
 the generated configuration catalog, example excerpts and local documentation
 links. Regenerate those pages with
 `mise run docs` after a source documentation or registry change.

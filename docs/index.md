@@ -10,11 +10,13 @@ All examples use the native SBCL implementation.
 | [Captures and identity](captures.md) | Object graph, relations, presence, ownership and refresh |
 | [Native queries](queries.md) | Typed forms, relations, QuerySets, limits and cardinality |
 | [Query interchange](query-interchange.md) | Optional regex and bounded versioned JSON documents |
+| [Declarative workspaces](workspaces.md) | Bounded documents, pure plans, explicit apply and CLI |
 | [Explicit operations](operations.md) | Creation, placement, input, buffers and mutation outcomes |
 | [Transport](transport.md) | Client lifecycle, limits, cancellation and failure evidence |
 | [Public API](api.md) | Generated signatures, docstrings, classes and conditions |
 | [Query API](query-api.md) | Generated query, QuerySet, condition and operator reference |
 | [Query JSON API](json-api.md) | Generated codec signatures and document conditions |
+| [Workspace API](workspace-api.md) | Generated workspace, plan, result, condition and CLI reference |
 | [Captured fields](fields.md) | Generated typed field/relation registry |
 | [Capabilities and limits](capabilities.md) | Platform, concurrency, planned modules and adoption gaps |
 | [Testing](testing.md) | FiveAM's interactive workflow and isolated tmux CI |

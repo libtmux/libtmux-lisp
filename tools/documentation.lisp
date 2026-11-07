@@ -5,6 +5,7 @@
 (asdf:load-system "libtmux/query")
 (asdf:load-system "libtmux/regex")
 (asdf:load-system "libtmux/json")
+(asdf:load-system "libtmux/workspace/cli")
 
 (defpackage #:libtmux.documentation
   (:use #:cl)
@@ -248,6 +249,42 @@
                               (string-downcase (symbol-name (class-name superclass))))
                             (sb-mop:class-direct-superclasses class)))))))))
 
+(defun render-workspace-api ()
+  (let ((*package* (find-package :libtmux.workspace)) (*print-case* :downcase)
+        (*print-pretty* nil) (*print-circle* t))
+    (with-output-to-string (out)
+      (format out "# Workspace API~%~%Generated from live package documentation and signatures by `mise run docs`.~%Edit source docstrings; `mise run check` detects drift.~%~%[Workspace guide](workspaces.md) · [Core API](api.md) · [Transport](transport.md)~%~%")
+      (format out "~A~%~%" (required-documentation (find-package :libtmux.workspace) t))
+      (format out "## Functions~%~%")
+      (dolist (symbol (public-symbols :libtmux.workspace))
+        (when (fboundp symbol)
+          (multiple-value-bind (documentation related)
+              (documentation-parts symbol 'function :libtmux.workspace)
+            (format out "<a id=\"~A-function\"></a>~%~%### ~A~%~%`~A`~%~%~A~%~%"
+                    (spelling symbol) (spelling symbol)
+                    (signature-text (cons symbol (sb-introspect:function-lambda-list symbol)))
+                    documentation)
+            (when related (format out "~A~%~%" related))
+            (format out "~A~%~%" (source-link symbol (function-kind symbol))))))
+      (format out "## Classes and conditions~%~%These objects retain owned configuration, plans, results, or bounded diagnostics.~%~%")
+      (dolist (symbol (public-symbols :libtmux.workspace))
+        (let ((class (find-class symbol nil)))
+          (when class
+            (format out "<a id=\"~A-type\"></a>~%~%### ~A~%~%~A~%~%~A~%~%Direct supertypes: ~{`~A`~^, ~}.~%~%"
+                    (spelling symbol) (spelling symbol)
+                    (required-documentation class t)
+                    (source-link symbol (if (subtypep symbol 'condition) :condition :class))
+                    (mapcar (lambda (superclass)
+                              (string-downcase (symbol-name (class-name superclass))))
+                            (sb-mop:class-direct-superclasses class))))))
+      (let* ((symbol (find-symbol "MAIN" :libtmux.workspace.cli))
+             (*package* (find-package :libtmux.workspace.cli)))
+        (format out "## Command-line adapter~%~%The separate `libtmux/workspace/cli` system exports one testable entry point. See [read-workspace](#read-workspace-function), [plan-workspace](#plan-workspace-function), and [apply-workspace](#apply-workspace-function).~%~%")
+        (format out "<a id=\"main-function\"></a>~%~%### main~%~%`~A`~%~%~A~%~%~A~%~%"
+                (signature-text (cons symbol (sb-introspect:function-lambda-list symbol)))
+                (required-documentation symbol 'function)
+                (source-link symbol (function-kind symbol)))))))
+
 (defun render-modules ()
   (with-output-to-string (out)
     (format out "# Source modules~%~%Generated from ASDF component descriptions by `mise run docs`.~%These files implement the core `libtmux` system; their internal package is private.~%~%[Public API](api.md) · [Architecture and boundaries](captures.md)~%~%| Source | Responsibility |~%| --- | --- |~%")
@@ -257,7 +294,8 @@
               (or (asdf/component:component-description component)
                   (error "Missing module description: ~A" component))))
     (format out "~%## Separate systems~%~%| System | Source | Responsibility |~%| --- | --- | --- |~%")
-    (dolist (system-name '("libtmux/query" "libtmux/regex" "libtmux/json"))
+    (dolist (system-name '("libtmux/query" "libtmux/regex" "libtmux/json"
+                           "libtmux/workspace" "libtmux/workspace/cli"))
       (let ((system (asdf:find-system system-name)))
         (dolist (component (asdf:component-children system))
           (format out "| `~A` | [~A](../~A) | ~A |~%" system-name
@@ -278,6 +316,7 @@
   (synchronize "docs/api.md" (render-api) write-p)
   (synchronize "docs/query-api.md" (render-query-api) write-p)
   (synchronize "docs/json-api.md" (render-json-api) write-p)
+  (synchronize "docs/workspace-api.md" (render-workspace-api) write-p)
   (synchronize "docs/fields.md" (render-fields) write-p)
   (synchronize "docs/modules.md" (render-modules) write-p)
   (format t "Public docstrings, API signatures, fields and module documentation: PASS~%"))

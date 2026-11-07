@@ -29,6 +29,7 @@ sources += sorted((root / "docs").rglob("*.md"))
 sources += sorted((root / "data").glob("*.json"))
 sources += sorted(path for path in (root / "docs/assets").rglob("*") if path.is_file())
 sources += sorted(path for path in (root / "examples").iterdir() if path.is_file())
+sources += sorted(path for path in (root / "bin").iterdir() if path.is_file())
 sources += sorted(path for path in (root / "tools").iterdir() if path.is_file())
 sources += sorted(path for path in (root / ".github").rglob("*") if path.is_file())
 epoch = int(os.environ.get("SOURCE_DATE_EPOCH") or subprocess.check_output(
@@ -89,6 +90,7 @@ with tempfile.TemporaryDirectory(prefix="libtmux-lisp-consumer-") as directory:
         "--eval", '(asdf:load-system "libtmux")',
         "--eval", '(assert (find-package :libtmux))',
         "--eval", '(assert (not (find-package :libtmux.query)))',
+        "--eval", '(assert (not (find-package :libtmux.workspace)))',
         "--eval", '(assert (not (find-package :cl-ppcre)))',
         "--eval", '(assert (not (find-package :com.inuoe.jzon)))',
         "--eval", '(assert (not (find-package :bt2)))',
@@ -130,6 +132,35 @@ with tempfile.TemporaryDirectory(prefix="libtmux-lisp-consumer-") as directory:
         "--eval", '(assert (not (find-package :cl-ppcre)))',
         "--eval", json_consumer_check,
     ], cwd=destination, env=environment, check=True)
+    workspace_document = destination / "libtmux" / "examples" / "workspace.json"
+    workspace_consumer_check = (
+        f'(let* ((workspace (libtmux.workspace:read-workspace "{workspace_document}")) '
+        '(plan (libtmux.workspace:plan-workspace workspace))) '
+        '(assert (= 5 (length (libtmux.workspace:plan-steps plan)))))'
+    )
+    cli_consumer_check = (
+        f'(let ((stdout (make-string-output-stream)) '
+        '(stderr (make-string-output-stream))) '
+        '(assert (zerop (libtmux.workspace.cli:main '
+        f':arguments (list "validate" "{workspace_document}") '
+        ':stdout stdout :stderr stderr))) '
+        '(assert (search "\\\"status\\\":\\\"valid\\\"" '
+        '(get-output-stream-string stdout))) '
+        '(assert (string= "" (get-output-stream-string stderr))))'
+    )
+    subprocess.run([
+        "sbcl", "--noinform", "--no-sysinit", "--no-userinit", "--non-interactive",
+        "--load", str(Path(asdf) / "asdf.lisp"),
+        "--load", str(qlot_setup),
+        "--eval", '(require :asdf)',
+        "--eval", '(setf *compile-verbose* nil *load-verbose* nil)',
+        "--eval", '(declaim (sb-ext:muffle-conditions sb-ext:compiler-note))',
+        "--eval", f'(asdf:load-asd (truename "{archive_asd}"))',
+        "--eval", f'(assert (equal (truename "{archive_asd}") (truename (asdf:system-source-file "libtmux/workspace"))))',
+        "--eval", '(asdf:load-system "libtmux/workspace/cli")',
+        "--eval", workspace_consumer_check,
+        "--eval", cli_consumer_check,
+    ], cwd=destination, env=environment, check=True)
     if arguments.examples:
         extracted = destination / "libtmux"
         environment["LIBTMUX_QLOT_SETUP"] = str(qlot_setup)
@@ -143,6 +174,7 @@ evidence = {"artifact": archive.name, "sha256": hashlib.sha256(archive.read_byte
             "elapsed_seconds": round(time.monotonic() - started, 3),
             "core_consumer": "PASS", "query_consumer": "PASS",
             "regex_consumer": "PASS", "json_consumer": "PASS",
+            "workspace_consumer": "PASS",
             "optional_source": "archive"}
 if arguments.examples:
     evidence["archived_examples"] = "PASS"

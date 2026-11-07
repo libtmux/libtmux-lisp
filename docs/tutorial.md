@@ -73,7 +73,7 @@ registers the ASDF definition but does not implicitly load either system:
 (asdf:load-system "libtmux/query")
 ```
 
-Load the two optional query integrations used later in the checked walkthrough:
+Load the three optional systems used later in the checked walkthrough:
 
 ```lisp
 (asdf:load-system "libtmux/regex")
@@ -83,9 +83,13 @@ Load the two optional query integrations used later in the checked walkthrough:
 (asdf:load-system "libtmux/json")
 ```
 
+```lisp
+(asdf:load-system "libtmux/workspace")
+```
+
 Load the recipe functions. Their package declares the SBCL package-local
-nicknames `tm`, `q` and `j` for the core, query and JSON packages; the library
-claims no global short nicknames.
+nicknames `tm`, `q`, `j` and `ws` for the core, query, JSON and workspace
+packages; the library claims no global short nicknames.
 
 ```lisp
 (load "examples/workspace.lisp")

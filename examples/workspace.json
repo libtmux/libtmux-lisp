@@ -1,0 +1,25 @@
+{
+  "schema": "libtmux.lisp.workspace/1",
+  "session": {
+    "name": "declared",
+    "cwd": "/tmp",
+    "windows": [
+      {
+        "name": "code",
+        "index": 2,
+        "layout": "tiled",
+        "panes": [
+          {"command": ["/bin/cat"]},
+          {"command": ["/bin/cat"]}
+        ]
+      },
+      {
+        "name": "shell",
+        "index": 5,
+        "panes": [
+          {"command": ["/bin/cat"]}
+        ]
+      }
+    ]
+  }
+}

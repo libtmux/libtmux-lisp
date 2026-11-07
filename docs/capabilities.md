@@ -1,8 +1,8 @@
 # Capabilities and current limits
 
-The implemented core suits bounded, blocking SBCL/Linux tmux automation with
-captured graph traversal, native queries and explicit commands. It is not yet
-the complete control/events and workspace suite described by the project goal.
+The implemented systems suit bounded, blocking SBCL/Linux tmux automation with
+captured graph traversal, native queries, explicit commands and declarative
+workspace bootstrap. Persistent control/events remain future work.
 
 | Area | Available now | Remaining work |
 | --- | --- | --- |
@@ -12,9 +12,9 @@ the complete control/events and workspace suite described by the project goal.
 | Operations | Creation, rename, selection, geometry, placement, input, buffers, respawn, shell pipes, typed option/hook/environment mutations, explicit entity/server termination | Decoded configuration readers, daemon bootstrap and attached-client operations |
 | Concurrency | Synchronous calls; cancellation; one operation per client | Public asynchronous API and persistent control transport |
 | Streaming/events | Complete bounded captures and byte buffers; daemon-owned `pipe-pane` | Native event/output subscriptions, bounded delivery, loss and backpressure |
-| Workspace | No implemented module or executable | Separate ASDF system, installed loader/CLI and owned-fixture consumer tests |
+| Workspace | Separate bounded JSON/native system, pure plans, explicit apply, no-op reuse and explicit-endpoint CLI | Deletion, process supervision and richer convergence are intentionally absent from v1 |
 | MCP | Intentionally excluded by project policy | Use a separately maintained external integration if one becomes suitable |
-| Optional integrations | Separate CL-PPCRE regex and bounded Jzon interchange systems | Control ASDF system |
+| Optional integrations | Separate CL-PPCRE regex, bounded query JSON and workspace/CLI systems | Control ASDF system |
 | Performance | No benchmark claims | Reproducible acquisition/filter/stream workloads and latency/allocation results |
 
 The process backend services stdin/stdout/stderr through nonblocking descriptors
@@ -25,9 +25,9 @@ Independent clients can perform independent operations, but their identity
 contexts differ. Do not pass one client's observations to another for mutation.
 
 Portable Common Lisp plus ASDF/UIOP is the default dependency boundary. The
-required workspace consumer will be a separate `libtmux/workspace` ASDF system
-that depends on `libtmux` and only the sibling systems its loader and CLI need.
-External libraries stay isolated in the optional systems that justify them.
+workspace consumer is a separate `libtmux/workspace` ASDF system over core and
+the locked Jzon parser; its CLI is another separate system. External libraries
+stay isolated in the optional systems that justify them.
 
 MCP is intentionally outside this port's product scope; it is not an unfinished
 package or release gate. An agent can still read the [public API](api.md),

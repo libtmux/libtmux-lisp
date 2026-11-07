@@ -20,11 +20,13 @@ mutations through an explicit client.
 **Implemented:** captured sessions, physical windows, window links and panes;
 bounded subprocess transport; cancellation; named operations, byte buffers,
 validated native queries, eager QuerySets, optional regex and bounded JSON;
+[bounded declarative workspaces](docs/workspaces.md) with pure plans, explicit
+apply and an explicit-endpoint CLI;
 [typed option, hook and environment mutations](docs/operations.md#configuration-mutations)
 for the exact reviewed tmux catalogs through 3.8; explicit entity and server
 termination with retained outcome evidence.
-**In development:** decoded configuration readers, control/events, streaming
-and the workspace consumer. MCP is intentionally out of scope. The `0.1.0`
+**In development:** decoded configuration readers, control/events and streaming.
+MCP is intentionally out of scope. The `0.1.0`
 systems are unreleased.
 
 ## Install from source
@@ -63,10 +65,38 @@ $ mise run examples
 ```
 
 Success includes `EXAMPLES PASS: graph, links, native, compiled, relation,
-regex and JSON selection, false/presence, ownership, refresh, bytes, capture,
-close, terminate`. Core and query loading need ASDF/UIOP only; optional
+regex and JSON selection, declarative workspace, false/presence, ownership,
+refresh, bytes, capture, close, terminate`. Core and query loading need ASDF/UIOP only; optional
 regex/JSON use the locked CL-PPCRE/Jzon systems. The example runner also needs
 Python 3. No Java runtime is involved.
+
+## Declare and apply a workspace
+
+The optional `libtmux/workspace` ASDF system reads a closed, bounded JSON
+document, plans locally, and applies only through an explicit client. The
+shipped [`workspace.json`](examples/workspace.json) creates two windows and
+three panes from argv arrays. This tested function returns both the inspectable
+plan and retained application evidence:
+
+<!-- example:workspaceconfig -->
+```lisp
+(defun apply-workspace-document (client pathname)
+  "Plan and apply one bounded workspace document through explicit CLIENT.
+Return the local plan steps and retained application result as two values."
+  (let* ((workspace (ws:read-workspace pathname))
+         (snapshot (tm:fetch-snapshot client))
+         (plan (ws:plan-workspace workspace snapshot)))
+    (values (ws:plan-steps plan)
+            (ws:apply-workspace client workspace))))
+```
+<!-- /example -->
+
+An exact second apply returns an empty plan and no command outcomes. A conflict
+fails before dispatch. A partial failure retains the failed step and every core
+outcome; no mutation is retried or rolled back. The CLI's `validate` and `plan`
+modes need no daemon, while `apply` requires `--socket-path`. Read the
+[workspace guide](docs/workspaces.md) and
+[generated workspace API](docs/workspace-api.md).
 
 ## Inspect a workspace
 
@@ -214,10 +244,11 @@ names. See [optional query interchange](docs/query-interchange.md).
 | Filter with `loop`, handle false/absence, export plists | [Local data recipes](docs/tutorial.md#select-and-project-locally) |
 | Compile typed filters, traverse relations and compose QuerySets | [Native queries](docs/queries.md) · [Query API](docs/query-api.md) |
 | Add CL-PPCRE or exchange bounded filter documents | [Query interchange](docs/query-interchange.md) · [JSON API](docs/json-api.md) |
+| Validate, plan or explicitly apply a declarative workspace | [Workspaces](docs/workspaces.md) · [Workspace API](docs/workspace-api.md) |
 | Rename, resize, move, send input, capture, use buffers or terminate explicit targets | [Operation contracts](docs/operations.md) |
 | Look up signatures, multiple values and conditions | [Public API](docs/api.md) · [Captured fields](docs/fields.md) |
 | Understand deadlines, cancellation and cleanup | [Transport](docs/transport.md) |
-| Evaluate async, streaming, workspace and performance support | [Capabilities and limits](docs/capabilities.md) |
+| Evaluate async, streaming and performance support | [Capabilities and limits](docs/capabilities.md) |
 | Rerun FiveAM tests at the REPL or inspect CI coverage | [Testing](docs/testing.md) · [Verification](verification.md) |
 | Navigate all documentation | [Guide index](docs/index.md) |
 

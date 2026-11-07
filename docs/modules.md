@@ -43,3 +43,5 @@ These files implement the core `libtmux` system; their internal package is priva
 | `libtmux/query` | [src/query](../src/query.lisp) | Owned expressions, relation traversal, eager query sets and strict cardinality. |
 | `libtmux/regex` | [src/regex](../src/regex.lisp) | Validated CL-PPCRE search and full-match query operators. |
 | `libtmux/json` | [src/json](../src/json.lisp) | Closed versioned filter documents with bounded event decoding. |
+| `libtmux/workspace` | [src/workspace](../src/workspace.lisp) | Closed workspace data, bounded JSON, pure topology plans and explicit apply. |
+| `libtmux/workspace/cli` | [src/workspace-cli](../src/workspace-cli.lisp) | Validate, plan and apply workspace documents with bounded JSON summaries. |

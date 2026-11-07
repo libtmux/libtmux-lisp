@@ -115,7 +115,8 @@ evidence = {"status": "PASS", "tmux": version,
                                            root / "README.md", root / "docs/tutorial.md",
                                            root / "tools/examples.py", root / "tools/stop-example.py"] if path.is_file()},
             "daemon_cleanup": "PASS",
-            "optional_libraries_loaded": ["cl-ppcre", "com.inuoe.jzon"]}
+            "optional_libraries_loaded": ["cl-ppcre", "com.inuoe.jzon"],
+            "optional_systems_loaded": ["libtmux/regex", "libtmux/json", "libtmux/workspace"]}
 evidence["tutorial_lisp_blocks"] = len(forms)
 evidence["tutorial_console_setup_cleanup"] = "PASS"
 output = Path(__file__).resolve().parents[1] / "dist"

@@ -112,6 +112,13 @@
   :components ((:file "src/workspace"
                       :description "Closed workspace data, bounded JSON, pure topology plans and explicit apply.")))
 
+(defsystem "libtmux/workspace/cli"
+  :description "Explicit-endpoint workspace command-line interface"
+  :depends-on ("libtmux/workspace")
+  :serial t
+  :components ((:file "src/workspace-cli"
+                      :description "Validate, plan and apply workspace documents with bounded JSON summaries.")))
+
 (defsystem "libtmux/tests/query"
   :description "Local native-query semantic tests"
   :depends-on ("libtmux/tests" "libtmux/query")
@@ -144,9 +151,10 @@
 
 (defsystem "libtmux/tests/workspace"
   :description "Local workspace validation and planning tests"
-  :depends-on ("libtmux/tests" "libtmux/workspace")
+  :depends-on ("libtmux/tests" "libtmux/workspace/cli")
   :serial t
-  :components ((:file "tests/workspace"))
+  :components ((:file "tests/workspace")
+               (:file "tests/workspace-cli"))
   :perform (test-op (operation component)
              (declare (ignore operation component))
              (unless (uiop:symbol-call :libtmux.tests :run-suite :workspace)
@@ -154,7 +162,7 @@
 
 (defsystem "libtmux/tests/integration"
   :description "Owned tmux fixtures and external-operation tests"
-  :depends-on ("libtmux/tests" "libtmux/workspace")
+  :depends-on ("libtmux/tests" "libtmux/workspace/cli")
   :serial t
   :components ((:file "tests/fixture")
                (:file "tests/process")

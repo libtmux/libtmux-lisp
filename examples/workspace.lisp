@@ -2,9 +2,10 @@
   (:use #:cl)
   (:local-nicknames (#:tm #:libtmux)
                     (#:q #:libtmux.query)
-                    (#:j #:libtmux.json))
+                    (#:j #:libtmux.json)
+                    (#:ws #:libtmux.workspace))
   (:export #:inspect-workspace #:create-workspace #:observed-value
-           #:terminate-owned-server))
+           #:apply-workspace-document #:terminate-owned-server))
 
 (in-package #:libtmux.examples)
 
@@ -155,6 +156,17 @@ The caller owns the isolated daemon; repeating this recipe there is an error."
     (values document
             (map 'vector #'tm:entity-data
                  (q:matching restored (tm:panes snapshot))))))
+;;; docs:end
+
+;;; docs:workspaceconfig
+(defun apply-workspace-document (client pathname)
+  "Plan and apply one bounded workspace document through explicit CLIENT.
+Return the local plan steps and retained application result as two values."
+  (let* ((workspace (ws:read-workspace pathname))
+         (snapshot (tm:fetch-snapshot client))
+         (plan (ws:plan-workspace workspace snapshot)))
+    (values (ws:plan-steps plan)
+            (ws:apply-workspace client workspace))))
 ;;; docs:end
 
 ;;; docs:buffers
