@@ -25,11 +25,31 @@
   (or (documentation object type)
       (error "Missing ~A documentation for ~A" type object)))
 
-(defun source-link (symbol kind)
+(defun definition-path (symbol kind)
   (let* ((source (first (sb-introspect:find-definition-sources-by-name symbol kind)))
          (path (and source (sb-introspect:definition-source-pathname source))))
     (unless path (error "Missing source location for ~A ~A" kind symbol))
-    (format nil "[Source](../~A)" (enough-namestring path (uiop:getcwd)))))
+    path))
+
+(defun function-kind (symbol)
+  (cond ((macro-function symbol) :macro)
+        ((typep (fdefinition symbol) 'generic-function) :generic-function)
+        (t :function)))
+
+(defun source-link (symbol kind)
+  (format nil "[Source](../~A)"
+          (enough-namestring (definition-path symbol kind) (uiop:getcwd))))
+
+(defparameter *index-groups*
+  '(("Connect and manage lifetime" "client")
+    ("Acquire, traverse and project captured graphs" "capture" "model")
+    ("Inspect outcomes and cancel work" "transport")
+    ("Create sessions, windows and panes" "creation")
+    ("Select, arrange and link targets" "geometry" "selection" "placement")
+    ("Rename, capture, send input and manage pane processes"
+     "operations" "terminal-operations" "process-operations")
+    ("Read and write buffers and files" "buffers")
+    ("Inspect failure evidence" "conditions")))
 
 (defun type-reference (class)
   (let ((symbol (class-name class)))
@@ -44,20 +64,31 @@
       (format out "# Public API~%~%Generated from live package documentation and function signatures by~%`mise run docs`. Edit source docstrings; `mise run check` detects drift.~%~%[Guide index](index.md) · [Field reference](fields.md) · [Tutorial](tutorial.md)~%~%")
       (format out "~A~%~%" (required-documentation (find-package :libtmux) t))
       (format out "## Functions and macros~%~%")
-      (dolist (symbol (public-symbols))
-        (when (fboundp symbol)
-          (format out "- [~A](#~A-function)~%" (spelling symbol) (spelling symbol))))
-      (terpri out) (terpri out)
+      (let* ((functions (remove-if-not #'fboundp (public-symbols)))
+             (sources (mapcar (lambda (symbol)
+                                ;; These selectors share a file with capture and rename.
+                                (if (member symbol '(libtmux:select-pane libtmux:select-window))
+                                    "selection"
+                                    (pathname-name (definition-path symbol (function-kind symbol)))))
+                              functions))
+             (indexed nil))
+        (dolist (group *index-groups*)
+          (format out "**~A**~%~%" (first group))
+          (loop for symbol in functions for source in sources
+                when (member source (rest group) :test #'string=)
+                  do (push symbol indexed)
+                     (format out "[~A](#~A-function)~%" (spelling symbol) (spelling symbol)))
+          (terpri out))
+        (dolist (symbol (public-symbols))
+          (when (and (fboundp symbol) (not (member symbol indexed)))
+            (error "Public function lacks an API index group: ~A" symbol))))
       (dolist (symbol (public-symbols))
         (when (fboundp symbol)
           (format out "<a id=\"~A-function\"></a>~%~%### ~A~%~%`~A`~%~%~A~%~%~A~%~%"
                   (spelling symbol) (spelling symbol)
                   (signature-text (cons symbol (sb-introspect:function-lambda-list symbol)))
                   (required-documentation symbol 'function)
-                  (source-link symbol (cond ((macro-function symbol) :macro)
-                                             ((typep (fdefinition symbol) 'generic-function)
-                                              :generic-function)
-                                             (t :function))))
+                  (source-link symbol (function-kind symbol)))
           (when (typep (fdefinition symbol) 'generic-function)
             (format out "Applicable first argument types: ~{~A~^, ~}.~%~%"
                     (sort (remove-duplicates
