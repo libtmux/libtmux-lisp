@@ -11,3 +11,5 @@
   operations with explicit model metadata and stable private-copy ordering.
 - Add separately loadable CL-PPCRE search/full-match operators and bounded Jzon
   filter documents without widening the core/query dependency boundary.
+- Add typed option, hook and environment mutations with exact live-catalog
+  validation, explicit table scopes and guarded command outcomes.

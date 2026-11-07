@@ -25,6 +25,7 @@ These files implement the core `libtmux` system; their internal package is priva
 | [src/options-catalog](../src/options-catalog.lisp) | Generated exact-version tmux option and hook schema facts. |
 | [src/configuration-registry](../src/configuration-registry.lisp) | Native option discovery, scope authority and typed value/key normalization. |
 | [src/dispatch](../src/dispatch.lisp) | Target guards, dispatch evidence and independent observation outcomes. |
+| [src/configuration-operations](../src/configuration-operations.lisp) | Typed option, hook and environment mutations over live versioned schemas. |
 | [src/operations](../src/operations.lisp) | Rename, select and terminal capture operations with explicit clients. |
 | [src/creation](../src/creation.lisp) | Detached session/window/pane creation from argv or explicit shell source. |
 | [src/process-operations](../src/process-operations.lisp) | Explicit pane respawn and daemon-owned shell pipe configuration. |

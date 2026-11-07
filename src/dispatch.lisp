@@ -165,7 +165,8 @@
     (append (subseq arguments 0 boundary) flags (nthcdr boundary arguments))))
 
 (defun perform-command (client targets arguments &key input cancel-token timeout output-limit observe
-                                                    minimum-version feature version-flags raw-read)
+                                                    minimum-version feature version-flags raw-read
+                                                    argument-builder)
   (setf timeout (or timeout (slot-value client 'libtmux::timeout))
         output-limit (or output-limit (slot-value client 'libtmux::output-limit))
         arguments (coerce (argument-vector arguments) 'list)
@@ -180,6 +181,7 @@
      client cancel-token
      (lambda (token)
        (let* ((start (monotonic-seconds))
+              (requested-arguments arguments)
               (budget (make-capture-budget :start start :deadline (+ start timeout)
                                            :remaining output-limit :row-limit 100000 :field-limit 1048576))
               (current (handler-case (prog1 (preflight-targets client targets token budget)
@@ -191,14 +193,22 @@
               (generation (slot-value client 'libtmux::generation))
               (*command-socket-path* (server-witness-endpoint witness))
               (nonce (format nil "libtmux-~32,'0X" (random (ash 1 128) (make-random-state t)))))
-         (let* ((encoded (handler-case
+         (let* ((prepared
+                  (handler-case
+                      (let ((value (if argument-builder
+                                       (funcall argument-builder witness current)
+                                       arguments)))
+                        (coerce (argument-vector value) 'list))
+                    (libtmux:libtmux-error (condition)
+                      (preflight-failure client requested-arguments start condition))))
+                (encoded (handler-case
                              (check-command-envelope
-                              (let ((effective (command-version-flags client arguments version-flags)))
+                              (let ((effective (command-version-flags client prepared version-flags)))
                                 (if raw-read
                                     (guarded-read-command witness current effective)
                                     (guarded-command witness current effective nonce))))
                            (libtmux:libtmux-error (condition)
-                             (preflight-failure client arguments start condition))))
+                             (preflight-failure client requested-arguments start condition))))
                 (outcome (execute-tmux client encoded token
                                       (max 0 (- (capture-budget-deadline budget) (monotonic-seconds)))
                                       (capture-budget-remaining budget) input)))

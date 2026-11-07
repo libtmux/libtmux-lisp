@@ -62,3 +62,48 @@
       (is (string= "0" (libtmux.internal::normalize-option-key new "00"))))
     (dolist (key '("" "4294967296" -1 1/2))
       (signals libtmux:invalid-argument (libtmux.internal::normalize-option-key new key)))))
+
+(test configuration-mutations-select-the-live-witness-catalog
+  (let* ((old (libtmux.internal::make-server-witness :version "3.7c"))
+         (new (libtmux.internal::make-server-witness :version "3.8"))
+         (string-key
+           (libtmux.internal::configuration-mutation-builder
+            "set-option" :server '("-s") "command-alias" "display=list-sessions" t
+            "named" t nil nil nil nil))
+         (alias
+           (libtmux.internal::configuration-mutation-builder
+            "set-option" :pane '("-p" "-t" "%1") "cursor-color" "red" t
+            nil nil nil nil nil nil))
+         (hook
+           (libtmux.internal::configuration-mutation-builder
+            "set-hook" :session '("-t" "$1") "after-new-window"
+            "display-message ready" t nil nil nil nil t nil)))
+    (signals libtmux:invalid-argument (funcall string-key old nil))
+    (is (equal '("set-option" "-s" "--" "command-alias[named]"
+                 "display=list-sessions")
+               (funcall string-key new nil)))
+    (is (equal '("set-option" "-p" "-t" "%1" "--" "cursor-colour" "red")
+               (funcall alias new nil)))
+    (let ((arguments (funcall hook new nil)))
+      (is (equal '("set-hook" "-t" "$1" "--" "after-new-window"
+                   "display-message ready")
+                 arguments))
+      (is (not (member "-R" arguments :test #'string=))))
+    (signals libtmux:invalid-argument
+      (funcall
+       (libtmux.internal::configuration-mutation-builder
+        "set-option" :session '("-t" "$1") "prefix" "C-b" t
+        nil nil nil t nil nil)
+       new nil))
+    (signals libtmux:invalid-argument
+      (funcall
+       (libtmux.internal::configuration-mutation-builder
+        "set-hook" :session '("-t" "$1") "after-new-window"
+        "display-message ready" t 0 t nil t t nil)
+       new nil))
+    (signals libtmux:invalid-argument
+      (funcall
+       (libtmux.internal::configuration-mutation-builder
+        "set-option" :session '("-t" "$1") "after-new-window"
+        "display-message ready" t nil nil nil nil nil nil)
+       new nil))))

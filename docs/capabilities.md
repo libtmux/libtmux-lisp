@@ -9,7 +9,7 @@ the complete control/events and workspace suite described by the project goal.
 | Runtime | SBCL 2.6.10, ASDF/UIOP 3.3.7, Linux x86-64, kernel 6.9+, Bash | Other implementation/OS support |
 | Acquisition | Finite CLOS snapshots, explicit window links, identity, bounds and replacement observations | Complete all-version acceptance after further operations |
 | Local processing | Ordinary lists/vectors, functions, owned plists, presence via multiple values, validated relation/regex queries and eager QuerySets | Source-side filter lowering |
-| Operations | Creation, rename, selection, geometry, placement, input, buffers, respawn, shell pipes | Options/hooks/environment, lifecycle/bootstrap and attached-client operations |
+| Operations | Creation, rename, selection, geometry, placement, input, buffers, respawn, shell pipes, typed option/hook/environment mutations | Decoded configuration readers, lifecycle/bootstrap and attached-client operations |
 | Concurrency | Synchronous calls; cancellation; one operation per client | Public asynchronous API and persistent control transport |
 | Streaming/events | Complete bounded captures and byte buffers; daemon-owned `pipe-pane` | Native event/output subscriptions, bounded delivery, loss and backpressure |
 | Workspace | No implemented module or executable | Separate ASDF system, installed loader/CLI and owned-fixture consumer tests |
@@ -48,6 +48,9 @@ Every-push CI checks exact tmux 3.3a and 3.8. A twelve-version workflow exists;
 its configuration alone is not proof that all cells pass. The library rejects
 plain 3.3. Runtime flags and some operation semantics depend on the live daemon
 version as documented in the [operation contracts](operations.md).
+Configuration mutations require one of the twelve exact reviewed catalogs from
+3.3a through 3.8; an unreviewed neighboring release is rejected rather than
+silently borrowing another version's schema.
 
 A build-versus-adopt decision should check the platform boundary, required
 operations, identity policy, synchronous concurrency model, diagnostics and

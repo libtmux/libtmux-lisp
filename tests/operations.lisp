@@ -199,3 +199,93 @@
         (fixture-ok fixture "set-option" "-su" "command-alias[101]")
         (fixture-ok fixture "set-option" "-s" "command-alias[102]" "project-rename=rename-window")
         (is (eq :succeeded (libtmux:outcome-status (libtmux:rename-window client window "allowed" :observe nil))))))))
+
+(test typed-configuration-mutations-preserve-native-state
+  (with-tmux-fixture (fixture)
+    (with-fixture-client (client fixture)
+      (let* ((snapshot (libtmux:fetch-snapshot client))
+             (session (aref (libtmux:sessions snapshot) 0))
+             (window (aref (libtmux:windows snapshot) 0))
+             (pane (aref (libtmux:panes snapshot) 0)))
+        (is (eq :succeeded
+                (libtmux:outcome-status
+                 (libtmux:set-option client "mouse" t
+                                      :scope :session :target session))))
+        (is (equal (format nil "on~%")
+                   (fixture-ok fixture "show-options" "-v" "-t" "fixture" "mouse")))
+        (libtmux:set-option client "mouse" nil :scope :session :target session)
+        (is (equal (format nil "off~%")
+                   (fixture-ok fixture "show-options" "-v" "-t" "fixture" "mouse")))
+        (libtmux:set-option client "status-format" "literal #{pid}"
+                             :scope :session :target session :key 7)
+        (is (equal (format nil "literal #{pid}~%")
+                   (fixture-ok fixture "show-options" "-v" "-t" "fixture"
+                               "status-format[7]")))
+        (libtmux:unset-option client "status-format"
+                               :scope :session :target session :key 7)
+        (is (not (search "status-format[7]"
+                         (fixture-ok fixture "show-options" "-t" "fixture"
+                                     "status-format"))))
+
+        (libtmux:set-option client "@literal" "#{pid}" :scope :server)
+        (is (equal (format nil "#{pid}~%")
+                   (fixture-ok fixture "show-options" "-sv" "@literal")))
+        (libtmux:set-option client "@literal" "#{pid}"
+                             :scope :server :format-p t)
+        (is (equal (format nil "~D~%" (fixture-pid fixture))
+                   (fixture-ok fixture "show-options" "-sv" "@literal")))
+        (libtmux:unset-option client "@literal" :scope :server)
+
+        (libtmux:set-hook client "after-new-window" "set-option -g @hook-ran yes"
+                           :scope :session :target session)
+        (is (= 1 (nth-value 2
+                            (fixture-command fixture "show-options" "-gv" "@hook-ran"))))
+        (is (search "set-option -g @hook-ran yes"
+                    (fixture-ok fixture "show-hooks" "-t" "fixture" "after-new-window")))
+        (libtmux:unset-hook client "after-new-window"
+                             :scope :session :target session)
+
+        (let ((text (format nil "empty and λ~Cnext" #\Newline)))
+          (libtmux:set-environment client "LIBTMUX_MUTATION_TEST" text
+                                    :scope :global :hidden t)
+          (is (equal (format nil "LIBTMUX_MUTATION_TEST=~A~%" text)
+                     (fixture-ok fixture "show-environment" "-gh"
+                                 "LIBTMUX_MUTATION_TEST")))
+          (libtmux:remove-environment client "LIBTMUX_MUTATION_TEST"
+                                       :scope :global)
+          (is (equal (format nil "-LIBTMUX_MUTATION_TEST~%")
+                     (fixture-ok fixture "show-environment" "-gh"
+                                 "LIBTMUX_MUTATION_TEST")))
+          (libtmux:unset-environment client "LIBTMUX_MUTATION_TEST"
+                                      :scope :global)
+          (is (= 1 (nth-value 2
+                              (fixture-command fixture "show-environment" "-g"
+                                               "LIBTMUX_MUTATION_TEST")))))
+        (libtmux:set-environment client "LIBTMUX_SESSION_TEST" "#{pid}"
+                                  :scope :session :target session :format-p t)
+        (is (equal (format nil "LIBTMUX_SESSION_TEST=~D~%" (fixture-pid fixture))
+                   (fixture-ok fixture "show-environment" "-t" "fixture"
+                               "LIBTMUX_SESSION_TEST")))
+        (libtmux:unset-environment client "LIBTMUX_SESSION_TEST"
+                                    :scope :session :target session)
+
+        (let* ((payload-dispatched nil)
+               (libtmux.internal::*before-dispatch-hook*
+                (lambda (job)
+                  (when (some (lambda (argument) (search "set-option" argument))
+                              (libtmux.internal::process-job-argv job))
+                    (setf payload-dispatched t)))))
+          (signals libtmux:invalid-argument
+            (libtmux:set-option client "mouse" "on"
+                                 :scope :session :target session))
+          (is (null payload-dispatched)))
+        (signals libtmux:invalid-argument
+          (libtmux:set-option client "@bad/name" "x" :scope :server))
+        (signals libtmux:invalid-argument
+          (libtmux:set-option client "remain-on-exit" "on"
+                               :scope :pane :target window))
+        (signals libtmux:invalid-argument
+          (libtmux:set-environment client "BAD-NAME" "x" :scope :global))
+        (signals libtmux:invalid-argument
+          (libtmux:set-environment client "X" "x"
+                                    :scope :session :target pane))))))

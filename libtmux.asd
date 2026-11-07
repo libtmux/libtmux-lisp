@@ -44,6 +44,8 @@
                       :description "Native option discovery, scope authority and typed value/key normalization.")
                (:file "src/dispatch"
                       :description "Target guards, dispatch evidence and independent observation outcomes.")
+               (:file "src/configuration-operations"
+                      :description "Typed option, hook and environment mutations over live versioned schemas.")
                (:file "src/operations"
                       :description "Rename, select and terminal capture operations with explicit clients.")
                (:file "src/creation"

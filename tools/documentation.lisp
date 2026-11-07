@@ -18,6 +18,54 @@
 (defun spelling (symbol)
   (string-downcase (symbol-name symbol)))
 
+(defun symbol-token-character-p (character)
+  (or (alphanumericp character)
+      (find character "-+*/<>=?!%&_")))
+
+(defun symbol-mentioned-p (symbol text)
+  "Return true when TEXT names SYMBOL as a complete uppercase Lisp token."
+  (let ((name (symbol-name symbol)))
+    (loop with start = 0
+          for position = (search name text :start2 start)
+          while position
+          for end = (+ position (length name))
+          when (and (or (zerop position)
+                        (not (symbol-token-character-p (char text (1- position)))))
+                    (or (= end (length text))
+                        (not (symbol-token-character-p (char text end)))))
+            return t
+          do (setf start (1+ position))
+          finally (return nil))))
+
+(defun api-anchor (symbol)
+  (cond ((fboundp symbol) (format nil "#~A-function" (spelling symbol)))
+        ((find-class symbol nil) (format nil "#~A-type" (spelling symbol)))))
+
+(defun see-also (symbol references &optional (package (symbol-package symbol)))
+  "Build API-browser links from an explicit See also docstring line."
+  (let ((references
+          (loop for candidate in (public-symbols package)
+                for anchor = (api-anchor candidate)
+                when (and anchor (not (eq candidate symbol))
+                          (symbol-mentioned-p candidate references))
+                  collect (format nil "[~A](~A)" (spelling candidate) anchor))))
+    (when references
+      (format nil "See also: ~{~A~^, ~}." references))))
+
+(defun documentation-parts (symbol type &optional (package (symbol-package symbol)))
+  "Return the prose body and linked references from SYMBOL's docstring."
+  (let* ((documentation (required-documentation symbol type))
+         (marker (format nil "~%See also: "))
+         (position (search marker documentation :from-end t)))
+    (if position
+        (let ((related (see-also symbol
+                                 (subseq documentation (+ position (length marker)))
+                                 package)))
+          (unless related
+            (error "See also line has no public API references: ~A" symbol))
+          (values (subseq documentation 0 position) related))
+        (values documentation nil))))
+
 (defun signature-text (value)
   (typecase value
     (symbol (format nil "~A~A" (if (keywordp value) ":" "") (spelling value)))
@@ -52,6 +100,7 @@
     ("Rename, capture, send input and manage pane processes"
      "operations" "terminal-operations" "process-operations")
     ("Read and write buffers and files" "buffers")
+    ("Configure options, hooks and environment" "configuration-operations")
     ("Inspect failure evidence" "conditions")))
 
 (defun type-reference (class)
@@ -87,11 +136,14 @@
             (error "Public function lacks an API index group: ~A" symbol))))
       (dolist (symbol (public-symbols))
         (when (fboundp symbol)
-          (format out "<a id=\"~A-function\"></a>~%~%### ~A~%~%`~A`~%~%~A~%~%~A~%~%"
-                  (spelling symbol) (spelling symbol)
-                  (signature-text (cons symbol (sb-introspect:function-lambda-list symbol)))
-                  (required-documentation symbol 'function)
-                  (source-link symbol (function-kind symbol)))
+          (multiple-value-bind (documentation related)
+              (documentation-parts symbol 'function)
+            (format out "<a id=\"~A-function\"></a>~%~%### ~A~%~%`~A`~%~%~A~%~%"
+                    (spelling symbol) (spelling symbol)
+                    (signature-text (cons symbol (sb-introspect:function-lambda-list symbol)))
+                    documentation)
+            (when related (format out "~A~%~%" related))
+            (format out "~A~%~%" (source-link symbol (function-kind symbol))))
           (when (typep (fdefinition symbol) 'generic-function)
             (format out "Applicable first argument types: ~{~A~^, ~}.~%~%"
                     (sort (remove-duplicates
@@ -137,11 +189,14 @@
       (format out "## Functions~%~%")
       (dolist (symbol (public-symbols :libtmux.query))
         (when (fboundp symbol)
-          (format out "<a id=\"~A-function\"></a>~%~%### ~A~%~%`~A`~%~%~A~%~%~A~%~%"
-                  (spelling symbol) (spelling symbol)
-                  (signature-text (cons symbol (sb-introspect:function-lambda-list symbol)))
-                  (required-documentation symbol 'function)
-                  (source-link symbol (function-kind symbol)))))
+          (multiple-value-bind (documentation related)
+              (documentation-parts symbol 'function :libtmux.query)
+            (format out "<a id=\"~A-function\"></a>~%~%### ~A~%~%`~A`~%~%~A~%~%"
+                    (spelling symbol) (spelling symbol)
+                    (signature-text (cons symbol (sb-introspect:function-lambda-list symbol)))
+                    documentation)
+            (when related (format out "~A~%~%" related))
+            (format out "~A~%~%" (source-link symbol (function-kind symbol))))))
       (format out "## Classes and conditions~%~%These objects retain owned, bounded query state; their slots are private.~%~%")
       (dolist (symbol (public-symbols :libtmux.query))
         (let ((class (find-class symbol nil)))
@@ -172,11 +227,14 @@
       (format out "## Functions~%~%")
       (dolist (symbol (public-symbols :libtmux.json))
         (when (fboundp symbol)
-          (format out "<a id=\"~A-function\"></a>~%~%### ~A~%~%`~A`~%~%~A~%~%~A~%~%"
-                  (spelling symbol) (spelling symbol)
-                  (signature-text (cons symbol (sb-introspect:function-lambda-list symbol)))
-                  (required-documentation symbol 'function)
-                  (source-link symbol (function-kind symbol)))))
+          (multiple-value-bind (documentation related)
+              (documentation-parts symbol 'function :libtmux.json)
+            (format out "<a id=\"~A-function\"></a>~%~%### ~A~%~%`~A`~%~%~A~%~%"
+                    (spelling symbol) (spelling symbol)
+                    (signature-text (cons symbol (sb-introspect:function-lambda-list symbol)))
+                    documentation)
+            (when related (format out "~A~%~%" related))
+            (format out "~A~%~%" (source-link symbol (function-kind symbol))))))
       (format out "## Conditions~%~%These types retain bounded document diagnostics; their slots are private.~%~%")
       (dolist (symbol (public-symbols :libtmux.json))
         (let ((class (find-class symbol nil)))

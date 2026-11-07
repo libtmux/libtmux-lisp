@@ -131,6 +131,16 @@ See docs/index.md for the tutorial, API reference and current capability limits.
 [set-buffer](#set-buffer-function)
 [show-buffer](#show-buffer-function)
 
+**Configure options, hooks and environment**
+
+[remove-environment](#remove-environment-function)
+[set-environment](#set-environment-function)
+[set-hook](#set-hook-function)
+[set-option](#set-option-function)
+[unset-environment](#unset-environment-function)
+[unset-hook](#unset-hook-function)
+[unset-option](#unset-option-function)
+
 **Inspect failure evidence**
 
 [error-actual-version](#error-actual-version-function)
@@ -1068,6 +1078,21 @@ name with the same PID/creation/tty fingerprint; its observation identity change
 
 [Source](../src/capture.lisp)
 
+<a id="remove-environment-function"></a>
+
+### remove-environment
+
+`(remove-environment client name &key scope target cancel-token timeout output-limit)`
+
+Store tmux's removal marker for NAME and return its COMMAND-OUTCOME.
+SCOPE/TARGET follow SET-ENVIRONMENT. A removal marker is distinct from absence
+and from a present empty string. UNSET-ENVIRONMENT deletes the entry instead.
+Never retries the mutation.
+
+See also: [set-environment](#set-environment-function), [unset-environment](#unset-environment-function).
+
+[Source](../src/configuration-operations.lisp)
+
 <a id="rename-session-function"></a>
 
 ### rename-session
@@ -1334,6 +1359,67 @@ Signals INVALID-ARGUMENT or an operational condition.
 
 [Source](../src/buffers.lisp)
 
+<a id="set-environment-function"></a>
+
+### set-environment
+
+`(set-environment client name value &key scope target format-p hidden cancel-token timeout output-limit)`
+
+Set one raw tmux environment entry and return its COMMAND-OUTCOME.
+SCOPE is required: :GLOBAL rejects TARGET; :SESSION requires a captured session.
+NAME must match [A-Za-z_][A-Za-z0-9_]*. VALUE is literal unless FORMAT-P
+explicitly requests tmux format expansion. HIDDEN sets tmux's hidden flag.
+This mutates one raw table, not an effective merged child environment. Never
+retries or refreshes captured observations. See UNSET-ENVIRONMENT for deletion
+and REMOVE-ENVIRONMENT for an explicit tombstone.
+
+See also: [remove-environment](#remove-environment-function), [unset-environment](#unset-environment-function).
+
+[Source](../src/configuration-operations.lisp)
+
+<a id="set-hook-function"></a>
+
+### set-hook
+
+`(set-hook client name command-source &key scope target (key nil key-p) append cancel-token timeout output-limit)`
+
+Install tmux COMMAND-SOURCE for one registered hook and return an outcome.
+SCOPE/TARGET follow SET-OPTION. COMMAND-SOURCE is explicit tmux command
+language, not Lisp code; this function neither reads nor executes it locally.
+KEY selects one hook-array entry. APPEND applies to an unkeyed hook assignment;
+tmux does not append command source within a keyed hook entry. The ordinary
+install path never uses set-hook -R, but tmux may still run a registered native
+after-hook such as after-set-hook as a consequence of this set-hook command.
+Dynamic @ event sources require a live catalog that supports them. SET-OPTION
+rejects registered hooks; use UNSET-HOOK to remove this state. Never retries.
+
+See also: [set-option](#set-option-function), [unset-hook](#unset-hook-function).
+
+[Source](../src/configuration-operations.lisp)
+
+<a id="set-option-function"></a>
+
+### set-option
+
+`(set-option client name value &key scope target (key nil key-p) format-p append cancel-token timeout output-limit)`
+
+Set one typed tmux option and return its COMMAND-OUTCOME.
+SCOPE is required and names one explicit table: :SERVER, :GLOBAL-SESSION,
+:SESSION, :GLOBAL-WINDOW, :WINDOW or :PANE. Local scopes require a captured
+TARGET of the matching type; global scopes reject one. NAME is resolved in the
+exact live daemon catalog. Native numbers, Booleans and choices are validated
+before payload dispatch. User names must match @[A-Za-z0-9_.-]+ and remain
+strings. KEY addresses a registered array element. FORMAT-P treats VALUE as an
+explicit tmux format; otherwise VALUE is literal and typed. APPEND is supported
+for strings, keyed string-array elements and unkeyed array assignment. An
+unkeyed array VALUE uses that option's native tmux list grammar; use KEY when
+VALUE must remain one literal element. Use UNSET-OPTION to remove state and
+SET-HOOK for registered hooks. Never retries or acquires a replacement capture.
+
+See also: [set-hook](#set-hook-function), [unset-option](#unset-option-function).
+
+[Source](../src/configuration-operations.lisp)
+
 <a id="show-buffer-function"></a>
 
 ### show-buffer
@@ -1427,6 +1513,53 @@ affects that check. Removing a last link can destroy its window and session.
 Signals STALE-TARGET or an operational condition. Does not refresh a deleted link.
 
 [Source](../src/placement.lisp)
+
+<a id="unset-environment-function"></a>
+
+### unset-environment
+
+`(unset-environment client name &key scope target cancel-token timeout output-limit)`
+
+Delete NAME from one raw tmux environment table and return its outcome.
+SCOPE/TARGET follow SET-ENVIRONMENT. Absence remains tmux's native idempotent
+unset behavior. This is distinct from REMOVE-ENVIRONMENT's tombstone; use
+SET-ENVIRONMENT to store a present value.
+
+See also: [remove-environment](#remove-environment-function), [set-environment](#set-environment-function).
+
+[Source](../src/configuration-operations.lisp)
+
+<a id="unset-hook-function"></a>
+
+### unset-hook
+
+`(unset-hook client name &key scope target (key nil key-p) cancel-token timeout output-limit)`
+
+Remove one registered hook or hook-array entry and return its outcome.
+SCOPE/TARGET and KEY follow SET-HOOK. The ordinary path never uses set-hook -R,
+but tmux may run a remaining native after-hook as a consequence of this
+set-hook command. The operation does not retry and validates the exact live
+catalog before payload dispatch.
+
+See also: [set-hook](#set-hook-function).
+
+[Source](../src/configuration-operations.lisp)
+
+<a id="unset-option-function"></a>
+
+### unset-option
+
+`(unset-option client name &key scope target (key nil key-p) cancel-token timeout output-limit)`
+
+Remove one local option or array entry and return its COMMAND-OUTCOME.
+SCOPE/TARGET and KEY follow SET-OPTION. The exact live catalog validates the
+name, table and array shape before payload dispatch. Tmux's native unset/default
+behavior applies; inherited state is not silently materialized. See SET-OPTION
+for setting and scope rules. Never retries.
+
+See also: [set-option](#set-option-function).
+
+[Source](../src/configuration-operations.lisp)
 
 <a id="width-function"></a>
 

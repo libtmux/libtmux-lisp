@@ -19,10 +19,12 @@ mutations through an explicit client.
 
 **Implemented:** captured sessions, physical windows, window links and panes;
 bounded subprocess transport; cancellation; named operations, byte buffers,
-validated native queries, eager QuerySets, optional regex and bounded JSON.
-**In development:** configuration APIs, control/events, streaming and the
-workspace consumer. MCP is intentionally out of scope. The `0.1.0` systems are
-unreleased.
+validated native queries, eager QuerySets, optional regex and bounded JSON;
+[typed option, hook and environment mutations](docs/operations.md#configuration-mutations)
+for the exact reviewed tmux catalogs through 3.8.
+**In development:** decoded configuration readers, control/events, streaming
+and the workspace consumer. MCP is intentionally out of scope. The `0.1.0`
+systems are unreleased.
 
 ## Install from source
 

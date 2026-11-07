@@ -34,6 +34,9 @@ daemon bootstrap is a separate unfinished part of the implementation.
 | `list-buffers` | Fresh vector of metadata plists and diagnostic outcome |
 | `show-buffer` | Owned octets and diagnostic outcome |
 | `set-buffer`, `load-buffer`, `save-buffer`, `delete-buffer`, `paste-buffer` | Explicit buffer data/path/name and optional pane; command outcome |
+| [`set-option`](api.md#set-option-function), [`unset-option`](api.md#unset-option-function) | Typed live-catalog option mutation in one explicit table |
+| [`set-hook`](api.md#set-hook-function), [`unset-hook`](api.md#unset-hook-function) | Tmux command-source installation/removal; never evaluates source as Lisp |
+| [`set-environment`](api.md#set-environment-function), [`unset-environment`](api.md#unset-environment-function), [`remove-environment`](api.md#remove-environment-function) | Raw global/session environment value, deletion or tombstone |
 
 Creation defaults to detached mode. Selection uses explicit captured targets.
 `new-window :index` chooses a free session index. `split-pane` accepts
@@ -202,6 +205,53 @@ uses the live daemon's version, independently of the selected executable.
 Omitting a buffer name for show, save, paste or delete uses tmux's default:
 the newest buffer on 3.3a, and the newest **automatic** buffer from 3.4 onward.
 It does not select the newest explicitly named buffer on modern tmux.
+
+## Configuration mutations
+
+[`set-option`](api.md#set-option-function) and
+[`unset-option`](api.md#unset-option-function) address one explicit tmux option
+table. Server and global scopes reject a target. Session, window and pane
+scopes require a captured target of that type, so the normal generation and
+last-moment target guards apply. The exact live daemon version selects the
+reviewed option catalog after preflight; the executable's version cannot
+silently substitute for it. The current catalogs cover the twelve exact
+supported releases from 3.3a through 3.8. An unreviewed neighboring release
+signals an error; see [capabilities and current limits](capabilities.md).
+
+Literal writes validate the catalog's native Boolean, integer, choice and text
+type before payload dispatch. `nil` is a valid false option value and becomes
+tmux `off`. `:format-p t` instead accepts explicit tmux format text and lets the
+daemon validate its expanded value. Registered array elements use `:key` and
+never allocate a vector by the greatest numeric key. Without `:key`, an array
+value uses the option's native tmux list grammar and may create several entries;
+use `:key` when the value must remain one literal entry. `:append t` is accepted
+only where tmux implements it: strings, keyed string-array values and unkeyed
+array assignment. Public user-option writes accept the reversible
+`@[A-Za-z0-9_.-]+` name grammar.
+
+[`set-hook`](api.md#set-hook-function) accepts explicit tmux command source; it
+does not parse the source as Lisp or execute it locally. Ordinary installation
+never uses tmux's immediate-run flag. Tmux can still run a registered native
+after-hook such as `after-set-hook` as a consequence of processing the command.
+Keyed hook entries do not support appending command text; unkeyed append adds
+hook entries through tmux's array grammar. Use
+[`unset-hook`](api.md#unset-hook-function) to remove the hook. Registered hooks
+stay separate from ordinary option writes, and the live catalog gates dynamic
+event sources.
+
+[`set-environment`](api.md#set-environment-function) writes one raw global or
+captured-session environment table. It accepts literal text by default,
+explicit format expansion through `:format-p t`, and tmux's hidden flag.
+[`unset-environment`](api.md#unset-environment-function) deletes an entry;
+[`remove-environment`](api.md#remove-environment-function) stores tmux's
+removal marker. A tombstone, absence and a present empty string remain distinct.
+Names use `[A-Za-z_][A-Za-z0-9_]*` so later named acquisition is reversible.
+
+All seven operations return a
+[`command-outcome`](api.md#command-outcome-type), retain effective arguments
+and diagnostics, and never retry uncertain mutations. Decoded configuration
+readers remain under development; use [`run-command`](api.md#run-command-function)
+only when raw tmux argv and its weaker target contract are intentional.
 
 ## Outcomes and target checks
 

@@ -5,13 +5,13 @@ Provisioning uses the network; verification does not install dependencies.
 
 | Command | Tier | Current coverage |
 | --- | --- | --- |
-| `mise run unit` | Inner | Resource scopes, finite inputs, row/value decoding, graph relations and defensive ownership |
+| `mise run unit` | Inner | Resource scopes, finite inputs, row/value decoding, graph relations, configuration schema/scope dispatch and defensive ownership |
 | `mise run query` | Inner | Scalar/reference agreement, relations, QuerySets, malformed data, limits, ownership and cardinality |
 | `mise run regex` | Inner | Optional CL-PPCRE search/full-match semantics, options, ownership and retained causes |
 | `mise run json` | Inner | Optional bounded filter documents, allowlists, false/empty/null distinctions and regex opt-in |
 | `mise run check` | Mid | Source whitespace, all local unit suites, exported docstrings, generated references, excerpts and local documentation links |
 | `mise run lint-workflows` | Mid | GitHub Actions syntax, expressions and shell checks |
-| `mise run integration` | Outer | Bounded transport, cancellation/cleanup, linked graphs, attached clients, daemon replacement and named operations |
+| `mise run integration` | Outer | Bounded transport, cancellation/cleanup, linked graphs, attached clients, daemon replacement, named operations and typed configuration mutations |
 | `mise run package` | Outer | Source archive plus isolated core/query/regex/JSON consumers and dependency-boundary checks |
 | `mise run examples` | Outer | Shipped Lisp recipes, all tutorial Lisp blocks, literal console setup/cleanup, worker consumption signals and owned daemon cleanup |
 | `mise run package-examples` | Outer | Archive-local links and examples executed using the extracted artifact's own scripts |
