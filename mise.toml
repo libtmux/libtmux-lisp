@@ -33,7 +33,11 @@ run = "qlot install --jobs 2"
 
 [tasks.check]
 description = "Run source checks and the unit suite (mid loop)"
-run = ["python3 tools/check-source.py", "tools/lisp.sh tools/test.lisp unit", "tools/lisp.sh tools/documentation.lisp", "python3 tools/doc-examples.py"]
+run = ["python3 tools/check-source.py", "python3 tools/options-catalog.py", "tools/lisp.sh tools/test.lisp unit", "tools/lisp.sh tools/documentation.lisp", "python3 tools/doc-examples.py"]
+
+[tasks.catalogs]
+description = "Regenerate native configuration catalogs from committed pinned source facts"
+run = "python3 tools/options-catalog.py write"
 
 [tasks.docs]
 description = "Regenerate API/field/module references and executable excerpts (no network)"

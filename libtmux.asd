@@ -37,6 +37,10 @@
                       :description "Literal, format, argv and shell-source boundaries for tmux commands.")
                (:file "src/configuration-codec"
                       :description "Private bounded decoding of inert tmux quoted-data values.")
+               (:file "src/options-catalog"
+                      :description "Generated exact-version tmux option and hook schema facts.")
+               (:file "src/configuration-registry"
+                      :description "Native option discovery, scope authority and typed value/key normalization.")
                (:file "src/dispatch"
                       :description "Target guards, dispatch evidence and independent observation outcomes.")
                (:file "src/operations"
@@ -64,6 +68,7 @@
                (:file "tests/resources")
                (:file "tests/records")
                (:file "tests/configuration-codec")
+               (:file "tests/configuration-registry")
                (:file "tests/model"))
   :perform (test-op (operation component)
              (declare (ignore operation component))

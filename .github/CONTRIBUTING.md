@@ -71,7 +71,8 @@ $ /usr/bin/time -p mise run check
 
 It checks source whitespace, loads the selected systems and runs the unit
 suite. It also checks public docstrings, generated API/field/module references,
-example excerpts and local documentation links. Regenerate those pages with
+the generated configuration catalog, example excerpts and local documentation
+links. Regenerate those pages with
 `mise run docs` after a source documentation or registry change.
 `mise run examples` executes the shipped recipes and every tutorial Lisp block
 on owned tmux servers. `mise run package-examples` repeats that from an isolated
@@ -103,6 +104,44 @@ over-budget loop before adding tests. Add tests only for critical behavior.
 
 Benchmarks are separate: keep each run under ten minutes and a full sweep
 under one hour. Reduce workloads instead of raising the limits.
+
+## Configuration source catalogs
+
+The core loads committed native Lisp data. It needs no JSON library or C
+compiler at runtime. `data/options-catalog.json` records exact-version source
+facts; `src/options-catalog.lisp` is generated from them. No runtime option
+defaults are inferred from C initializers. `mise run check` verifies provenance
+markers and generated-file freshness without fetching or compiling tmux.
+
+Regenerate the native file after a reviewed fact change:
+
+```console
+$ mise run catalogs
+```
+
+To refresh the facts, set `TMUX_SOURCE` to a local tmux Git checkout containing
+the commits in `tools/tmux-sources.json`. The maintenance extractor reads Git
+objects, preprocesses each table and compares the result with a compiled C
+schema. It requires `cc` and the documented Linux x86-64 integer profile. It
+does not alter that tmux checkout or install anything. Run it outside inner
+and mid loops:
+
+```console
+$ python3 tools/extract-options-catalog.py \
+    --repo . \
+    --tmux-source "$TMUX_SOURCE"
+```
+
+The output and source-verification evidence go under `build/options-catalog/`.
+Review them, then import the verified catalog and regenerate the native file:
+
+```console
+$ python3 tools/options-catalog.py import \
+    --source-catalog build/options-catalog/catalog.json
+```
+
+An unknown source construct, changed source pin or unsupported schema must
+fail for review. A neighboring version's catalog is not a fallback.
 
 ## Tmux fixtures
 

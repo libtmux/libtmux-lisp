@@ -22,6 +22,8 @@ These files implement the core `libtmux` system; their internal package is priva
 | [src/capture](../src/capture.lisp) | Explicit bounded acquisition and replacement observations. |
 | [src/command-encoding](../src/command-encoding.lisp) | Literal, format, argv and shell-source boundaries for tmux commands. |
 | [src/configuration-codec](../src/configuration-codec.lisp) | Private bounded decoding of inert tmux quoted-data values. |
+| [src/options-catalog](../src/options-catalog.lisp) | Generated exact-version tmux option and hook schema facts. |
+| [src/configuration-registry](../src/configuration-registry.lisp) | Native option discovery, scope authority and typed value/key normalization. |
 | [src/dispatch](../src/dispatch.lisp) | Target guards, dispatch evidence and independent observation outcomes. |
 | [src/operations](../src/operations.lisp) | Rename, select and terminal capture operations with explicit clients. |
 | [src/creation](../src/creation.lisp) | Detached session/window/pane creation from argv or explicit shell source. |
