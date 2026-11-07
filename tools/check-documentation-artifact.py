@@ -103,6 +103,20 @@ for symbol in symbols:
     location = symbol.get("source", {})
     require(location.get("file") in provenance, f"untracked source for {symbol.get('id')}")
     require(isinstance(location.get("line"), int) and location["line"] > 0, f"missing source line for {symbol.get('id')}")
+    source = (ROOT / location["file"]).read_text()
+    declaration = re.compile(
+        rf"^[ \t]*\((?:defun|defmacro|defgeneric|defmethod|defclass|define-condition)[ \t]+"
+        rf"(?:[\w.+-]+::?)?{re.escape(symbol['name'])}(?=[\s(])",
+        re.IGNORECASE | re.MULTILINE,
+    )
+    declaration_lines = {
+        source.count("\n", 0, match.start()) + 1 for match in declaration.finditer(source)
+    }
+    if declaration_lines:
+        require(
+            location["line"] in declaration_lines,
+            f"source line does not name {symbol.get('id')}",
+        )
     if symbol["kind"] == "function":
         require(symbol.get("signature"), f"missing native signature for {symbol.get('id')}")
 

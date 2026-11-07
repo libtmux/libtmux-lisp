@@ -162,13 +162,67 @@
                            (error "Unknown package in ~A: ~S" path (second form)))))
             finally (error "Source form ~D is absent from ~A" index path)))))
 
-(defun source-line (source)
+(defun declaration-head-p (head kind)
+  (member head
+          (ecase kind
+            ((:function :macro :generic-function) '(defun defmacro defgeneric defmethod))
+            (:class '(defclass defstruct))
+            (:condition '(define-condition)))
+          :test #'eq))
+
+(defun declaration-marker-offset (path start end head symbol)
+  "Locate the declaration marker between trusted reader positions START and END."
+  (let ((marker (format nil "(~(~A~) ~(~A~)" head symbol)))
+    (with-open-file (stream path :direction :input)
+      (file-position stream start)
+      (loop for line-offset = (file-position stream)
+            while (< line-offset end)
+            for line = (read-line stream nil nil)
+            while line
+            for position = (search marker line :test #'char-equal)
+            when position return (+ line-offset position)
+            finally (error "Cannot locate ~A declaration of ~A in ~A" head symbol path)))))
+
+(defun direct-declaration-offsets (path symbol kind)
+  "Return byte offsets of trusted top-level forms that declare SYMBOL as KIND."
+  (with-open-file (stream path :direction :input)
+    (let ((*package* (find-package :cl-user))
+          (*read-eval* nil)
+          (eof (gensym "EOF"))
+          (offsets '()))
+      (loop for offset = (file-position stream)
+            for form = (read stream nil eof)
+            until (eq form eof)
+            do (when (and (consp form)
+                          (declaration-head-p (first form) kind)
+                          (let ((name (second form)))
+                            (and (symbolp name) (eq name symbol))))
+                 (push (declaration-marker-offset
+                        path offset (file-position stream) (first form) symbol)
+                       offsets))
+               (when (and (consp form) (eq (first form) 'in-package))
+                 (setf *package*
+                       (or (find-package (string (second form)))
+                           (error "Unknown package in ~A: ~S" path (second form)))))
+            finally (return (nreverse offsets))))))
+
+(defun closest-offset (offset candidates)
+  (reduce (lambda (left right)
+            (if (< (abs (- right offset)) (abs (- left offset))) right left))
+          candidates))
+
+(defun source-line (symbol kind source)
   (let* ((path (sb-introspect:definition-source-pathname source))
-         (offset (or (sb-introspect:definition-source-character-offset source)
-                     (let ((path-components
-                             (sb-introspect:definition-source-form-path source)))
-                       (and path-components
-                            (top-level-form-offset path (first path-components)))))))
+         (reported-offset
+           (or (sb-introspect:definition-source-character-offset source)
+               (let ((path-components
+                       (sb-introspect:definition-source-form-path source)))
+                 (and path-components
+                      (top-level-form-offset path (first path-components))))))
+         (declarations (and path (direct-declaration-offsets path symbol kind)))
+         (offset (if declarations
+                     (closest-offset (or reported-offset (first declarations)) declarations)
+                     reported-offset)))
     (unless (and offset path) (error "Missing source position for ~A" path))
     (with-open-file (stream path :direction :input :element-type '(unsigned-byte 8))
       (1+ (loop repeat offset
@@ -237,7 +291,7 @@
       (com.inuoe.jzon:write-value
        writer (repository-path (sb-introspect:definition-source-pathname source)))
       (com.inuoe.jzon:write-key writer "line")
-      (com.inuoe.jzon:write-value writer (source-line source)))))
+      (com.inuoe.jzon:write-value writer (source-line symbol kind source)))))
 
 (defun write-function-artifact (writer symbol package)
   (let ((kind (function-kind symbol)))
