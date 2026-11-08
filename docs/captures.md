@@ -52,6 +52,15 @@ The convenience readers `name`, `active-p`, `width`, `height`, `index`,
 contract. Paths remain text from tmux; they are not normalized as local paths.
 Unknown fields and unloaded relations signal `field-unavailable`.
 
+Capture records preserve percent signs, dollar signs and non-NUL ASCII control
+characters through an encoding applied before tmux prints each field. This
+avoids the visual escaping used by older tmux releases, including the extra
+backslash before `$HOME` in tmux 3.4. Literal backslashes and valid Unicode
+remain unchanged. The decoder rejects malformed escapes and invalid UTF-8.
+This preserves the field text tmux supplies; it cannot recover filesystem bytes
+that tmux has already converted to display text. A captured current path is
+therefore not a filesystem identity or a byte-exact filesystem argument.
+
 Every public mutable result is owned by the caller: strings, relation vectors,
 provenance and projection containers are copied. Entity observations can be
 shared between result vectors. Changing a returned vector or string does not

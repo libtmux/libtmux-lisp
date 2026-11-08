@@ -4,6 +4,10 @@
 
 ### Fixed
 
+- Preserve dollar-prefixed captured text on tmux 3.4 and control characters on
+  tmux 3.4–3.5a. Encode fields before native printing so names retain their
+  values and socket witnesses resolve the original endpoint.
+
 - Preserve hash runs before `[` in literal names, paths and pipe commands.
   Tmux keeps those runs during format expansion; doubling them changed stored
   names and could make a requested working directory fall back elsewhere.

@@ -11,14 +11,15 @@
 
 (test record-codec-preserves-text-and-presence
   (let* ((bytes (record-bytes '("pane/1" "$1" "0" "@2" "%253" "0" "0" "10" "20"
-                                "''" "" "λ%2509%09%0A%0D\\,#{pid}" "0" "1" "")))
+                                "''" "" "λ%2509%09%0A%0D\\,#{pid}%24HOME%01%7F" "0" "1" "")))
          (row (aref (libtmux.internal::decode-rows :pane bytes) 0)))
     (is (equal "%3" (libtmux.internal::row-value row :pane/id)))
     (is (equal '(nil t) (multiple-value-list (libtmux.internal::row-value row :pane/active))))
     (is (equal '(nil nil) (multiple-value-list (libtmux.internal::row-value row :pane/pid))))
     (is (equal '(nil nil) (multiple-value-list (libtmux.internal::row-value row :pane/current-path))))
     (is (equal "''" (libtmux.internal::row-value row :pane/current-command)))
-    (is (equal (format nil "λ%09~C~C~C\\,#{pid}" #\Tab #\Newline #\Return)
+    (is (equal (format nil "λ%09~C~C~C\\,#{pid}$HOME~C~C"
+                       #\Tab #\Newline #\Return (code-char 1) (code-char 127))
                (libtmux.internal::row-value row :pane/title)))
     (is (equal '("" t) (multiple-value-list (libtmux.internal::row-value row :pane/start-command))))
     (fill bytes 0)
@@ -33,6 +34,10 @@
                     ("session/1" "$-1" "name" "1" "0" "1")
                     ("session/1" "$0" "bad%zz" "1" "0" "1")
                     ("session/1" "$0" "bad%0" "1" "0" "1")
+                    ("session/1" "$0" "bad%00" "1" "0" "1")
+                    ("session/1" "$0" "bad%20" "1" "0" "1")
+                    ("session/1" "$0" "bad%2f" "1" "0" "1")
+                    ("session/1" "$0" "bad%FF" "1" "0" "1")
                     ("session/1" "$0" "name" "1" "0.5" "1")
                     ("session/1" "$0" "name" "1" "4294967296" "1")
                     ("session/1" "$0" "name" "1" "" "1")))

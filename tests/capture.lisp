@@ -19,7 +19,7 @@
     (fixture-ok fixture "link-window" "-s" "@0" "-t" "fixture:3")
     (fixture-ok fixture "new-session" "-d" "-s" "second" "/bin/cat")
     (fixture-ok fixture "link-window" "-s" "@0" "-t" "second:5")
-    (let ((title "λ%09,{}")
+    (let ((title "λ%09,{}$HOME${HOME}$_x$0$")
           (calls 0) (capture nil))
       (fixture-ok fixture "select-pane" "-t" "%0" "-T" title)
       (with-fixture-client (client fixture)
@@ -46,7 +46,12 @@
       (is (zerop (nth-value 2 (fixture-command fixture "has-session")))))))
 
 (test live-empty-and-absent-server-remain-distinct
-  (with-tmux-fixture (fixture :socket-suffix (format nil "socket%09~C~C~C#{pid}\\," #\Tab #\Newline #\Return))
+  (with-tmux-fixture
+      (fixture :socket-suffix
+               (concatenate 'string "socket%09\\$HOME${X}#{pid}\\,"
+                            (map 'string #'code-char
+                                 (append (loop for byte from 1 to 31 collect byte)
+                                         '(127)))))
     (with-fixture-client (client fixture)
       (fixture-ok fixture "set-option" "-g" "exit-empty" "off")
       (fixture-ok fixture "kill-session" "-t" "fixture")
