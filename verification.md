@@ -50,6 +50,10 @@ Select a tmux binary explicitly when exercising a compatibility cell:
 $ LIBTMUX_TEST_TMUX=/path/to/tmux mise run integration
 ```
 
+Support covers every tmux release from 3.3a through 3.8. CI uses the latest
+stable SBCL pin and tests only tmux 3.3a and 3.8 to reduce execution time.
+Intermediate releases remain supported; they are not additional CI jobs.
+
 The fixture uses a unique `libtmux-lisp-` temporary directory, an explicit socket
 path and `/dev/null` configuration. Child environments omit `TMUX` and
 `TMUX_PANE`. A pidfd verifies termination before owned files are removed.
@@ -96,8 +100,8 @@ $ mise exec -- tools/lisp.sh tools/check-floor.lisp /path/to/tmux-3.3/tmux
 This check asserts the executable's release, expects `unsupported-tmux`, and
 checks that opening the client created no daemon socket.
 
-Control/events, source filtering, shared-site rendering, benchmarks and the
-complete full-suite compatibility matrix remain pending. MCP is excluded by
-policy. The
+Control/events, source filtering, shared-site rendering, benchmarks and
+integrated acceptance of all required capabilities on both CI endpoints remain
+pending. MCP is excluded by policy. The
 [capability table](docs/capabilities.md) separates implemented behavior from
 those gaps. A passing core package or example does not cover them.
