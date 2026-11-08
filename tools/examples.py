@@ -114,12 +114,15 @@ with tempfile.TemporaryDirectory(prefix="libtmux-lisp-quickstart-") as directory
                               "-n", "editor", "-x", "80", "-y", "24", "--", "/bin/cat"],
                    env=environment, check=True, timeout=10)
     try:
+        quickstart_environment = environment.copy()
+        quickstart_environment["LIBTMUX_SOURCE"] = str(root)
+        quickstart_environment["LIBTMUX_PROGRAM"] = program
+        quickstart_environment["LIBTMUX_EXAMPLE_SOCKET"] = socket
         subprocess.run([
             "sbcl", "--noinform", "--no-sysinit", "--no-userinit",
             "--load", str(Path(asdf) / "asdf.lisp"),
             "--script", str(root / "examples/quickstart.lisp"),
-            str(root), program, socket,
-        ], cwd=directory, env=environment, check=True, timeout=20)
+        ], cwd=directory, env=quickstart_environment, check=True, timeout=20)
     finally:
         subprocess.run(command + ["-N", "kill-server"], env=environment,
                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,

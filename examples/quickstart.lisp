@@ -1,11 +1,10 @@
 (require :asdf)
 
-(defparameter *arguments* (uiop:command-line-arguments))
-(assert (= 3 (length *arguments*)))
-
-(defparameter *source-root* (first *arguments*))
-(defparameter *program* (second *arguments*))
-(defparameter *socket-path* (third *arguments*))
+(defparameter *source-root* (or (uiop:getenv "LIBTMUX_SOURCE") "."))
+(defparameter *program* (or (uiop:getenv "LIBTMUX_PROGRAM") "tmux"))
+(defparameter *socket-path*
+  (or (uiop:getenv "LIBTMUX_EXAMPLE_SOCKET")
+      (error "Set LIBTMUX_EXAMPLE_SOCKET to the owned tmux socket path")))
 
 (asdf:load-asd
  (truename (merge-pathnames "libtmux.asd"
