@@ -2,6 +2,26 @@
 
 (in-suite unit)
 
+(test process-environment-validation-and-ownership
+  (let* ((entry (copy-seq "KEY=value=with=equals"))
+         (input (vector entry "EMPTY="))
+         (owned (libtmux.internal::owned-process-environment input)))
+    (setf (char entry 4) #\X (aref input 1) "OTHER=changed")
+    (is (equal '("KEY=value=with=equals" "EMPTY=") owned)))
+  (is (null (libtmux.internal::owned-process-environment nil)))
+  (dolist (input (list '("NO_SEPARATOR") '("=empty-name") '("K=first" "K=second")
+                      (list (format nil "K=~C" #\Null)) '("K=v" . :improper)
+                      (make-array 4097 :initial-element "K=v")
+                      (list (concatenate 'string "K=" (make-string 32768 :initial-element #\λ)))
+                      (loop for i below 17 collect
+                            (format nil "K~D=~A" i (make-string 65530 :initial-element #\x)))))
+    (signals libtmux:invalid-argument (libtmux.internal::owned-process-environment input)))
+  (let ((cyclic (list "K=v")))
+    (setf (cdr cyclic) cyclic)
+    (signals libtmux:invalid-argument (libtmux.internal::owned-process-environment cyclic)))
+  (signals libtmux:invalid-argument (libtmux.internal::owned-working-directory ""))
+  (signals libtmux:invalid-argument (libtmux.internal::owned-working-directory "/dev/null")))
+
 (test outcome-value-owns-returned-data
   (let* ((outcome (make-instance 'libtmux:command-outcome
                                  :value (vector (list (copy-seq "retained"))) :present-p t))

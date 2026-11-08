@@ -22,6 +22,9 @@ elif mode == "bytes":
     os.write(1, bytes(range(256)))
 elif mode == "argv":
     os.write(1, "\0".join(sys.argv[2:]).encode())
+elif mode == "context":
+    values = [os.environ.get(name, "<absent>") for name in sys.argv[2:]]
+    os.write(1, "\0".join([*values, os.getcwd()]).encode())
 elif mode == "held-input":
     expected = int(sys.argv[2]) if len(sys.argv) > 2 else 0
     data = b""

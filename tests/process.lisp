@@ -22,6 +22,48 @@
           (is (not (open-stream-p stream)))))
       outcome)))
 
+(test child-process-context-is-owned-and-local
+  "Explicit bootstrap inputs must not replace ordinary command defaults or parent state."
+  (let* ((directory (sb-posix:mkdtemp "/tmp/libtmux-lisp-context-XXXXXX"))
+         (child-directory (concatenate 'string directory "/literal*[x]\\λ"))
+         (selected-directory (copy-seq child-directory))
+         (environment (mapcar #'copy-seq '("LC_ALL=C" "SHLVL=47" "LIBTMUX_CONTEXT=owned")))
+         (parent-directory (sb-posix:getcwd))
+         (parent-environment (sb-ext:posix-environ))
+         (selected-job nil))
+    (unwind-protect
+         (progn
+           (sb-posix:mkdir child-directory #o700)
+           (let* ((libtmux.internal::*process-launched-hook*
+                    (lambda (job)
+                      (setf selected-job job)
+                      (setf (char (third environment) 16) #\X
+                            (char selected-directory (1- (length selected-directory))) #\X)))
+                  (outcome (libtmux.internal::run-process
+                            (process-arguments "context" "LC_ALL" "SHLVL" "LIBTMUX_CONTEXT")
+                            :environment environment :working-directory selected-directory :timeout 1)))
+             (is (eq :succeeded (libtmux:outcome-status outcome)))
+             (is (equal (list "C" "47" "owned" child-directory)
+                        (uiop:split-string (libtmux.internal::strict-text (libtmux:outcome-stdout outcome))
+                                           :separator '(#\Null)))))
+           (is (equal '("LC_ALL=C" "SHLVL=47" "LIBTMUX_CONTEXT=owned")
+                      (libtmux.internal::process-job-environment selected-job)))
+           (is (string= child-directory (libtmux.internal::process-job-working-directory selected-job)))
+           (dolist (options '(nil (:environment nil)))
+             (let ((outcome (apply #'libtmux.internal::run-process
+                                   (process-arguments "context" "LC_ALL" "SHLVL")
+                                   :timeout 1 options)))
+               (is (eq :succeeded (libtmux:outcome-status outcome)))
+               (is (equal (list (if options "<absent>" "C.UTF-8") "0" parent-directory)
+                          (uiop:split-string (libtmux.internal::strict-text (libtmux:outcome-stdout outcome))
+                                             :separator '(#\Null))))))
+           (is (string= parent-directory (sb-posix:getcwd)))
+           (is (equal parent-environment (sb-ext:posix-environ)))
+           (is (not (uiop:process-alive-p (libtmux.internal::process-job-process selected-job))))
+           (is (null (libtmux.internal::process-job-pidfd selected-job))))
+      (sb-posix:rmdir child-directory)
+      (sb-posix:rmdir directory))))
+
 (test concurrent-pipes-and-partial-input
   "The child fills both output pipes before reading a megabyte of stdin."
   (let ((input (make-array 1048576 :element-type '(unsigned-byte 8))))

@@ -47,7 +47,8 @@ mutation automatically.
 The default command timeout is 30 seconds. The default combined stdout/stderr
 limit is 16 MiB. Override these through client defaults or per-command
 `:timeout` and `:output-limit`. The low-level deadline starts after validation,
-argument copies and executable inspection. It charges setup, launch and pipe
+argument/environment copies, selected child-directory validation and executable
+inspection. It charges setup, launch and pipe
 service, but synchronous setup/launch cannot be interrupted by its later checks.
 The gate rechecks admission before releasing the target. This is an execution
 deadline, not a hard limit on caller wall time. A byte limit retains at most the
@@ -99,10 +100,15 @@ Only trusted native ELF target executables are accepted. A script or
 tool-manager shim error names the selected file; pass the underlying tmux
 binary through `open-client`'s `:program` argument.
 
-The backend forces `LC_ALL=C.UTF-8`, clears `TMUX` and `TMUX_PANE`, and normalizes
+Ordinary commands force `LC_ALL=C.UTF-8`, clear `TMUX` and `TMUX_PANE`, and normalize
 Bash startup variables used by its fixed launcher. It is not a byte-for-byte
-environment transfer API. Use explicit tmux environment operations when those
-are available. The private descriptor poll does not run application REPL
+environment transfer API. Each private process job owns its selected environment
+and any explicit child working directory; preparing or launching it does not change the Lisp
+process's environment or working directory. A separate daemon owner can use
+that boundary without imposing the command locale on newly created panes;
+[managed startup remains unqualified](adr/0001-native-common-lisp-engine.md#keep-daemon-bootstrap-separate-from-client-connection).
+Use explicit tmux environment operations to change a running server's values.
+The private descriptor poll does not run application REPL
 handlers. The library does not install a process-wide subreaper.
 
 The bounds cover the supervised process group. They cannot force an

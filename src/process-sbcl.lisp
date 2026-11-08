@@ -24,7 +24,7 @@
     (replace buffer source :start1 start :end2 count)))
 
 (defstruct process-job
-  argv input keep-input-open token cap start deadline
+  argv input keep-input-open environment working-directory token cap start deadline
   process pidfd authority wake registered
   directory gate-path status-path gate status dummy
   input-stream input-fd (offset 0)
@@ -34,6 +34,53 @@
   (control (byte-buffer)) (scratch (make-array 65536 :element-type '(unsigned-byte 8)))
   (total 0) ready released terminal code reason exec-failed
   kill-at final-at drain-at killed group-cleaned cleanup-failures)
+
+(defun owned-process-environment (environment)
+  "Copy a finite sequence of distinct NAME=VALUE strings for one child.
+NIL denotes an explicit empty environment. Values may contain equals signs;
+names must be nonempty and unique. Limit explicit input to 4096 entries, 64 KiB
+UTF-8 per entry and 1 MiB combined. These are preparation bounds, not an exec
+size guarantee. This validates data, not executable trust."
+  (let ((result nil) (count 0) (bytes 0) (names (make-hash-table :test #'equal)))
+    (flet ((accept (entry)
+             (when (> (incf count) 4096)
+               (invalid-argument "Explicit environment exceeds 4096 entries"))
+             (unless (and (stringp entry) (<= (length entry) 65536)
+                          (not (find #\Null entry)))
+               (invalid-argument "Environment entries must be bounded strings without NUL"))
+             (let ((size (length (encode-utf8 entry))) (separator (position #\= entry)))
+               (when (or (> size 65536) (> (incf bytes size) 1048576))
+                 (invalid-argument "Explicit environment exceeds its UTF-8 byte bounds"))
+               (unless (and separator (plusp separator))
+                 (invalid-argument "Environment entries must have a nonempty name followed by ="))
+               (let ((name (subseq entry 0 separator)))
+                 (when (gethash name names)
+                   (invalid-argument "Environment names must be unique"))
+                 (setf (gethash name names) t)))
+             (push (copy-seq entry) result)))
+      (cond ((and (vectorp environment) (not (stringp environment)))
+             (when (> (length environment) 4096)
+               (invalid-argument "Explicit environment exceeds 4096 entries"))
+             (map nil #'accept environment))
+            ((listp environment)
+             (loop for tail = environment then (cdr tail)
+                   while tail
+                   do (unless (consp tail)
+                        (invalid-argument "Environment must be a finite proper list or vector"))
+                      (accept (car tail))))
+            (t (invalid-argument "Environment must be a finite proper list or vector"))))
+    (nreverse result)))
+
+(defun owned-working-directory (directory)
+  "Resolve an explicit native directory string; NIL keeps inherited cwd behavior."
+  (when directory
+    (unless (and (stringp directory) (plusp (length directory))
+                 (not (find #\Null directory)))
+      (invalid-argument "Working directory must be a nonempty native string without NUL"))
+    (let ((path (absolute-native-path directory)))
+      (unless (ignore-errors (sb-posix:s-isdir (sb-posix:stat-mode (sb-posix:stat path))))
+        (invalid-argument "Working directory must name an existing directory"))
+      path)))
 
 (defun raw-write (fd bytes &optional (offset 0))
   (sb-sys:with-pinned-objects (bytes)
@@ -140,7 +187,10 @@
                        "libtmux-exec" (process-job-gate-path job) (process-job-status-path job))
                  (coerce (process-job-argv job) 'list))
          :input :stream :output :stream :error-output :stream :force-shell nil
-         :environment (process-environment) :external-format :utf-8))
+         :environment (process-job-environment job)
+         :directory (and (process-job-working-directory job)
+                         (sb-ext:parse-native-namestring (process-job-working-directory job)))
+         :external-format :utf-8))
   (let ((process (process-job-process job)))
     (setf (process-job-input-stream job) (uiop:process-info-input process)
           (process-job-input-fd job) (sb-sys:fd-stream-fd (uiop:process-info-input process))
@@ -344,21 +394,31 @@
         t)))
 
 (defun run-process (arguments &key input keep-input-open (timeout 30)
-                                  (output-limit (* 16 1024 1024)) cancel-token)
+                                  (output-limit (* 16 1024 1024)) cancel-token
+                                  (environment nil environment-p) working-directory)
   "Execute owned argv with bounded pipes, cancellation and process cleanup.
 Private KEEP-INPUT-OPEN lets a one-shot native protocol retire naturally rather
 than receiving EOF after input is sent. Exhausted held input is never polled
-for writing; actual child exit and all stop/cleanup paths still close it."
+for writing; actual child exit and all stop/cleanup paths still close it.
+ENVIRONMENT and WORKING-DIRECTORY are copied and validated before the supervised
+timer starts. Omitted ENVIRONMENT uses ordinary command locale/selector policy;
+explicit NIL starts with no inherited entries. The trusted Bash launcher may
+normalize shell metadata such as SHLVL. WORKING-DIRECTORY changes only the child
+cwd; NIL inherits it. Neither option changes the Lisp process environment/cwd."
   (check-limits timeout output-limit)
   (unless (or (null keep-input-open) (eq keep-input-open t))
     (invalid-argument "keep-input-open must be T or NIL"))
   (let ((argv (argument-vector arguments)) (input (octet-vector input))
+        (environment (if environment-p (owned-process-environment environment)
+                         (mapcar #'copy-seq (process-environment))))
+        (working-directory (owned-working-directory working-directory))
         (token (or cancel-token (libtmux:make-cancellation-token))))
     (check-type token libtmux:cancellation-token)
     (unless (plusp (length argv)) (invalid-argument "An executable is required"))
     (setf (aref argv 0) (native-program (aref argv 0)))
     (let* ((start (monotonic-seconds))
            (job (make-process-job :argv argv :input input :keep-input-open keep-input-open
+                                  :environment environment :working-directory working-directory
                                   :token token :cap output-limit
                                   :start start :deadline (+ start timeout)))
            (primary nil))
