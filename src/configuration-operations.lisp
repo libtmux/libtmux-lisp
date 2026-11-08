@@ -250,3 +250,91 @@ See also: SET-ENVIRONMENT, UNSET-ENVIRONMENT."
   (libtmux.internal::mutate-environment
    client name nil nil scope target nil nil :remove
    (list :cancel-token cancel-token :timeout timeout :output-limit output-limit)))
+
+(defun show-options-text (client &key scope target name include-inherited include-hooks value-only
+                                     format cancel-token timeout output-limit)
+  "Inspect an option table; return owned UTF-8 printer text and a COMMAND-OUTCOME.
+Required SCOPE and captured TARGET follow SET-OPTION. They select native flags;
+tmux can infer a built-in's table from NAME instead. NAME is a literal option
+reference with native abbreviation/array syntax; omission lists the table.
+INCLUDE-INHERITED uses -A, which does not promise inherited user @ options in a
+whole-table listing. INCLUDE-HOOKS uses -H and VALUE-ONLY uses -v.
+
+FORMAT is explicit tmux format source, requires live tmux 3.8, and has no
+implicit time expansion. #() can start asynchronous command-client jobs; their
+results can be incomplete and disconnect cleans them up. Omission uses native
+printer syntax. Escaping, whitespace and ordinary hook output remain text;
+this does not decode values or prove presence, provenance or completeness.
+Blocks under shared preflight/dispatch limits, starts no daemon and never
+retries. Missing names remain errors with retained outcomes. Invalid UTF-8
+signals DECODING-ERROR with the client and outcome.
+See also: SHOW-HOOKS-TEXT, SHOW-ENVIRONMENT-TEXT, SET-OPTION, ERROR-OUTCOME."
+  (multiple-value-bind (targets flags) (libtmux.internal::configuration-scope-data scope target)
+    (libtmux.internal::printed-command
+     client (append '("show-options") flags
+                    (when include-inherited '("-A"))
+                    (when include-hooks '("-H"))
+                    (when value-only '("-v"))
+                    (when format (list "-F" (libtmux.internal::text-argument format "Option format")))
+                    (when name
+                      (list "--" (libtmux.internal::literal-format
+                                  (libtmux.internal::text-argument name "Option reference" nil)))))
+     :targets targets :minimum-version (when format "3.8") :feature :option-listing-format
+     :cancel-token cancel-token :timeout timeout :output-limit output-limit)))
+
+(defun show-hooks-text (client &key scope target name format monitors cancel-token timeout output-limit)
+  "Inspect native hooks; return owned UTF-8 printer text and a COMMAND-OUTCOME.
+SCOPE/TARGET follow SET-HOOK; :SERVER is unavailable because show-hooks has no
+server-table flag. NAME is a literal native reference; omission lists hooks.
+Tmux can infer a built-in's table from NAME. A named ordinary @ option can
+also be printed; that success does not prove event registration.
+
+FORMAT is explicit tmux format source with no implicit time expansion.
+MONITORS selects native monitor presentation (-B). Both require live tmux 3.8.
+#() in FORMAT can start command-client jobs with incomplete results and cleanup
+on disconnect. Native escaping, whitespace and ordinary hook output remain
+printer text, not a decoded or replayable configuration. No -R is invoked.
+Blocks under shared preflight/dispatch limits, starts no daemon and never
+retries. Missing names and decoding/resource failures retain outcome evidence.
+See also: SHOW-OPTIONS-TEXT, SET-HOOK, UNSET-HOOK, ERROR-OUTCOME."
+  (when (eq scope :server)
+    (libtmux.internal::invalid-argument "show-hooks has no server-table flag"))
+  (multiple-value-bind (targets flags) (libtmux.internal::configuration-scope-data scope target)
+    (libtmux.internal::printed-command
+     client (append '("show-hooks") flags
+                    (when monitors '("-B"))
+                    (when format (list "-F" (libtmux.internal::text-argument format "Hook format")))
+                    (when name
+                      (list "--" (libtmux.internal::literal-format
+                                  (libtmux.internal::text-argument name "Hook reference" nil)))))
+     :targets targets :minimum-version (when (or format monitors) "3.8")
+     :feature (if monitors :hook-monitor-listing :hook-listing-format)
+     :cancel-token cancel-token :timeout timeout :output-limit output-limit)))
+
+(defun show-environment-text (client &key scope target name hidden shell-format
+                                         cancel-token timeout output-limit)
+  "Inspect a raw environment table; return owned UTF-8 text and a COMMAND-OUTCOME.
+Required SCOPE is :GLOBAL or :SESSION; a session needs a captured TARGET.
+NAME is literal nonempty text without NUL or =, including names outside the
+mutation identifier grammar. Omission lists the table. HIDDEN selects hidden
+entries; NIL selects ordinary entries. A visibility mismatch can return empty
+text, which does not prove absence. Empty values, removal markers and native
+escaping remain printer syntax. Session output is not a merged child environment.
+
+SHELL-FORMAT selects native shell-looking presentation (-s); returned text is
+never evaluated or executed. Ordinary hook output is preserved. This is not a
+decoded environment mapping. Blocks under shared preflight/dispatch limits,
+starts no daemon and never retries. Missing names remain errors; operational,
+resource and UTF-8 failures retain client/outcome diagnostics.
+See also: SHOW-OPTIONS-TEXT, SET-ENVIRONMENT, REMOVE-ENVIRONMENT, ERROR-OUTCOME."
+  (when name
+    (setf name (libtmux.internal::text-argument name "Environment name" nil))
+    (when (find #\= name)
+      (libtmux.internal::invalid-argument "Environment names cannot contain =")))
+  (multiple-value-bind (targets flags) (libtmux.internal::environment-scope-data scope target)
+    (libtmux.internal::printed-command
+     client (append '("show-environment") flags
+                    (when hidden '("-h"))
+                    (when shell-format '("-s"))
+                    (when name (list "--" name)))
+     :targets targets :cancel-token cancel-token :timeout timeout :output-limit output-limit)))

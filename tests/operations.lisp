@@ -309,3 +309,153 @@
         (signals libtmux:invalid-argument
           (libtmux:set-environment client "X" "x"
                                     :scope :session :target pane))))))
+
+(test configuration-printers-preserve-native-text-and-outcomes
+  "Live printer output is inspection data; endpoint execution belongs in the outer loop."
+  (with-tmux-fixture (fixture)
+    (with-fixture-client (client fixture)
+      (let* ((snapshot (libtmux:fetch-snapshot client))
+             (session (aref (libtmux:sessions snapshot) 0))
+             (name "@literal#{pid}")
+             (environment-name "two words #{pid}")
+             (value (format nil "λ #{literal}~%  next")))
+        (fixture-ok fixture "set-option" "-s" "@literal##{pid}" value)
+        (multiple-value-bind (text outcome)
+            (libtmux:show-options-text client :scope :server :name name)
+          (is (string= (fixture-ok fixture "show-options" "-s" "@literal##{pid}") text))
+          (is (eq :succeeded (libtmux:outcome-status outcome)))
+          (setf (char text 0) #\X)
+          (is (not (char= #\X (char (libtmux.internal::strict-text
+                                     (libtmux:outcome-stdout outcome)) 0)))))
+        (multiple-value-bind (text outcome)
+            (libtmux:show-options-text client :scope :session :target session
+                                       :name "status" :include-inherited t :value-only t)
+          (is (string= (fixture-ok fixture "show-options" "-A" "-v" "-t" "fixture" "status") text))
+          (is (eq :succeeded (libtmux:outcome-status outcome))))
+        (fixture-ok fixture "set-hook" "-g" "after-new-window" "display-message -p hook-source")
+        (multiple-value-bind (text outcome)
+            (libtmux:show-hooks-text client :scope :global-session :name "after-new-window")
+          (is (string= (fixture-ok fixture "show-hooks" "-g" "after-new-window") text))
+          (is (search "display-message" text))
+          (is (eq :succeeded (libtmux:outcome-status outcome))))
+        (fixture-ok fixture "set-environment" "-gh" environment-name value)
+        (multiple-value-bind (text outcome)
+            (libtmux:show-environment-text client :scope :global :name environment-name :hidden t)
+          (is (string= (fixture-ok fixture "show-environment" "-gh" environment-name) text))
+          (is (eq :succeeded (libtmux:outcome-status outcome))))
+        (multiple-value-bind (text outcome)
+            (libtmux:show-environment-text client :scope :global :name environment-name
+                                           :hidden t :shell-format t)
+          (is (string= (fixture-ok fixture "show-environment" "-ghs" environment-name) text))
+          (is (eq :succeeded (libtmux:outcome-status outcome))))
+        (is (string= "" (libtmux:show-environment-text
+                         client :scope :global :name environment-name)))
+        (fixture-ok fixture "set-environment" "-g" "--" "-h" "literal-name")
+        (is (string= (format nil "-h=literal-name~%")
+                     (libtmux:show-environment-text client :scope :global :name "-h")))
+        (fixture-ok fixture "set-environment" "-t" "fixture" "LIBTMUX_PRINT_TEST" "")
+        (is (string= (format nil "LIBTMUX_PRINT_TEST=~%")
+                     (libtmux:show-environment-text client :scope :session :target session
+                                                    :name "LIBTMUX_PRINT_TEST")))
+        (fixture-ok fixture "set-environment" "-r" "-t" "fixture" "LIBTMUX_PRINT_TEST")
+        (is (string= (format nil "-LIBTMUX_PRINT_TEST~%")
+                     (libtmux:show-environment-text client :scope :session :target session
+                                                    :name "LIBTMUX_PRINT_TEST")))
+        (let ((installed nil))
+          (unwind-protect
+               (let ((libtmux.internal::*before-dispatch-hook*
+                       (lambda (job)
+                         (when (and (not installed)
+                                    (some (lambda (argument)
+                                            (and (search "show-options" argument)
+                                                 (search "status" argument)
+                                                 (search "libtmux-" argument)))
+                                          (libtmux.internal::process-job-argv job)))
+                           (fixture-ok fixture "set-hook" "-t" "fixture" "after-show-options"
+                                       "display-message -p printer-hook")
+                           (setf installed t)))))
+                 (is (search "printer-hook"
+                             (libtmux:show-options-text client :scope :session :target session
+                                                       :name "status" :include-inherited t))))
+            (when installed (fixture-ok fixture "set-hook" "-u" "-t" "fixture" "after-show-options"))))))))
+
+(test configuration-printer-validation-and-versioned-output
+  "Input validation and live feature gates must precede the selected printer."
+  (let ((client (make-instance 'libtmux:client)) (started 0))
+    (let ((libtmux.internal::*process-started-hook* (lambda (process)
+                                                   (declare (ignore process)) (incf started))))
+      (signals libtmux:invalid-argument (libtmux:show-hooks-text client :scope :server))
+      (signals libtmux:invalid-argument (libtmux:show-options-text client :scope :session))
+      (signals libtmux:invalid-argument
+        (libtmux:show-options-text client :scope :server :format 42))
+      (signals libtmux:invalid-argument
+        (libtmux:show-environment-text client :scope :global :name "bad=name"))
+      (signals libtmux:invalid-argument (libtmux:show-environment-text client :scope :session))
+      (is (zerop started))))
+  (with-tmux-fixture (fixture)
+    (with-fixture-client (client fixture)
+      (let* ((snapshot (libtmux:fetch-snapshot client))
+             (session (aref (libtmux:sessions snapshot) 0))
+             (modern (libtmux.internal::version-at-least-p
+                      (libtmux.internal::server-witness-version
+                       (slot-value client 'libtmux::witness)) "3.8"))
+             (format "#{option_name}=#{option_value}"))
+        ;; Deliberately disagree with the cached executable release: use the live witness.
+        (setf (slot-value client 'libtmux::version) (if modern "3.3a" "3.8"))
+        (fixture-ok fixture "set-hook" "-g" "after-new-window" "display-message -p source")
+        (if modern
+            (progn
+              (is (string= (fixture-ok fixture "show-options" "-g" "-F" format "status")
+                           (libtmux:show-options-text client :scope :global-session
+                                                      :name "status" :format format)))
+              (is (string= (fixture-ok fixture "show-hooks" "-g" "-F" format "after-new-window")
+                           (libtmux:show-hooks-text client :scope :global-session
+                                                    :name "after-new-window" :format format)))
+              (is (string= (fixture-ok fixture "show-hooks" "-gB")
+                           (libtmux:show-hooks-text client :scope :global-session :monitors t))))
+            (dolist (operation (list (lambda () (libtmux:show-options-text
+                                                client :scope :global-session :format format))
+                                    (lambda () (libtmux:show-hooks-text
+                                                client :scope :global-session :format format))
+                                    (lambda () (libtmux:show-hooks-text
+                                                client :scope :global-session :monitors t))))
+              (let ((condition (handler-case (funcall operation)
+                                 (libtmux:unsupported-capability (caught) caught))))
+                (is (typep condition 'libtmux:unsupported-capability))
+                (is (string= "3.8" (libtmux:error-required-version condition)))
+                (is (eq :not-dispatched (libtmux:outcome-status (libtmux:error-outcome condition)))))))
+        (let ((condition (handler-case
+                             (libtmux:show-environment-text client :scope :global
+                                                           :name "LIBTMUX_PRINT_MISSING")
+                           (libtmux:command-failed (caught) caught))))
+          (is (typep condition 'libtmux:command-failed))
+          (is (eq client (libtmux:error-client condition)))
+          (is (search "LIBTMUX_PRINT_MISSING"
+                      (libtmux.internal::strict-text
+                       (libtmux:outcome-stderr (libtmux:error-outcome condition))))))
+        (libtmux:with-client (other :program (or (uiop:getenv "LIBTMUX_TEST_TMUX") "tmux")
+                                    :socket-path (fixture-socket fixture))
+          (signals libtmux:stale-target
+            (libtmux:show-options-text other :scope :session :target session)))
+        (uiop:run-program
+         (list "/usr/bin/python3" "-c"
+               "import os,sys; os.execvp(os.fsencode(sys.argv[1]), [os.fsencode(x) for x in sys.argv[1:]] + [bytes([255])])"
+               (or (uiop:getenv "LIBTMUX_TEST_TMUX") "tmux") "-S" (fixture-socket fixture)
+               "-N" "set-option" "-s" "@invalid-utf8")
+         :force-shell nil :input nil :output :string :error-output :string)
+        (if (eq :direct
+                (libtmux.internal::configuration-option-profile
+                 (libtmux.internal::configuration-catalog
+                  (libtmux.internal::server-witness-version
+                   (slot-value client 'libtmux::witness)))))
+            (let ((condition (handler-case
+                                 (libtmux:show-options-text client :scope :server
+                                                           :name "@invalid-utf8" :value-only t)
+                               (libtmux:decoding-error (caught) caught))))
+              (is (typep condition 'libtmux:decoding-error))
+              (is (eq client (libtmux:error-client condition)))
+              (is (equalp #(255 10) (libtmux:outcome-stdout (libtmux:error-outcome condition)))))
+            (multiple-value-bind (text outcome)
+                (libtmux:show-options-text client :scope :server :name "@invalid-utf8" :value-only t)
+              (is (string= (fixture-ok fixture "show-options" "-sv" "@invalid-utf8") text))
+              (is (eq :succeeded (libtmux:outcome-status outcome)))))))))

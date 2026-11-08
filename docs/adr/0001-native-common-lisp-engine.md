@@ -325,6 +325,16 @@ format-expands its name. Named operations use tested encoders for the relevant
 boundary. Arbitrary captured terminal output remains bytes unless decoding is
 explicitly requested.
 
+The [configuration text inspectors](../operations.md#configuration-inspection)
+return native printer output with its command outcome. They preserve escaping,
+whitespace and ordinary hook output; they do not infer decoded records or
+absence from that presentation. Tmux's
+[`cmd_show_options_exec`](https://github.com/tmux/tmux/blob/3.8/cmd-show-options.c#L108-L209)
+format-expands an option reference before matching it, so literal reader names
+use the same format encoder as other literal inputs. Explicit output formats
+remain a separate source boundary. Decoded acquisition retains its own
+unfinished schema, attribution and transport obligations.
+
 [`command-outcome`](../api.md#command-outcome-type) retains dispatch phase,
 status, diagnostics, arguments and timing. A mutation can succeed while its
 replacement observation fails; these remain separate results. A nonzero exit

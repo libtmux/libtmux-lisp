@@ -51,7 +51,7 @@
                (:file "src/dispatch"
                       :description "Target guards, dispatch evidence and independent observation outcomes.")
                (:file "src/configuration-operations"
-                      :description "Typed option, hook and environment mutations over live versioned schemas.")
+                      :description "Native configuration printer inspection and typed option, hook and environment mutations.")
                (:file "src/operations"
                       :description "Rename, select and terminal capture operations with explicit clients.")
                (:file "src/client-operations"

@@ -5,9 +5,28 @@
                     (#:j #:libtmux.json)
                     (#:ws #:libtmux.workspace))
   (:export #:inspect-workspace #:create-workspace #:observed-value
-           #:apply-workspace-document #:terminate-owned-server))
+           #:apply-workspace-document #:terminate-owned-server #:configuration-report))
 
 (in-package #:libtmux.examples)
+
+;;; docs:configuration
+(defun configuration-report (client session)
+  "Read native configuration text; return an owned report and diagnostic outcomes."
+  (let ((outcomes nil))
+    (flet ((inspect-text (reader &rest options)
+             (multiple-value-bind (text outcome) (apply reader client options)
+               (push outcome outcomes)
+               text)))
+      (let ((report
+              (list :options (inspect-text #'tm:show-options-text
+                                           :scope :session :target session
+                                           :name "status" :include-inherited t)
+                    :hooks (inspect-text #'tm:show-hooks-text
+                                         :scope :session :target session)
+                    :environment (inspect-text #'tm:show-environment-text
+                                               :scope :session :target session))))
+        (values report (coerce (nreverse outcomes) 'simple-vector))))))
+;;; docs:end
 
 ;;; docs:inventory
 (defun inspect-workspace (socket-path &key (program "tmux"))

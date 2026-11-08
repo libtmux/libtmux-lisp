@@ -170,12 +170,15 @@ See docs/index.md for the tutorial, API reference and current capability limits.
 [set-buffer](#set-buffer-function)
 [show-buffer](#show-buffer-function)
 
-**Configure options, hooks and environment**
+**Inspect and configure options, hooks and environment**
 
 [remove-environment](#remove-environment-function)
 [set-environment](#set-environment-function)
 [set-hook](#set-hook-function)
 [set-option](#set-option-function)
+[show-environment-text](#show-environment-text-function)
+[show-hooks-text](#show-hooks-text-function)
+[show-options-text](#show-options-text-function)
 [unset-environment](#unset-environment-function)
 [unset-hook](#unset-hook-function)
 [unset-option](#unset-option-function)
@@ -1910,6 +1913,80 @@ failure does not prove non-dispatch. Signals an operational condition retaining
 its outcome and any partial bytes.
 
 [Source](../src/buffers.lisp)
+
+<a id="show-environment-text-function"></a>
+
+### show-environment-text
+
+`(show-environment-text client &key scope target name hidden shell-format cancel-token timeout output-limit)`
+
+Inspect a raw environment table; return owned UTF-8 text and a COMMAND-OUTCOME.
+Required SCOPE is :GLOBAL or :SESSION; a session needs a captured TARGET.
+NAME is literal nonempty text without NUL or =, including names outside the
+mutation identifier grammar. Omission lists the table. HIDDEN selects hidden
+entries; NIL selects ordinary entries. A visibility mismatch can return empty
+text, which does not prove absence. Empty values, removal markers and native
+escaping remain printer syntax. Session output is not a merged child environment.
+
+SHELL-FORMAT selects native shell-looking presentation (-s); returned text is
+never evaluated or executed. Ordinary hook output is preserved. This is not a
+decoded environment mapping. Blocks under shared preflight/dispatch limits,
+starts no daemon and never retries. Missing names remain errors; operational,
+resource and UTF-8 failures retain client/outcome diagnostics.
+
+See also: [error-outcome](#error-outcome-function), [remove-environment](#remove-environment-function), [set-environment](#set-environment-function), [show-options-text](#show-options-text-function).
+
+[Source](../src/configuration-operations.lisp)
+
+<a id="show-hooks-text-function"></a>
+
+### show-hooks-text
+
+`(show-hooks-text client &key scope target name format monitors cancel-token timeout output-limit)`
+
+Inspect native hooks; return owned UTF-8 printer text and a COMMAND-OUTCOME.
+SCOPE/TARGET follow SET-HOOK; :SERVER is unavailable because show-hooks has no
+server-table flag. NAME is a literal native reference; omission lists hooks.
+Tmux can infer a built-in's table from NAME. A named ordinary @ option can
+also be printed; that success does not prove event registration.
+
+FORMAT is explicit tmux format source with no implicit time expansion.
+MONITORS selects native monitor presentation (-B). Both require live tmux 3.8.
+#() in FORMAT can start command-client jobs with incomplete results and cleanup
+on disconnect. Native escaping, whitespace and ordinary hook output remain
+printer text, not a decoded or replayable configuration. No -R is invoked.
+Blocks under shared preflight/dispatch limits, starts no daemon and never
+retries. Missing names and decoding/resource failures retain outcome evidence.
+
+See also: [error-outcome](#error-outcome-function), [set-hook](#set-hook-function), [show-options-text](#show-options-text-function), [unset-hook](#unset-hook-function).
+
+[Source](../src/configuration-operations.lisp)
+
+<a id="show-options-text-function"></a>
+
+### show-options-text
+
+`(show-options-text client &key scope target name include-inherited include-hooks value-only format cancel-token timeout output-limit)`
+
+Inspect an option table; return owned UTF-8 printer text and a COMMAND-OUTCOME.
+Required SCOPE and captured TARGET follow SET-OPTION. They select native flags;
+tmux can infer a built-in's table from NAME instead. NAME is a literal option
+reference with native abbreviation/array syntax; omission lists the table.
+INCLUDE-INHERITED uses -A, which does not promise inherited user @ options in a
+whole-table listing. INCLUDE-HOOKS uses -H and VALUE-ONLY uses -v.
+
+FORMAT is explicit tmux format source, requires live tmux 3.8, and has no
+implicit time expansion. #() can start asynchronous command-client jobs; their
+results can be incomplete and disconnect cleans them up. Omission uses native
+printer syntax. Escaping, whitespace and ordinary hook output remain text;
+this does not decode values or prove presence, provenance or completeness.
+Blocks under shared preflight/dispatch limits, starts no daemon and never
+retries. Missing names remain errors with retained outcomes. Invalid UTF-8
+signals DECODING-ERROR with the client and outcome.
+
+See also: [error-outcome](#error-outcome-function), [set-option](#set-option-function), [show-environment-text](#show-environment-text-function), [show-hooks-text](#show-hooks-text-function).
+
+[Source](../src/configuration-operations.lisp)
 
 <a id="split-pane-function"></a>
 

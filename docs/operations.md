@@ -422,6 +422,74 @@ Omitting a buffer name for show, save, paste or delete uses tmux's default:
 the newest buffer on 3.3a, and the newest **automatic** buffer from 3.4 onward.
 It does not select the newest explicitly named buffer on modern tmux.
 
+## Configuration inspection
+
+[`show-options-text`](api.md#show-options-text-function),
+[`show-hooks-text`](api.md#show-hooks-text-function) and
+[`show-environment-text`](api.md#show-environment-text-function) return native
+UTF-8 printer text and a retained command outcome. Supply an explicit scope;
+local tables require the matching captured target. Normal client identity,
+preflight, last-moment target guards, cancellation and resource limits apply.
+These functions acquire state and do not change earlier observations.
+
+This function from the [executed example package](../examples/workspace.lisp)
+returns three printer views plus their diagnostic outcomes. The
+[REPL tutorial](tutorial.md) supplies the package's `tm` nickname and setup.
+
+<!-- example:configuration -->
+```lisp
+(defun configuration-report (client session)
+  "Read native configuration text; return an owned report and diagnostic outcomes."
+  (let ((outcomes nil))
+    (flet ((inspect-text (reader &rest options)
+             (multiple-value-bind (text outcome) (apply reader client options)
+               (push outcome outcomes)
+               text)))
+      (let ((report
+              (list :options (inspect-text #'tm:show-options-text
+                                           :scope :session :target session
+                                           :name "status" :include-inherited t)
+                    :hooks (inspect-text #'tm:show-hooks-text
+                                         :scope :session :target session)
+                    :environment (inspect-text #'tm:show-environment-text
+                                               :scope :session :target session))))
+        (values report (coerce (nreverse outcomes) 'simple-vector))))))
+```
+<!-- /example -->
+
+Option and hook `:name` is a literal tmux reference: format-looking characters
+stay literal, while native abbreviations and array-reference syntax still
+apply. Omit it to list the table. `:scope` selects native flags; tmux can infer
+a built-in option's table from its name instead. These raw inspectors do not
+enforce the typed mutation catalog's name/type restrictions.
+A physical window's native format context need not identify one particular
+captured session link; use a session target for session-table inspection.
+
+`show-options-text` exposes `:include-inherited` (`-A`), `:include-hooks` (`-H`)
+and `:value-only` (`-v`). Native whole-table `-A` output does not promise
+inherited user `@` options. `show-hooks-text` has no server-scope flag; its named
+printer can return an ordinary `@` option without proving event registration.
+Its `:monitors` option selects native monitor presentation. Both printers'
+`:format` and hook monitor inspection require the live daemon to be tmux 3.8.
+Format text is explicit tmux source with no implicit time expansion; `#()`
+can start command-client jobs whose results may be incomplete and whose
+cleanup follows client disconnect.
+
+Environment scopes are `:global` and captured `:session`. Session output is the
+raw table, not a merged child environment. `:hidden t` selects hidden entries;
+the default selects ordinary entries. A visibility mismatch may succeed with
+empty text, which does not prove absence. `:shell-format t` returns native
+shell-looking text as data. Names may contain spaces, format punctuation and
+Unicode; only empty text, NUL and `=` are rejected. No reader executes this text.
+
+Escaping, whitespace and ordinary hook output stay in the returned presentation.
+Foreign names and multiline values can make bulk text ambiguous. Missing names
+remain native errors with outcome evidence; invalid UTF-8 signals a decoding
+condition retaining the client and original bytes. These operations do not
+claim parsed values, presence, inherited provenance or complete decoded
+records. Decoded acquisition remains under development behind its separate
+[transport admission gate](adr/0001-native-common-lisp-engine.md#qualify-control-mode-and-source-filtering-before-exposing-them).
+
 ## Configuration mutations
 
 [`set-option`](api.md#set-option-function) and
@@ -465,9 +533,11 @@ Names use `[A-Za-z_][A-Za-z0-9_]*` so later named acquisition is reversible.
 
 All seven operations return a
 [`command-outcome`](api.md#command-outcome-type), retain effective arguments
-and diagnostics, and never retry uncertain mutations. Decoded configuration
-readers remain under development; use [`run-command`](api.md#run-command-function)
-only when raw tmux argv and its weaker target contract are intentional.
+and diagnostics, and never retry uncertain mutations. Use the guarded
+[text inspectors](#configuration-inspection) for native printer views. Decoded
+configuration readers remain under development; use
+[`run-command`](api.md#run-command-function) when raw tmux argv and its weaker
+target contract are intentional.
 
 ## Explicit termination
 

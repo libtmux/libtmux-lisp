@@ -246,7 +246,9 @@
     (strict-text (libtmux:outcome-stdout outcome))))
 
 (defun printed-command (client arguments &rest options)
-  (let ((outcome (apply #'perform-command client nil arguments options)))
-    (handler-bind ((libtmux:decoding-error
-                     (lambda (condition) (setf (slot-value condition 'libtmux::client) client))))
-      (values (outcome-text outcome) outcome))))
+  (let ((targets (getf options :targets)) (options (copy-list options)))
+    (loop while (remf options :targets))
+    (let ((outcome (apply #'perform-command client targets arguments options)))
+      (handler-bind ((libtmux:decoding-error
+                       (lambda (condition) (setf (slot-value condition 'libtmux::client) client))))
+        (values (outcome-text outcome) outcome)))))
