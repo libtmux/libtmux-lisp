@@ -107,6 +107,28 @@ for mode in ("assertions", "tutorial"):
                                  stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=2)
         if stopped.returncode == 0:
             raise RuntimeError("Example daemon survived cleanup")
+with tempfile.TemporaryDirectory(prefix="libtmux-lisp-quickstart-") as directory:
+    socket = str(Path(directory) / "tmux.sock")
+    command = [program, "-S", socket]
+    subprocess.run(command + ["-f", "/dev/null", "new-session", "-d", "-s", "demo",
+                              "-n", "editor", "-x", "80", "-y", "24", "--", "/bin/cat"],
+                   env=environment, check=True, timeout=10)
+    try:
+        subprocess.run([
+            "sbcl", "--noinform", "--no-sysinit", "--no-userinit",
+            "--load", str(Path(asdf) / "asdf.lisp"),
+            "--script", str(root / "examples/quickstart.lisp"),
+            str(root), program, socket,
+        ], cwd=directory, env=environment, check=True, timeout=20)
+    finally:
+        subprocess.run(command + ["-N", "kill-server"], env=environment,
+                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                       timeout=2)
+    stopped = subprocess.run(command + ["-N", "has-session"], env=environment,
+                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                             timeout=2)
+    if stopped.returncode == 0:
+        raise RuntimeError("Quickstart daemon survived cleanup")
 evidence = {"status": "PASS", "tmux": version,
             "sbcl": subprocess.check_output(["sbcl", "--version"], text=True).strip(),
             "elapsed_seconds": round(time.monotonic() - started, 3),
