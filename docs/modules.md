@@ -24,6 +24,7 @@ These files implement the core `libtmux` system; their internal package is priva
 | [src/configuration-codec](../src/configuration-codec.lisp) | Private bounded decoding of tmux values, guarded prefixes and environment frames. |
 | [src/options-catalog](../src/options-catalog.lisp) | Generated exact-version tmux option and hook schema facts. |
 | [src/configuration-registry](../src/configuration-registry.lisp) | Native option discovery, scope authority and typed value/key normalization. |
+| [src/configuration-options](../src/configuration-options.lisp) | Private typed decoding of known option and hook records across exact tmux schemas. |
 | [src/dispatch](../src/dispatch.lisp) | Target guards, dispatch evidence and independent observation outcomes. |
 | [src/configuration-operations](../src/configuration-operations.lisp) | Typed option, hook and environment mutations over live versioned schemas. |
 | [src/operations](../src/operations.lisp) | Rename, select and terminal capture operations with explicit clients. |

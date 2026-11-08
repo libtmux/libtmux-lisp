@@ -65,7 +65,7 @@
 
 (defstruct configuration-decode-budget
   "One acquisition's cumulative decoding allowance, distinct from wire limits."
-  (remaining-bytes 1048576) (remaining-frames 4096) check)
+  (remaining-bytes 1048576) (remaining-frames 4096) (remaining-records 4096) check)
 
 (defstruct (configuration-input (:constructor %make-configuration-input))
   "Private bounded cursor over one operation's retained input and shared budget."
@@ -79,6 +79,7 @@
                (configuration-decode-budget-p budget)
                (typep (configuration-decode-budget-remaining-bytes budget) '(integer 0))
                (typep (configuration-decode-budget-remaining-frames budget) '(integer 0))
+               (typep (configuration-decode-budget-remaining-records budget) '(integer 0))
                (or (null (configuration-decode-budget-check budget))
                    (functionp (configuration-decode-budget-check budget))))
     (invalid-argument "Invalid configuration input slice or shared budget"))
@@ -91,6 +92,14 @@
 (defun configuration-input-check (input)
   (let ((check (configuration-decode-budget-check (configuration-input-budget input))))
     (when check (funcall check))))
+
+(defun configuration-input-record (input)
+  "Charge one row or negative observation to the acquisition's shared allowance."
+  (configuration-input-check input)
+  (let ((budget (configuration-input-budget input)))
+    (unless (plusp (configuration-decode-budget-remaining-records budget))
+      (error 'libtmux:output-limit-exceeded :message "Configuration record budget exhausted"))
+    (decf (configuration-decode-budget-remaining-records budget))))
 
 (defun configuration-input-peek (input)
   (when (>= (configuration-input-position input) (configuration-input-end input))
@@ -306,8 +315,9 @@ Only :MISSING ends with :ERROR; other results end with :END. Offsets are absolut
 and trailing hook bytes remain untouched. This parser does no I/O and establishes
 no successful public absence or process outcome. Name/frame collisions signal
 AMBIGUOUS-ENVIRONMENT-FRAME for the acquisition owner to resolve separately.
-The prefix already charged this leaf begin. BUDGET shares consumed-byte charges
-and cancellation/deadline checks; VALUE-LIMIT counts decoded octets."
+The prefix already charged this leaf begin. BUDGET charges one observation and
+shares consumed-byte charges and cancellation/deadline checks; VALUE-LIMIT counts
+decoded octets."
   (unless (typep bytes '(vector (unsigned-byte 8)))
     (invalid-argument "Environment leaf must be an octet vector"))
   (unless end-p (setf end (length bytes)))
@@ -386,6 +396,7 @@ and cancellation/deadline checks; VALUE-LIMIT counts decoded octets."
                (when (member byte '(0 61)) (invalid-argument "Environment name cannot contain NUL or =")))
       (strict-text name)
       (check)
+      (configuration-input-record input)
       (when (configuration-input-matches-p input end-line)
         (when (configuration-name-overlaps-end-p input name profile end-line)
           (check)

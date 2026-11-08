@@ -42,6 +42,8 @@
                       :description "Generated exact-version tmux option and hook schema facts.")
                (:file "src/configuration-registry"
                       :description "Native option discovery, scope authority and typed value/key normalization.")
+               (:file "src/configuration-options"
+                      :description "Private typed decoding of known option and hook records across exact tmux schemas.")
                (:file "src/dispatch"
                       :description "Target guards, dispatch evidence and independent observation outcomes.")
                (:file "src/configuration-operations"
@@ -74,6 +76,7 @@
                (:file "tests/records")
                (:file "tests/configuration-codec")
                (:file "tests/configuration-registry")
+               (:file "tests/configuration-options")
                (:file "tests/model"))
   :perform (test-op (operation component)
              (declare (ignore operation component))
