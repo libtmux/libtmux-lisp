@@ -34,6 +34,10 @@
                       :description "Server generation authority using socket and Linux process identities.")
                (:file "src/capture"
                       :description "Explicit bounded acquisition and replacement observations.")
+               (:file "src/daemon"
+                      :description "Owned daemon resources, startup diagnostics and lexical shutdown scopes.")
+               (:file "src/daemon-sbcl" :if-feature (:and :sbcl :linux :x86-64)
+                      :description "Foreground daemon supervision, event-driven readiness and checked endpoint cleanup.")
                (:file "src/command-encoding"
                       :description "Literal, format, argv and shell-source boundaries for tmux commands.")
                (:file "src/configuration-codec"
@@ -175,6 +179,7 @@
   :serial t
   :components ((:file "tests/fixture")
                (:file "tests/process")
+               (:file "tests/daemon")
                (:file "tests/capture")
                (:file "tests/operations")
                (:file "tests/client-operations")

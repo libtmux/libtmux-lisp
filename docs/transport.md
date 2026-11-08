@@ -106,7 +106,7 @@ environment transfer API. Each private process job owns its selected environment
 and any explicit child working directory; preparing or launching it does not change the Lisp
 process's environment or working directory. A separate daemon owner can use
 that boundary without imposing the command locale on newly created panes;
-[managed startup remains unqualified](adr/0001-native-common-lisp-engine.md#keep-daemon-bootstrap-separate-from-client-connection).
+[managed daemon scopes](daemons.md) keep that environment and lifecycle separate.
 Use explicit tmux environment operations to change a running server's values.
 The private descriptor poll does not run application REPL
 handlers. The library does not install a process-wide subreaper.

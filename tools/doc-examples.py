@@ -6,7 +6,7 @@ import sys
 
 root = Path(__file__).resolve().parents[1]
 write = sys.argv[1:] == ["write"]
-source = (root / "examples/workspace.lisp").read_text()
+source = "\n".join(path.read_text() for path in sorted((root / "examples").glob("*.lisp")))
 snippets = dict(re.findall(r"^;;; docs:(\w+)\n(.*?)^;;; docs:end$", source, re.M | re.S))
 errors = []
 for path in [root / "README.md", *sorted((root / "docs").glob("*.md"))]:

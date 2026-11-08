@@ -13,6 +13,7 @@ All examples use the native SBCL implementation.
 | [Declarative workspaces](workspaces.md) | Bounded documents, pure plans, explicit apply and CLI |
 | [Explicit operations](operations.md) | Creation, placement, input, buffers and mutation outcomes |
 | [Transport](transport.md) | Client lifecycle, limits, cancellation and failure evidence |
+| [Daemon scopes](daemons.md) | Private foreground startup, readiness, environment and checked shutdown |
 | [Architecture decision](adr/0001-native-common-lisp-engine.md) | Engine boundaries, captured model, alternatives and trade-offs |
 | [Public API](api.md) | Generated signatures, docstrings, classes and conditions |
 | [Query API](query-api.md) | Generated query, QuerySet, condition and operator reference |

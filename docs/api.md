@@ -15,6 +15,8 @@ OUTCOME-VALUE and FIELD-VALUE return value and presence as two values.
 Operations are synchronous, bounded and cancellable, with one active operation
 per client. Typed LIBTMUX-ERROR conditions retain diagnostic outcome and cause.
 Closing a client releases owned resources and leaves the daemon alive.
+START-DAEMON/WITH-DAEMON separately own a new empty-config foreground daemon;
+STOP-DAEMON releases that owner, with incomplete cleanup retained for retry.
 See docs/index.md for the tutorial, API reference and current capability limits.
 
 ## Functions and macros
@@ -28,6 +30,19 @@ See docs/index.md for the tutorial, API reference and current capability limits.
 [run-command](#run-command-function)
 [tmux-version](#tmux-version-function)
 [with-client](#with-client-function)
+
+**Start and stop owned daemons**
+
+[daemon-cleanup-failures](#daemon-cleanup-failures-function)
+[daemon-failure](#daemon-failure-function)
+[daemon-program](#daemon-program-function)
+[daemon-socket-path](#daemon-socket-path-function)
+[daemon-state](#daemon-state-function)
+[error-daemon](#error-daemon-function)
+[pending-daemon-cleanups](#pending-daemon-cleanups-function)
+[start-daemon](#start-daemon-function)
+[stop-daemon](#stop-daemon-function)
+[with-daemon](#with-daemon-function)
 
 **Acquire, traverse and project captured graphs**
 
@@ -390,6 +405,73 @@ Return copied captured path text and presence, without local pathname conversion
 
 Applicable first argument types: [pane](#pane-type).
 
+<a id="daemon-cleanup-failures-function"></a>
+
+### daemon-cleanup-failures
+
+`(daemon-cleanup-failures daemon)`
+
+Return a fresh vector of retained secondary cleanup conditions. No I/O.
+Conditions are shared diagnostics, newest first, bounded to sixteen entries.
+
+See also: [daemon-failure](#daemon-failure-function), [pending-daemon-cleanups](#pending-daemon-cleanups-function), [stop-daemon](#stop-daemon-function).
+
+[Source](../src/daemon.lisp)
+
+<a id="daemon-failure-function"></a>
+
+### daemon-failure
+
+`(daemon-failure daemon)`
+
+Return DAEMON's retained primary failure condition, or NIL. No I/O.
+This shared diagnostic can describe background failure after startup returned.
+
+See also: [daemon-cleanup-failures](#daemon-cleanup-failures-function), [daemon-state](#daemon-state-function).
+
+[Source](../src/daemon.lisp)
+
+<a id="daemon-program-function"></a>
+
+### daemon-program
+
+`(daemon-program daemon)`
+
+Return an owned copy of DAEMON's resolved tmux executable path. No I/O.
+Pass it as OPEN-CLIENT's :PROGRAM when connecting through DAEMON-SOCKET-PATH.
+
+See also: [daemon-socket-path](#daemon-socket-path-function), [open-client](#open-client-function).
+
+[Source](../src/daemon.lisp)
+
+<a id="daemon-socket-path-function"></a>
+
+### daemon-socket-path
+
+`(daemon-socket-path daemon)`
+
+Return an owned copy of DAEMON's private socket path, or NIL before allocation.
+No I/O. An ordinary client may connect while the owner is READY. Closing that
+client leaves the daemon alive; STOP-DAEMON releases the daemon itself.
+
+See also: [daemon-program](#daemon-program-function), [open-client](#open-client-function), [stop-daemon](#stop-daemon-function).
+
+[Source](../src/daemon.lisp)
+
+<a id="daemon-state-function"></a>
+
+### daemon-state
+
+`(daemon-state daemon)`
+
+Return DAEMON's observed lifecycle state without I/O.
+States are :STARTING, :READY, :STOPPING, :FAILED and :CLOSED. READY records
+completed startup verification, not a promise of future process liveness.
+
+See also: [daemon-failure](#daemon-failure-function), [stop-daemon](#stop-daemon-function).
+
+[Source](../src/daemon.lisp)
+
 <a id="dead-p-function"></a>
 
 ### dead-p
@@ -538,6 +620,21 @@ Applicable first argument types: [libtmux-error](#libtmux-error-type).
 Return an owned vector of command spellings implicated in the configuration failure.
 
 [Source](../src/conditions.lisp)
+
+<a id="error-daemon-function"></a>
+
+### error-daemon
+
+`(error-daemon condition)`
+
+Return the daemon owner retained by a startup or cleanup failure.
+The owner may need STOP-DAEMON even when START-DAEMON did not return. No I/O.
+
+See also: [daemon-cleanup-failed](#daemon-cleanup-failed-type), [daemon-start-failed](#daemon-start-failed-type), [pending-daemon-cleanups](#pending-daemon-cleanups-function).
+
+[Source](../src/daemon.lisp)
+
+Applicable first argument types: [daemon-cleanup-failed](#daemon-cleanup-failed-type), [daemon-start-failed](#daemon-start-failed-type).
 
 <a id="error-feature-function"></a>
 
@@ -1323,6 +1420,20 @@ or an operational condition.
 
 [Source](../src/buffers.lisp)
 
+<a id="pending-daemon-cleanups-function"></a>
+
+### pending-daemon-cleanups
+
+`(pending-daemon-cleanups)`
+
+Return a fresh vector of owners with incomplete cleanup, without daemon I/O.
+The library retains them even when startup leaves through a nonlocal exit.
+Successful STOP-DAEMON removes an owner from this collection.
+
+See also: [error-daemon](#error-daemon-function), [stop-daemon](#stop-daemon-function).
+
+[Source](../src/daemon.lisp)
+
 <a id="pipe-pane-function"></a>
 
 ### pipe-pane
@@ -1816,6 +1927,53 @@ Signals STALE-TARGET or an operational condition; never retries the mutation.
 
 [Source](../src/creation.lisp)
 
+<a id="start-daemon-function"></a>
+
+### start-daemon
+
+`(start-daemon &key (program "tmux") (environment nil environment-p) working-directory temporary-directory (timeout 30) (output-limit 1048576) cancel-token)`
+
+Start an owned empty-config daemon on a fresh private socket and await readiness.
+Uses the qualified SBCL/Linux backend and explicit /dev/null configuration.
+ENVIRONMENT is a finite list/vector of distinct NAME=VALUE strings; omission
+copies the caller environment, and NIL selects an empty input environment.
+Tmux selectors, socket activation and launcher controls are removed. Caller
+locale is preserved; Bash shell metadata is not byte-transparent. Environment
+values and the native executable remain trusted application configuration.
+WORKING-DIRECTORY defaults to the captured current directory. The owner creates
+a fresh directory under TEMPORARY-DIRECTORY (default UIOP's temporary directory).
+Its canonical ancestors must be owned by this user or root; writable ancestors
+must have the sticky bit. No existing daemon or endpoint is adopted.
+TIMEOUT is one startup deadline after input preparation, including version and
+readiness IPC. OUTPUT-LIMIT must be at least two bytes: half bounds daemon
+lifetime diagnostics; the remainder bounds version/readiness output. Cleanup
+adds bounded waits; synchronous setup and scheduling can extend caller wall time.
+CANCEL-TOKEN affects startup only; after READY, STOP-DAEMON owns cancellation.
+Signals DAEMON-START-FAILED with the original cause and owner on startup failure.
+
+See also: [error-daemon](#error-daemon-function), [open-client](#open-client-function), [stop-daemon](#stop-daemon-function), [with-daemon](#with-daemon-function).
+
+[Source](../src/daemon.lisp)
+
+<a id="stop-daemon-function"></a>
+
+### stop-daemon
+
+`(stop-daemon daemon)`
+
+Stop and reap DAEMON's owned child, then remove its checked socket and directory.
+Idempotent after success; returns no values. Never targets a daemon through a
+reusable PID or socket command. A 0.75-second admission wait and a separate
+0.75-second worker join precede any retried job cleanup (up to 0.5 seconds).
+Synchronous OS calls and scheduling can extend wall time. Failed cleanup signals
+DAEMON-CLEANUP-FAILED and retains the owner for retry. Closing an ordinary client
+does not call this function. Terminating the daemon does not establish exit of
+every pane descendant.
+
+See also: [daemon-cleanup-failures](#daemon-cleanup-failures-function), [pending-daemon-cleanups](#pending-daemon-cleanups-function), [with-daemon](#with-daemon-function).
+
+[Source](../src/daemon.lisp)
+
 <a id="suspend-client-function"></a>
 
 ### suspend-client
@@ -2076,6 +2234,21 @@ after normal return; during unwind it is retained in CLIENT-CLEANUP-FAILURES.
 
 [Source](../src/client.lisp)
 
+<a id="with-daemon-function"></a>
+
+### with-daemon
+
+`(with-daemon (name &rest options) &body body)`
+
+Bind a newly started daemon and stop the original owner on every exit.
+Accepts START-DAEMON keyword options and body declarations. Preserves multiple
+values and the primary nonlocal exit. A cleanup failure after normal completion
+signals; during an existing exit it is retained for explicit inspection/retry.
+
+See also: [pending-daemon-cleanups](#pending-daemon-cleanups-function), [start-daemon](#start-daemon-function), [stop-daemon](#stop-daemon-function).
+
+[Source](../src/daemon.lisp)
+
 ## Classes and conditions
 
 These types are acquired or signalled by the library; their slots are private.
@@ -2173,6 +2346,49 @@ dispatch evidence. An observation error does not erase a successful mutation.
 [Source](../src/transport.lisp)
 
 Direct supertypes: `standard-object`.
+
+<a id="daemon-type"></a>
+
+### daemon
+
+An explicitly owned foreground tmux daemon and its supervisor.
+Create it with START-DAEMON and release it with STOP-DAEMON or WITH-DAEMON.
+Ordinary connection clients are separate resources; closing one leaves this
+daemon alive. The owner retains failed cleanup work until an explicit retry.
+
+See also: [start-daemon](#start-daemon-function), [stop-daemon](#stop-daemon-function), [with-daemon](#with-daemon-function).
+
+[Source](../src/daemon.lisp)
+
+Direct supertypes: `standard-object`.
+
+<a id="daemon-cleanup-failed-type"></a>
+
+### daemon-cleanup-failed
+
+Owned daemon cleanup is incomplete and remains retryable.
+ERROR-DAEMON retains the owner. Inspect DAEMON-CLEANUP-FAILURES and retry
+STOP-DAEMON; no replacement daemon is started.
+
+See also: [daemon-cleanup-failures](#daemon-cleanup-failures-function), [error-daemon](#error-daemon-function), [stop-daemon](#stop-daemon-function).
+
+[Source](../src/daemon.lisp)
+
+Direct supertypes: [cleanup-failed](#cleanup-failed-type).
+
+<a id="daemon-start-failed-type"></a>
+
+### daemon-start-failed
+
+Managed startup failed; ERROR-CAUSE and ERROR-DAEMON retain evidence.
+Startup attempts cleanup before propagating this condition. Incomplete cleanup
+also remains discoverable through PENDING-DAEMON-CLEANUPS.
+
+See also: [error-cause](#error-cause-function), [error-daemon](#error-daemon-function), [stop-daemon](#stop-daemon-function).
+
+[Source](../src/daemon.lisp)
+
+Direct supertypes: [libtmux-error](#libtmux-error-type).
 
 <a id="deadline-exceeded-type"></a>
 
@@ -2334,7 +2550,8 @@ Direct supertypes: [libtmux-error](#libtmux-error-type).
 The selected runtime lacks a qualified backend or required facility.
 ERROR-FEATURE identifies the requirement; ERROR-CAUSE retains a failed probe
 when available. OPEN-CLIENT checks the profile before resolving PROGRAM.
-See also: OPEN-CLIENT, ERROR-FEATURE, ERROR-CAUSE.
+
+See also: [error-cause](#error-cause-function), [error-feature](#error-feature-function), [open-client](#open-client-function).
 
 [Source](../src/conditions.lisp)
 

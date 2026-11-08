@@ -47,6 +47,15 @@
         (unless (= (sb-posix:syscall-errno condition) sb-posix:eagain)
           (error condition))))))
 
+(defun consume-wake (fd)
+  "Drain an owned eventfd without dispatching application handlers."
+  (sb-alien:with-alien ((value sb-alien:unsigned-long-long 0))
+    (handler-case
+        (sb-posix:read fd (sb-alien:alien-sap (sb-alien:addr value)) 8)
+      (sb-posix:syscall-error (condition)
+        (unless (member (sb-posix:syscall-errno condition) (list sb-posix:eagain sb-posix:eintr))
+          (error condition))))))
+
 (defun nonblocking (fd)
   (sb-posix:fcntl fd sb-posix:f-setfl
                  (logior (sb-posix:fcntl fd sb-posix:f-getfl)
@@ -103,8 +112,10 @@
   (entries (* poll-entry)) (count sb-alien:unsigned-long) (milliseconds sb-alien:int))
 
 (defun poll-owned (entries seconds)
-  "Wait only on the supplied descriptors; never dispatch application FD handlers."
+  "Wait only on the supplied descriptors; never dispatch application FD handlers.
+NIL seconds waits for an event indefinitely and requires at least one descriptor."
   (assert (<= (length entries) 6))
+  (assert (or seconds entries))
   (sb-alien:with-alien ((native (array poll-entry 6)))
     (loop for (tag fd direction) in entries for i from 0
           do (setf (sb-alien:slot (sb-alien:deref native i) 'fd) fd
@@ -113,7 +124,7 @@
                    (sb-alien:slot (sb-alien:deref native i) 'returned) 0))
     (let ((count (descriptor-poll
                   (sb-alien:cast native (* poll-entry)) (length entries)
-                  (max 0 (ceiling (* (min seconds (/ 2147483647 1000)) 1000))))))
+                  (if seconds (max 0 (ceiling (* (min seconds (/ 2147483647 1000)) 1000))) -1))))
       (when (minusp count)
         (unless (= (sb-alien:get-errno) sb-posix:eintr)
           (error 'libtmux:command-failed :message "Descriptor poll failed")))

@@ -114,6 +114,11 @@
     (cons (format nil "(~{~A~^ ~})" (mapcar #'signature-text value)))
     (t (write-to-string value))))
 
+(defun type-documentation (symbol class)
+  (multiple-value-bind (body references)
+      (documentation-parts class t (symbol-package symbol))
+    (if references (format nil "~A~%~%~A" body references) body)))
+
 (defun required-documentation (object type)
   (or (documentation object type)
       (error "Missing ~A documentation for ~A" type object)))
@@ -135,6 +140,7 @@
 
 (defparameter *index-groups*
   '(("Connect and manage lifetime" "client")
+    ("Start and stop owned daemons" "daemon")
     ("Acquire, traverse and project captured graphs" "capture" "model")
     ("Inspect outcomes and cancel work" "transport")
     ("Create sessions, windows and panes" "creation")
@@ -207,7 +213,7 @@
 
 (defun declaration-marker-offset (path start end head symbol)
   "Locate the declaration marker between trusted reader positions START and END."
-  (let ((marker (format nil "(~(~A~) ~(~A~)" head symbol)))
+  (let ((marker (format nil "(~(~A~) " head)))
     (with-open-file (stream path :direction :input)
       (file-position stream start)
       (loop for line-offset = (file-position stream)
@@ -215,7 +221,10 @@
             for line = (read-line stream nil nil)
             while line
             for position = (search marker line :test #'char-equal)
-            when position return (+ line-offset position)
+            when (and position
+                      (eq symbol (read-from-string line nil nil
+                                                   :start (+ position (length marker)))))
+              return (+ line-offset position)
             finally (error "Cannot locate ~A declaration of ~A in ~A" head symbol path)))))
 
 (defun direct-declaration-offsets (path symbol kind)
@@ -563,7 +572,7 @@
           (when class
             (format out "<a id=\"~A-type\"></a>~%~%### ~A~%~%~A~%~%~A~%~%"
                     (spelling symbol) (spelling symbol)
-                    (required-documentation class t) (source-link symbol (if (subtypep symbol 'condition) :condition :class)))
+                    (type-documentation symbol class) (source-link symbol (if (subtypep symbol 'condition) :condition :class)))
             (format out "Direct supertypes: ~{~A~^, ~}.~%~%"
                     (mapcar #'type-reference (sb-mop:class-direct-superclasses class)))))))))
 
@@ -610,7 +619,7 @@
           (when class
             (format out "<a id=\"~A-type\"></a>~%~%### ~A~%~%~A~%~%~A~%~%Direct supertypes: ~{`~A`~^, ~}.~%~%"
                     (spelling symbol) (spelling symbol)
-                    (required-documentation class t)
+                    (type-documentation symbol class)
                     (source-link symbol (if (subtypep symbol 'condition) :condition :class))
                     (mapcar (lambda (superclass)
                               (string-downcase (symbol-name (class-name superclass))))
@@ -648,7 +657,7 @@
           (when class
             (format out "<a id=\"~A-type\"></a>~%~%### ~A~%~%~A~%~%~A~%~%Direct supertypes: ~{`~A`~^, ~}.~%~%"
                     (spelling symbol) (spelling symbol)
-                    (required-documentation class t)
+                    (type-documentation symbol class)
                     (source-link symbol (if (subtypep symbol 'condition) :condition :class))
                     (mapcar (lambda (superclass)
                               (string-downcase (symbol-name (class-name superclass))))
@@ -677,7 +686,7 @@
           (when class
             (format out "<a id=\"~A-type\"></a>~%~%### ~A~%~%~A~%~%~A~%~%Direct supertypes: ~{`~A`~^, ~}.~%~%"
                     (spelling symbol) (spelling symbol)
-                    (required-documentation class t)
+                    (type-documentation symbol class)
                     (source-link symbol (if (subtypep symbol 'condition) :condition :class))
                     (mapcar (lambda (superclass)
                               (string-downcase (symbol-name (class-name superclass))))

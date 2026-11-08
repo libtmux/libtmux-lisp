@@ -394,9 +394,16 @@ The daemon needs its own persistent owner and continuous pipe service, separate
 from ordinary clients. Closing a client must still leave it running. Owner
 shutdown must terminate and reap its child, then remove only the recorded socket
 entry after checking its type and identity; normal tmux exit leaves that path.
-Partial startup and failed cleanup retain the same ownership obligation. Source
-review and bounded startup probes support this design; persistent lifecycle and
-failure recovery remain unimplemented and unqualified.
+Partial startup and failed cleanup retain the same ownership obligation.
+[Managed daemon scopes](../daemons.md) implement this empty-config foreground
+owner separately from connection clients. Startup uses event-driven socket
+notification followed by matching witness IPC. The supervisor atomically
+transfers from startup cancellation/deadline to private lifetime cancellation;
+post-startup cancellation of the caller token has no daemon authority. Failed
+cleanup owners remain explicitly retrievable even after a nonlocal constructor
+exit. Arbitrary configuration, adoption and control/event delivery remain
+outside this bootstrap contract. Runtime acceptance uses the supported range's
+two CI endpoints; source support is distinct from that execution evidence.
 
 ### Keep optional systems and consumer policy explicit
 

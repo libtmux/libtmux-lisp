@@ -10,6 +10,8 @@ OUTCOME-VALUE and FIELD-VALUE return value and presence as two values.
 Operations are synchronous, bounded and cancellable, with one active operation
 per client. Typed LIBTMUX-ERROR conditions retain diagnostic outcome and cause.
 Closing a client releases owned resources and leaves the daemon alive.
+START-DAEMON/WITH-DAEMON separately own a new empty-config foreground daemon;
+STOP-DAEMON releases that owner, with incomplete cleanup retained for retry.
 See docs/index.md for the tutorial, API reference and current capability limits.")
   (:export
    #:libtmux-error #:error-message #:error-cause #:error-outcome #:error-client
@@ -48,7 +50,10 @@ See docs/index.md for the tutorial, API reference and current capability limits.
    #:outcome-cleanup-failures
    #:cancellation-token #:make-cancellation-token #:cancel #:cancelled-p
    #:client #:open-client #:close-client #:with-client #:client-open-p
-   #:client-cleanup-failures #:tmux-version #:run-command))
+   #:client-cleanup-failures #:tmux-version #:run-command
+   #:daemon #:start-daemon #:stop-daemon #:with-daemon #:daemon-state
+   #:daemon-program #:daemon-socket-path #:daemon-failure #:daemon-cleanup-failures
+   #:pending-daemon-cleanups #:daemon-start-failed #:daemon-cleanup-failed #:error-daemon))
 
 (defpackage #:libtmux.internal
   (:use #:cl)

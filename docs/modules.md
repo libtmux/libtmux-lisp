@@ -20,6 +20,8 @@ These files implement the core `libtmux` system; their internal package is priva
 | [src/graph](../src/graph.lisp) | Physical-entity normalization, explicit window links and graph consistency. |
 | [src/witness-sbcl](../src/witness-sbcl.lisp) | Server generation authority using socket and Linux process identities. |
 | [src/capture](../src/capture.lisp) | Explicit bounded acquisition and replacement observations. |
+| [src/daemon](../src/daemon.lisp) | Owned daemon resources, startup diagnostics and lexical shutdown scopes. |
+| [src/daemon-sbcl](../src/daemon-sbcl.lisp) | Foreground daemon supervision, event-driven readiness and checked endpoint cleanup. |
 | [src/command-encoding](../src/command-encoding.lisp) | Literal, format, argv and shell-source boundaries for tmux commands. |
 | [src/configuration-codec](../src/configuration-codec.lisp) | Private bounded decoding of tmux values, guarded prefixes and environment frames. |
 | [src/options-catalog](../src/options-catalog.lisp) | Generated exact-version tmux option and hook schema facts. |

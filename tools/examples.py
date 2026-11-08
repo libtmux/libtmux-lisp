@@ -177,6 +177,14 @@ with tempfile.TemporaryDirectory(prefix="libtmux-lisp-quickstart-") as directory
                              timeout=2)
     if stopped.returncode == 0:
         raise RuntimeError("Quickstart daemon survived cleanup")
+with tempfile.TemporaryDirectory(prefix="libtmux-lisp-managed-") as directory:
+    managed_environment = environment.copy()
+    managed_environment["LIBTMUX_PROGRAM"] = program
+    subprocess.run([
+        "sbcl", "--noinform", "--no-sysinit", "--no-userinit",
+        "--load", str(Path(asdf) / "asdf.lisp"),
+        "--script", str(root / "examples/managed-daemon.lisp"),
+    ], cwd=directory, env=managed_environment, check=True, timeout=20)
 evidence = {"status": "PASS", "tmux": version,
             "sbcl": subprocess.check_output(["sbcl", "--version"], text=True).strip(),
             "elapsed_seconds": round(time.monotonic() - started, 3),
@@ -192,6 +200,7 @@ evidence = {"status": "PASS", "tmux": version,
 evidence["tutorial_lisp_blocks"] = len(forms)
 evidence["tutorial_console_setup_cleanup"] = "PASS"
 evidence["workspace_cli"] = workspace_cli
+evidence["managed_daemon"] = "PASS"
 output = Path(__file__).resolve().parents[1] / "dist"
 output.mkdir(exist_ok=True)
 (output / "examples-evidence.json").write_text(json.dumps(evidence, indent=2) + "\n")

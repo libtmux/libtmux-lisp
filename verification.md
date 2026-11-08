@@ -11,7 +11,7 @@ Provisioning uses the network; verification does not install dependencies.
 | `mise run json` | Inner | Optional bounded filter documents, allowlists, false/empty/null distinctions and regex opt-in |
 | `mise run check` | Mid | Source whitespace, all local unit suites, exported docstrings, generated references, excerpts and local documentation links |
 | `mise run lint-workflows` | Mid | GitHub Actions syntax, expressions and shell checks |
-| `mise run integration` | Outer | Bounded transport, cancellation/cleanup, linked graphs, attached clients, daemon replacement, named operations, typed configuration mutations, exact target/server termination and tutorial failure cleanup |
+| `mise run integration` | Outer | Bounded transport, cancellation/cleanup, managed daemon startup/shutdown and failure recovery, linked graphs, attached clients, daemon replacement, named operations, typed configuration mutations, exact target/server termination and tutorial failure cleanup |
 | `mise run package` | Outer | Source archive plus isolated core/query/regex/JSON consumers and dependency-boundary checks |
 | `mise run examples` | Outer | Shipped Lisp recipes, all tutorial Lisp blocks, literal console setup/cleanup, worker consumption signals and owned daemon cleanup |
 | `mise run package-examples` | Outer | Archive-local links, examples, and the installed workspace CLI's validate/plan/apply/reapply workflow |

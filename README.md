@@ -24,7 +24,7 @@ validated native queries, eager QuerySets, optional regex and bounded JSON;
 apply and an explicit-endpoint CLI;
 [typed option, hook and environment mutations](docs/operations.md#configuration-mutations)
 for the exact reviewed tmux catalogs through 3.8; explicit entity and server
-termination with retained outcome evidence.
+termination with retained outcome evidence; [owned daemon scopes](docs/daemons.md).
 **In development:** decoded configuration readers, control/events and streaming.
 MCP is intentionally out of scope. The `0.1.0`
 systems are unreleased.
@@ -89,6 +89,37 @@ regex and JSON selection, declarative workspace, false/presence, ownership,
 refresh, bytes, capture, close, terminate`. Core and query loading need ASDF/UIOP only; optional
 regex/JSON use the locked CL-PPCRE/Jzon systems. The example runner also needs
 Python 3. No Java runtime is involved.
+
+## Start an isolated daemon
+
+This complete function starts an empty-config daemon, creates one session and
+returns pane data after closing its client and daemon. The
+[runnable program](examples/managed-daemon.lisp) includes loading and assertions.
+
+<!-- example:managed -->
+```lisp
+(defun inspect-owned-workspace (&key (program "tmux"))
+  "Start an isolated daemon; return owned pane data after closing both resources."
+  (libtmux:with-daemon (daemon :program program)
+    (libtmux:with-client (client :program (libtmux:daemon-program daemon)
+                                 :socket-path (libtmux:daemon-socket-path daemon))
+      (let ((outcome (libtmux:new-session client :name "demo" :command '("/bin/cat"))))
+        (when (libtmux:outcome-observation-error outcome)
+          (error (libtmux:outcome-observation-error outcome))))
+      (map 'list #'libtmux:entity-data
+           (libtmux:panes (libtmux:fetch-snapshot client))))))
+```
+<!-- /example -->
+
+Run it from the checkout with the pinned toolchain:
+
+```console
+$ mise exec -- tools/lisp.sh examples/managed-daemon.lisp
+```
+
+It prints `MANAGED DAEMON PASS` and a pane record. Read
+[daemon scopes](docs/daemons.md) for environment, readiness and cleanup contracts.
+Use an ordinary client alone when connecting to an existing server.
 
 ## Inspect a workspace
 
@@ -274,6 +305,7 @@ names. See [optional query interchange](docs/query-interchange.md).
 | Task | Start here |
 | --- | --- |
 | Load the library; inspect and build a workspace | [REPL tutorial](docs/tutorial.md) |
+| Start and stop a private empty-config daemon | [Daemon scopes](docs/daemons.md) |
 | Filter with `loop`, handle false/absence, export plists | [Local data recipes](docs/tutorial.md#select-and-project-locally) |
 | Compile typed filters, traverse relations and compose QuerySets | [Native queries](docs/queries.md) · [Query API](docs/query-api.md) |
 | Add CL-PPCRE or exchange bounded filter documents | [Query interchange](docs/query-interchange.md) · [JSON API](docs/json-api.md) |
@@ -290,8 +322,8 @@ concurrent reuse signals `client-busy`. Internal nonblocking pipe service does
 not provide an asynchronous application API. Closing a client releases its
 resources and leaves tmux running. [`kill-server`](docs/api.md#kill-server-function)
 is a separate explicit operation that proves the daemon accepted during its
-preflight exited. Daemon bootstrap currently requires tmux itself; the tutorial
-supplies the complete setup and cleanup.
+preflight exited. [Daemon scopes](docs/daemons.md) separately own a new private
+daemon; the tutorial also documents explicit tmux setup and cleanup.
 
 Named mutations preserve dispatch evidence and separate successful changes
 from follow-up observation failures. Inspect

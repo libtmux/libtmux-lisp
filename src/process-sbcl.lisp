@@ -292,52 +292,59 @@ size guarantee. This validates data, not executable trust."
 (defun job-reads-open-p (job)
   (or (process-job-status job) (some #'identity (process-job-output-fds job))))
 
-(defun supervise-job (job)
+(defun supervise-job (job &key before-step)
+  "Service one owned job. BEFORE-STEP runs on this supervisor, never another reader.
+Only an admitted persistent owner may retire the startup deadline to NIL; its
+close wake remains registered, and stop/drain/kill bounds remain finite."
   (loop
-    for now = (monotonic-seconds)
-    do (unless (process-job-final-at job)
-         (cond ((libtmux:cancelled-p (process-job-token job)) (stop-job job :cancelled))
-               ((>= now (process-job-deadline job)) (stop-job job :deadline))
-               ((and (process-job-terminal job) (job-reads-open-p job)
-                     (process-job-drain-at job) (>= now (process-job-drain-at job)))
-                (stop-job job :post-exit-drain))))
-       (when (and (process-job-ready job) (not (process-job-released job))
-                  (not (process-job-reason job)) (not (process-job-terminal job)))
-         (release-job job))
-       (when (and (process-job-kill-at job) (>= now (process-job-kill-at job))
-                  (not (process-job-killed job)))
-         (signal-job-group job sb-posix:sigkill)
-         (setf (process-job-killed job) t))
-       (when (and (process-job-terminal job) (not (job-reads-open-p job))) (return))
-       (when (and (process-job-final-at job) (>= now (process-job-final-at job)))
-         (error 'libtmux:cleanup-failed :message "Process cleanup exceeded its bound"))
-       (let* ((entries
-                (append
-                 (loop for fd across (process-job-output-fds job) for i from 0
-                       when fd collect (list i fd :input))
-                 (when (process-job-status job) (list (list :control (process-job-status job) :input)))
-                 (when (and (process-job-input-fd job) (process-job-released job)
-                            (< (process-job-offset job) (length (process-job-input job))))
-                   (list (list :input (process-job-input-fd job) :output)))
-                 (when (and (process-job-pidfd job) (not (process-job-terminal job)))
-                   (list (list :child (process-job-pidfd job) :input)))
-                 (unless (process-job-reason job)
-                   (list (list :cancel (process-job-wake job) :input)))))
-              (next (if (process-job-reason job)
-                        (min (or (and (not (process-job-killed job)) (process-job-kill-at job))
-                                 (process-job-final-at job) (process-job-deadline job))
-                             (or (process-job-final-at job) (process-job-deadline job)))
-                        (min (process-job-deadline job)
-                             (or (process-job-drain-at job) (process-job-deadline job))))))
-         (dolist (ready (poll-owned entries (max 0 (- next (monotonic-seconds)))))
-           (case ready
-             (:input (when (process-job-input-fd job) (write-job-input job)))
-             (:child (reap-job job))
-             (:cancel (stop-job job :cancelled))
-             (:control (when (process-job-status job) (read-job job :control (process-job-status job))))
-             (otherwise
-              (when (aref (process-job-output-fds job) ready)
-                (read-job job ready (aref (process-job-output-fds job) ready)))))))))
+    do (when before-step (funcall before-step job))
+       (let ((now (monotonic-seconds)))
+         (unless (process-job-final-at job)
+           (cond ((libtmux:cancelled-p (process-job-token job)) (stop-job job :cancelled))
+                 ((and (process-job-deadline job) (>= now (process-job-deadline job)))
+                  (stop-job job :deadline))
+                 ((and (process-job-terminal job) (job-reads-open-p job)
+                       (process-job-drain-at job) (>= now (process-job-drain-at job)))
+                  (stop-job job :post-exit-drain))))
+         (when (and (process-job-ready job) (not (process-job-released job))
+                    (not (process-job-reason job)) (not (process-job-terminal job)))
+           (release-job job))
+         (when (and (process-job-kill-at job) (>= now (process-job-kill-at job))
+                    (not (process-job-killed job)))
+           (signal-job-group job sb-posix:sigkill)
+           (setf (process-job-killed job) t))
+         (when (and (process-job-terminal job) (not (job-reads-open-p job))) (return))
+         (when (and (process-job-final-at job) (>= now (process-job-final-at job)))
+           (error 'libtmux:cleanup-failed :message "Process cleanup exceeded its bound"))
+         (let* ((entries
+                  (append
+                   (loop for fd across (process-job-output-fds job) for i from 0
+                         when fd collect (list i fd :input))
+                   (when (process-job-status job) (list (list :control (process-job-status job) :input)))
+                   (when (and (process-job-input-fd job) (process-job-released job)
+                              (< (process-job-offset job) (length (process-job-input job))))
+                     (list (list :input (process-job-input-fd job) :output)))
+                   (when (and (process-job-pidfd job) (not (process-job-terminal job)))
+                     (list (list :child (process-job-pidfd job) :input)))
+                   (unless (process-job-reason job)
+                     (list (list :cancel (process-job-wake job) :input)))))
+                (bounds (remove nil
+                                (if (process-job-reason job)
+                                    (list (and (not (process-job-killed job)) (process-job-kill-at job))
+                                          (or (process-job-final-at job) (process-job-deadline job)))
+                                    (list (process-job-deadline job) (process-job-drain-at job)))))
+                (wait (and bounds (max 0 (- (apply #'min bounds) (monotonic-seconds))))))
+           (dolist (ready (poll-owned entries wait))
+             (case ready
+               (:input (when (process-job-input-fd job) (write-job-input job)))
+               (:child (reap-job job))
+               (:cancel
+                (consume-wake (process-job-wake job))
+                (when (libtmux:cancelled-p (process-job-token job)) (stop-job job :cancelled)))
+               (:control (when (process-job-status job) (read-job job :control (process-job-status job))))
+               (otherwise
+                (when (aref (process-job-output-fds job) ready)
+                  (read-job job ready (aref (process-job-output-fds job) ready))))))))))
 
 (defun cleanup-job (job)
   (flet ((attempt (function)
@@ -393,6 +400,23 @@ size guarantee. This validates data, not executable trust."
         (progn (when *operation-client* (retain-cleanup-job *operation-client* job)) nil)
         t)))
 
+(defun process-job-outcome (job &optional primary)
+  (let ((outcome
+          (make-outcome
+           (process-job-argv job)
+           (cond ((or (not (process-job-released job)) (process-job-exec-failed job)) :not-dispatched)
+                 ((or primary (process-job-reason job) (process-job-cleanup-failures job)) :unknown)
+                 ((eql (process-job-code job) 0) :succeeded) (t :failed))
+           (cond ((process-job-exec-failed job) :launching)
+                 ((process-job-terminal job) :exited)
+                 ((process-job-released job) :dispatched)
+                 ((process-job-process job) :launching) (t :prepared))
+           (process-job-start job) :stdout (copy-seq (aref (process-job-buffers job) 0))
+           :stderr (copy-seq (aref (process-job-buffers job) 1))
+           :code (process-job-code job) :reason (process-job-reason job))))
+    (setf (slot-value outcome 'libtmux::cleanup-failures) (process-job-cleanup-failures job))
+    outcome))
+
 (defun run-process (arguments &key input keep-input-open (timeout 30)
                                   (output-limit (* 16 1024 1024)) cancel-token
                                   (environment nil environment-p) working-directory)
@@ -430,20 +454,7 @@ cwd; NIL inherits it. Neither option changes the Lisp process environment/cwd."
                         (when (acquire-job job) (supervise-job job))))
              (error (condition) (setf primary condition)))
         (cleanup-job job))
-      (let ((outcome
-              (make-outcome
-               argv
-               (cond ((or (not (process-job-released job)) (process-job-exec-failed job)) :not-dispatched)
-                     ((or primary (process-job-reason job) (process-job-cleanup-failures job)) :unknown)
-                     ((eql (process-job-code job) 0) :succeeded) (t :failed))
-               (cond ((process-job-exec-failed job) :launching)
-                     ((process-job-terminal job) :exited)
-                     ((process-job-released job) :dispatched)
-                     ((process-job-process job) :launching) (t :prepared))
-               start :stdout (copy-seq (aref (process-job-buffers job) 0))
-               :stderr (copy-seq (aref (process-job-buffers job) 1))
-               :code (process-job-code job) :reason (process-job-reason job))))
-        (setf (slot-value outcome 'libtmux::cleanup-failures) (process-job-cleanup-failures job))
+      (let ((outcome (process-job-outcome job primary)))
         (when (or primary (process-job-cleanup-failures job))
           (error 'libtmux:command-failed :outcome outcome
                  :cause (or primary (first (process-job-cleanup-failures job)))
