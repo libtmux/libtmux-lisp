@@ -353,6 +353,14 @@ can clear a waiting flag after client loss, while the removed client's queue
 has no later server-loop pump. The API must distinguish the daemon's job
 from retained command state.
 
+`source-file` also remains unqualified on the supported releases. During an
+ordinary client's pending file read,
+[`file_fire_done_cb`](https://github.com/tmux/tmux/blob/3.8/file.c#L156-L165)
+can free the file while skipping its consumer after client loss. The source
+command then retains its waiting continuation and queue/client references.
+Parse-only mode uses that same lifetime. Admission needs bounded input and
+proven release of those references; reaping the library's CLI is insufficient.
+
 Raw [`run-command`](../api.md#run-command-function) is an explicit escape hatch.
 It does not provide named-operation target validation or imply that an
 unqualified control-mode route is supported.
@@ -368,9 +376,27 @@ Managed bootstrap needs a separate environment, configuration and ownership
 contract. tmux
 [seeds its global environment from its starter](https://github.com/tmux/tmux/blob/3.8/tmux.c#L418-L423).
 Blindly reusing the transport's forced locale would change pane defaults.
-A bootstrap design must specify caller environment selection, clearing inherited
-tmux selectors, explicit configuration, partial-start cleanup and termination
-authority. That design remains open.
+The initial design uses an owned foreground `-D` child, explicit `/dev/null`
+configuration and a new socket in a private directory. It must not adopt an
+existing endpoint: [`client_connect`](https://github.com/tmux/tmux/blob/3.8/client.c#L104-L175)
+can connect before considering startup. Copy the selected environment, preserve
+the caller's locale, and clear inherited tmux selectors and socket-activation
+settings. The Bash gate's shell metadata is not byte-transparent forwarding.
+
+An attribute event after tmux's
+[`initial socket update`](https://github.com/tmux/tmux/blob/3.8/server.c#L337-L372)
+can trigger a readiness check. Readiness requires completed IPC identifying the
+still-owned child; neither exec nor pathname creation proves it. Initial support
+uses empty configuration because completion of arbitrary configuration does not
+establish error-free application.
+
+The daemon needs its own persistent owner and continuous pipe service, separate
+from ordinary clients. Closing a client must still leave it running. Owner
+shutdown must terminate and reap its child, then remove only the recorded socket
+entry after checking its type and identity; normal tmux exit leaves that path.
+Partial startup and failed cleanup retain the same ownership obligation. Source
+review and bounded startup probes support this design; persistent lifecycle and
+failure recovery remain unimplemented and unqualified.
 
 ### Keep optional systems and consumer policy explicit
 
@@ -427,9 +453,27 @@ cannot qualify a live daemon path, kernel premise or portable transport.
 Source filtering is also pending. It belongs at an explicit acquisition
 boundary. A supported translation must admit every locally accepted object,
 preserve required relationships, and recheck locally. Unsupported expressions
-fall back locally. tmux numeric and textual comparisons need their own exact
-semantics; matching operator spellings are insufficient. Local `matching`
-must never acquire, regardless of a future optimization.
+must fall back locally. The current complete graph cannot discard nonmatching
+rows: they may be siblings, reverse links or related clients exposed by captured
+getters. Intersecting filtered IDs with a later capture also loses matches when
+state changes between those observations.
+
+Native evaluation success needs its own evidence. Starting in tmux 3.7,
+[`format_check_time`](https://github.com/tmux/tmux/blob/3.7/format.c#L4196-L4205)
+enforces a 100 ms format budget. Failed expansion can become empty, and
+[`list-panes`](https://github.com/tmux/tmux/blob/3.8/cmd-list-panes.c#L141-L163)
+treats a false expansion as a row to omit. Local rechecking cannot recover that
+row. Bounded syntax alone does not prevent host scheduling delays or an inner
+failure from producing an apparently Boolean result. Pruning remains unqualified
+until both complete relationships and failure-aware evaluation are established.
+
+A private whole-expression compiler and fixed-fixture comparisons can establish
+a bounded scalar subset without changing acquisition. Native numeric `e`
+expressions use floating-point parsing, so their exact field/operand domain must
+be proved separately from Lisp's integer semantics. Non-pruning annotations may
+help conformance work; they are not reduced acquisition or authoritative runtime
+selection. Local [`matching`](../query-api.md#matching-function) remains the
+authority over a complete capture and must never acquire.
 
 ## Security boundary
 
