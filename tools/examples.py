@@ -27,6 +27,40 @@ for key in ("TMUX", "TMUX_PANE"):
 environment["LC_ALL"] = "C.UTF-8"
 version = subprocess.check_output([program, "-V"], env=environment, text=True).strip()
 asdf = subprocess.check_output(["mise", "where", "http:asdf-lisp"], text=True).strip()
+
+
+def run_workspace_cli(socket, directory, child_environment):
+    """Exercise the shipped entry point; Lisp startup and real mutations belong in the outer loop."""
+    cli_environment = child_environment.copy()
+    cli_environment["LIBTMUX_ASDF"] = str(Path(asdf) / "asdf.lisp")
+    cli_environment["LIBTMUX_QLOT_SETUP"] = str(child_environment.get(
+        "LIBTMUX_QLOT_SETUP", root / ".qlot/setup.lisp"))
+    document = str(root / "examples/workspace.json")
+    responses = []
+    for arguments in (["validate", document], ["plan", document],
+                      *[["apply", document, "--socket-path", socket, "--program", program]] * 2):
+        result = subprocess.run([str(root / "bin/libtmux-workspace"), *arguments],
+                                cwd=directory, env=cli_environment, capture_output=True,
+                                text=True, timeout=20)
+        if result.returncode:
+            raise RuntimeError(f"Workspace CLI {arguments[0]} failed ({result.returncode}): {result.stderr}")
+        if result.stderr:
+            raise RuntimeError(f"Workspace CLI wrote unexpected stderr: {result.stderr}")
+        responses.append(json.loads(result.stdout))
+    assert responses[0] == {"status": "valid", "schema": "libtmux.lisp.workspace/1",
+                            "session": "declared", "windows": 2, "panes": 3}
+    assert responses[1]["status"] == "planned" and responses[1]["steps"] == 5
+    assert responses[2] == {"status": "applied", "session": "declared", "created": True,
+                            "outcomes": 5, "windows": 2, "panes": 3}
+    assert responses[3] == {**responses[2], "created": False, "outcomes": 0}
+    rows = subprocess.check_output(
+        [program, "-S", socket, "-N", "list-panes", "-s", "-t", "=declared",
+         "-F", "#{window_index}\t#{window_name}"], env=cli_environment, text=True)
+    assert sorted(rows.splitlines()) == ["2\tcode", "2\tcode", "5\tshell"]
+    return {"entrypoint": "bin/libtmux-workspace", "responses": responses,
+            "live_topology": "PASS"}
+
+
 for mode in ("assertions", "tutorial"):
     with tempfile.TemporaryDirectory(prefix="libtmux-lisp-example-") as directory:
         tutorial_terminated = False
@@ -123,6 +157,17 @@ with tempfile.TemporaryDirectory(prefix="libtmux-lisp-quickstart-") as directory
             "--load", str(Path(asdf) / "asdf.lisp"),
             "--script", str(root / "examples/quickstart.lisp"),
         ], cwd=directory, env=quickstart_environment, check=True, timeout=20)
+        stopped = subprocess.run(command + ["-N", "has-session"], env=environment,
+                                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                                 timeout=2)
+        if stopped.returncode == 0:
+            raise RuntimeError("Quickstart daemon survived its termination call")
+        socket = str(Path(directory) / "workspace.sock")
+        command = [program, "-S", socket]
+        subprocess.run(command + ["-f", "/dev/null", "new-session", "-d", "-s", "fixture",
+                                  "-x", "120", "-y", "40", "--", "/bin/cat"],
+                       env=environment, check=True, timeout=10)
+        workspace_cli = run_workspace_cli(socket, directory, quickstart_environment)
     finally:
         subprocess.run(command + ["-N", "kill-server"], env=environment,
                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
@@ -138,12 +183,15 @@ evidence = {"status": "PASS", "tmux": version,
             "source_sha256": {str(path.relative_to(root)): hashlib.sha256(path.read_bytes()).hexdigest()
                               for path in [*sorted((root / "examples").iterdir()),
                                            root / "README.md", root / "docs/tutorial.md",
-                                           root / "tools/examples.py", root / "tools/stop-example.py"] if path.is_file()},
+                                           root / "tools/examples.py", root / "tools/stop-example.py",
+                                           root / "bin/libtmux-workspace",
+                                           root / "tools/workspace-cli.lisp"] if path.is_file()},
             "daemon_cleanup": "PASS",
             "optional_libraries_loaded": ["cl-ppcre", "com.inuoe.jzon"],
             "optional_systems_loaded": ["libtmux/regex", "libtmux/json", "libtmux/workspace"]}
 evidence["tutorial_lisp_blocks"] = len(forms)
 evidence["tutorial_console_setup_cleanup"] = "PASS"
+evidence["workspace_cli"] = workspace_cli
 output = Path(__file__).resolve().parents[1] / "dist"
 output.mkdir(exist_ok=True)
 (output / "examples-evidence.json").write_text(json.dumps(evidence, indent=2) + "\n")

@@ -14,7 +14,7 @@ Provisioning uses the network; verification does not install dependencies.
 | `mise run integration` | Outer | Bounded transport, cancellation/cleanup, linked graphs, attached clients, daemon replacement, named operations, typed configuration mutations, exact target/server termination and tutorial failure cleanup |
 | `mise run package` | Outer | Source archive plus isolated core/query/regex/JSON consumers and dependency-boundary checks |
 | `mise run examples` | Outer | Shipped Lisp recipes, all tutorial Lisp blocks, literal console setup/cleanup, worker consumption signals and owned daemon cleanup |
-| `mise run package-examples` | Outer | Archive-local links and examples executed using the extracted artifact's own scripts |
+| `mise run package-examples` | Outer | Archive-local links, examples, and the installed workspace CLI's validate/plan/apply/reapply workflow |
 | `mise run docs` | Maintenance | Regenerate API signatures/docstrings, condition hierarchy, applicable models, fields, modules and executable excerpts |
 
 These commands exercise the implemented native core; they do not establish
@@ -38,6 +38,10 @@ The artifact includes its setup pins, tools, guides and executable examples.
 `package-examples` checks its local links and runs its own copy of the example
 runner with an isolated core registry. `dist/examples-evidence.json` records
 the runtime versions, source hashes, tutorial block count and cleanup result.
+The installed workspace entry point reads the shipped JSON file, creates its
+declared live topology, and reports zero retained mutations on repeat apply.
+These checks qualify the implemented v1 behavior; full ownership metadata,
+drift inspection and explicit reconciliation remain separate unfinished work.
 The [tutorial](docs/tutorial.md) explains the recipes and expected values.
 
 Select a tmux binary explicitly when exercising a compatibility cell:
