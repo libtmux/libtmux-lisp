@@ -54,6 +54,8 @@
                       :description "Captured terminal-client targeting, switching and explicit frontend requests.")
                (:file "src/server-operations"
                       :description "Literal message printing, explicit server requests and wait-channel state.")
+               (:file "src/key-bindings"
+                      :description "Command/key printer inspection and explicit native key-binding source.")
                (:file "src/creation"
                       :description "Detached session/window/pane creation from argv or explicit shell source.")
                (:file "src/process-operations"
@@ -177,6 +179,7 @@
                (:file "tests/operations")
                (:file "tests/client-operations")
                (:file "tests/server-operations")
+               (:file "tests/key-bindings")
                (:file "tests/termination")
                (:file "tests/creation")
                (:file "tests/geometry")

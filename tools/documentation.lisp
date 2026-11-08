@@ -140,6 +140,7 @@
     ("Create sessions, windows and panes" "creation")
     ("Operate on attached terminal clients" "client-operations")
     ("Coordinate server requests" "server-operations")
+    ("Inspect commands and bind keys" "key-bindings")
     ("Select, arrange and link targets" "geometry" "selection" "placement")
     ("Rename, capture, send input and manage pane processes"
      "operations" "terminal-operations" "process-operations")

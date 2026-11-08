@@ -95,6 +95,22 @@
         (libtmux:display-message nil "text" :target (make-instance 'libtmux:attached-client)))
       (is (zerop calls)))))
 
+(test key-command-validation-precedes-io
+  (let ((calls 0))
+    (let ((libtmux.internal::*process-started-hook*
+            (lambda (process) (declare (ignore process)) (incf calls))))
+      (signals libtmux:invalid-argument (libtmux:bind-key nil "x"))
+      (signals libtmux:invalid-argument
+        (libtmux:bind-key nil "x" :command '("list-sessions") :command-source "list-sessions"))
+      (signals libtmux:invalid-argument
+        (libtmux:bind-key nil "x" :command '("LIBTMUX_BIND=not-an-inert-command")))
+      (signals libtmux:invalid-argument
+        (libtmux:bind-key nil "x" :command-source (string #\Null)))
+      (signals libtmux:invalid-argument (libtmux:list-commands nil :format 7))
+      (signals libtmux:invalid-argument (libtmux:list-keys nil :key (string #\Null)))
+      (signals libtmux:invalid-argument (libtmux:unbind-key nil "x" :table ""))
+      (is (zerop calls)))))
+
 (test lock-session-rejects-invalid-targets-and-command-overrides
   (let ((calls 0))
     (let ((libtmux.internal::*process-started-hook*

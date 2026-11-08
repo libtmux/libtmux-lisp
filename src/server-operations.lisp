@@ -2,8 +2,9 @@
 
 (defun display-message (client message &key target format-p cancel-token timeout output-limit)
   "Print MESSAGE through tmux; return owned UTF-8 text and a COMMAND-OUTCOME.
-Always uses the ordinary -p printer, preserving whitespace and trailing lines.
-MESSAGE is literal by default. FORMAT-P enables tmux format and time expansion;
+Always uses the ordinary -p printer, preserving its whitespace and trailing lines.
+Native versions can escape output, so it is not a byte-identical echo. MESSAGE
+is literal by default. FORMAT-P enables tmux format and time expansion;
 #() may start shell jobs but does not wait for their output. Fresh requests can
 print empty or incomplete job results. The native command client owns those
 jobs; its disconnect cleans them up.

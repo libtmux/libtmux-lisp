@@ -98,6 +98,13 @@ See docs/index.md for the tutorial, API reference and current capability limits.
 [lock-session](#lock-session-function)
 [wait-for](#wait-for-function)
 
+**Inspect commands and bind keys**
+
+[bind-key](#bind-key-function)
+[list-commands](#list-commands-function)
+[list-keys](#list-keys-function)
+[unbind-key](#unbind-key-function)
+
 **Select, arrange and link targets**
 
 [break-pane](#break-pane-function)
@@ -189,6 +196,32 @@ Return captured active state and presence, without I/O. False is NIL,T.
 [Source](../src/model.lisp)
 
 Applicable first argument types: [pane](#pane-type), [window-link](#window-link-type).
+
+<a id="bind-key-function"></a>
+
+### bind-key
+
+`(bind-key client key &key (table "prefix") repeat note (command nil command-p) (command-source nil source-p) cancel-token timeout output-limit)`
+
+Replace TABLE's KEY binding and return a COMMAND-OUTCOME.
+TABLE defaults to prefix. KEY, TABLE and optional NOTE are literal strings.
+REPEAT enables native key repetition. Supply exactly one of COMMAND argv or
+COMMAND-SOURCE, explicit tmux parser source. COMMAND argv owns each argument
+and preserves its token boundary; its first token must not contain =.
+
+Tmux parses the binding immediately. Assignments/directives in COMMAND-SOURCE
+can change daemon environment before a later parse error. Aliases expand during
+binding in both forms and can also introduce parser side effects. Failure is
+not rollback. Ordinary stored command nodes run later on a key event with its
+native target context; this does not retain captured-handle authority.
+
+Success acknowledges the binding and its hooks, not later key execution.
+Blocks under shared preflight/dispatch limits, acquires no observation and
+never retries. Native key/source errors and uncertain outcomes remain inspectable.
+
+See also: [error-outcome](#error-outcome-function), [list-keys](#list-keys-function), [send-keys](#send-keys-function), [unbind-key](#unbind-key-function).
+
+[Source](../src/key-bindings.lisp)
 
 <a id="break-pane-function"></a>
 
@@ -407,8 +440,9 @@ See also: [fetch-clients](#fetch-clients-function), [outcome-status](#outcome-st
 `(display-message client message &key target format-p cancel-token timeout output-limit)`
 
 Print MESSAGE through tmux; return owned UTF-8 text and a COMMAND-OUTCOME.
-Always uses the ordinary -p printer, preserving whitespace and trailing lines.
-MESSAGE is literal by default. FORMAT-P enables tmux format and time expansion;
+Always uses the ordinary -p printer, preserving its whitespace and trailing lines.
+Native versions can escape output, so it is not a byte-identical echo. MESSAGE
+is literal by default. FORMAT-P enables tmux format and time expansion;
 #() may start shell jobs but does not wait for their output. Fresh requests can
 print empty or incomplete job results. The native command client owns those
 jobs; its disconnect cleans them up.
@@ -842,6 +876,57 @@ not captured entity identities. Empty listing returns #(). ROW-LIMIT bounds
 decoding. Signals an operational or decoding condition with the raw outcome.
 
 [Source](../src/buffers.lisp)
+
+<a id="list-commands-function"></a>
+
+### list-commands
+
+`(list-commands client &key command format cancel-token timeout output-limit)`
+
+Inspect built-in tmux commands; return owned UTF-8 printer text and an outcome.
+Omit COMMAND to list all built-ins. COMMAND is an exact name or built-in alias
+through tmux 3.5a; unknown selectors produce no rows. From 3.6, unique prefixes
+are accepted and unknown/ambiguous selectors fail. Configured command-alias
+entries are not listed or expanded by this selector.
+
+FORMAT is explicit tmux format source, without time expansion. #() can start
+asynchronous jobs owned by this command client; results may be incomplete and
+disconnect cleans up those jobs. Omission uses tmux's human-readable format.
+Preserve native escaping, whitespace and after-hook output; this is not a
+decoded registry.
+Blocks under shared preflight/dispatch limits, never retries and starts no
+daemon. Failures retain their outcome; invalid UTF-8 signals DECODING-ERROR.
+
+See also: [display-message](#display-message-function), [error-outcome](#error-outcome-function), [list-keys](#list-keys-function), [outcome-stdout](#outcome-stdout-function).
+
+[Source](../src/key-bindings.lisp)
+
+<a id="list-keys-function"></a>
+
+### list-keys
+
+`(list-keys client &key table key format cancel-token timeout output-limit)`
+
+Inspect key bindings; return owned UTF-8 printer text and a command outcome.
+Omit TABLE to list every key table. TABLE and KEY are literal strings; native
+unknown-table and invalid-key failures remain errors. An unbound valid KEY is
+an error except on tmux 3.7 through 3.7c, which return empty text. Those releases
+also send a single matching row to the server message log and any selected
+frontend's status line instead of stdout. Empty text does not prove absence.
+FORMAT is explicit tmux format source
+and requires live tmux 3.7 or newer; older daemons signal UNSUPPORTED-CAPABILITY
+before payload dispatch. Omission uses the native human-readable listing.
+
+FORMAT has no time expansion. #() can start asynchronous command-client jobs,
+whose output may be incomplete and whose cleanup follows client disconnect.
+Empty expanded lines may be omitted. Native escaping, whitespace and after-hook
+output are preserved; the text is not a parsed or replayable configuration.
+Blocks under shared preflight/dispatch limits and never retries. Invalid UTF-8 signals
+DECODING-ERROR; operational failures retain their outcome.
+
+See also: [bind-key](#bind-key-function), [error-outcome](#error-outcome-function), [list-commands](#list-commands-function), [unbind-key](#unbind-key-function).
+
+[Source](../src/key-bindings.lisp)
 
 <a id="load-buffer-function"></a>
 
@@ -1767,6 +1852,24 @@ Applicable first argument types: [pane](#pane-type).
 Return a fresh copy of the release string observed when CLIENT opened.
 
 [Source](../src/client.lisp)
+
+<a id="unbind-key-function"></a>
+
+### unbind-key
+
+`(unbind-key client key &key (table "prefix") cancel-token timeout output-limit)`
+
+Remove exactly one KEY from TABLE and return a COMMAND-OUTCOME.
+TABLE defaults to prefix. Both strings are literal. A missing key in an
+existing table is a native no-op; an absent table is an error. Removing its last
+binding can delete the table, so repeated removal need not succeed. No bulk
+deletion, reset or retry is implicit. Blocks under shared preflight/dispatch
+limits. Success acknowledges removal and hooks; it cannot undo earlier key
+execution. Native errors and uncertain outcomes retain their diagnostics.
+
+See also: [bind-key](#bind-key-function), [error-outcome](#error-outcome-function), [list-keys](#list-keys-function).
+
+[Source](../src/key-bindings.lisp)
 
 <a id="unlink-window-function"></a>
 

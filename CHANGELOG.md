@@ -25,6 +25,9 @@
 
 ### Added
 
+- Add command/key printer inspection and single-key binding/removal with
+  explicit argv versus tmux source, parser effects and future key execution.
+
 - Add literal message printing with explicit tmux format expansion, captured
   target context, preserved printer text and retained command outcomes.
 

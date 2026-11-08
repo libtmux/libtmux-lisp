@@ -68,6 +68,12 @@ nor cancellation automatically releases a granted lock.
 Message-printing tests distinguish literal and explicit format input, physical
 and link context, foreign authority, versioned intermediate limits and
 after-hook text in the ordinary printer stream.
+Key-binding tests send bytes through an owned ordinary PTY frontend. Native
+hook/channel acknowledgements prove stored command execution and order a
+second key after removal. Direct fixture reads verify literal values and
+parse-time environment effects retained after a failed binding.
+Printer profiles distinguish tmux 3.7 through 3.7c's single-row status routing
+and missing-key success from normal multi-row output and other releases.
 
 The integration runner is a dedicated child-process subreaper. It verifies
 that no test-owned worker or tmux daemon survives the test image, including an

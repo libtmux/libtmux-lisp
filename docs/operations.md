@@ -163,6 +163,9 @@ have been sent, so a failed outcome does not undo a lock request. See tmux's
 strict UTF-8 text and its diagnostic command outcome. It uses tmux's ordinary
 `-p` printer and preserves whitespace, including the final newline. Message text
 is literal by default, including `#{...}`, `#(...)`, `#[...]` and `%Y`.
+Literal input disables expansion; it does not make the printer a byte-identical
+echo. Native versions can escape output, including `$` on 3.4. The API retains
+that presentation rather than interpreting it as decoded field data.
 
 An optional `:target` accepts a captured session, physical window, pane or
 window link owned by the supplied client. Use a link when its session and index
@@ -187,6 +190,57 @@ format and time syntax and conservatively limits the intermediate after time
 expansion to 8,191 UTF-8 bytes. That limit is checked after live-version
 preflight and before payload dispatch. The encoded command limit also applies.
 See [`cmd_display_message_exec`](https://github.com/tmux/tmux/blob/3.8/cmd-display-message.c#L62-L176).
+
+## Commands and key bindings
+
+[`list-commands`](api.md#list-commands-function) and
+[`list-keys`](api.md#list-keys-function) return ordinary UTF-8 printer text and
+the retained outcome. Both preserve native escaping, whitespace and after-hook output. The
+result is intended for inspection, not replay or decoded configuration lookup.
+
+`list-commands` lists built-ins. Its optional `:command` accepts exact names or
+built-in aliases; configured `command-alias` entries are not part of that table.
+Through tmux 3.5a, an unknown selector produces no rows. From 3.6, unique
+prefixes work, while unknown or ambiguous selectors fail.
+
+`list-keys` accepts an optional literal `:table` and `:key`. Omitted table means
+all tables. Unknown tables and invalid key syntax remain errors. A valid but
+unbound key is an error except on tmux 3.7 through 3.7c, which return empty text.
+Those four releases also send a single matching row to the server message log
+and any selected frontend's status line instead of stdout, including with
+`:format`. Multiple matching rows print normally. Empty text therefore does
+not establish that a binding is absent, and inspection can display a status
+message. The native [single-row branch](https://github.com/tmux/tmux/blob/3.7c/cmd-list-keys.c#L236-L248)
+changes in [tmux 3.8](https://github.com/tmux/tmux/blob/3.8/cmd-list-keys.c#L220-L248).
+
+Its `:format` requires tmux 3.7 or newer; older daemons reject it before payload
+dispatch. Both listing functions accept explicit tmux format source without
+time expansion, so `%Y` stays literal. Empty formatted rows may be omitted.
+Format jobs have the same asynchronous lifetime limits as message printing.
+
+[`bind-key`](api.md#bind-key-function) replaces one binding in `:table`, which
+defaults to `"prefix"`. Supply exactly one of `:command` argv or
+`:command-source`, explicit tmux source. The argv form preserves token
+boundaries and rejects `=` in its command-name token. `:note` is literal text;
+`:repeat t` enables native repetition. The stored command nodes run when tmux
+dispatches that key, using the key event's context. This does not carry a
+captured target's authority into future execution.
+
+Tmux parses binding source immediately. Assignments and directives can alter
+the daemon's environment before a later parse error. Aliases resolve during
+binding and can introduce parser effects even through argv. A failed bind is
+not a rollback; missing completion evidence can leave its outcome unknown.
+Keep source and aliases under the application's control. See tmux's
+[`cmd_bind_key_exec`](https://github.com/tmux/tmux/blob/3.8/cmd-bind-key.c#L55-L107)
+and [assignment grammar](https://github.com/tmux/tmux/blob/3.8/cmd-parse.y#L224-L244).
+
+[`unbind-key`](api.md#unbind-key-function) removes exactly one key, also from
+`"prefix"` by default. A missing key in an existing table is a no-op; an absent
+table is an error. Removing a table's last binding may delete the table, so a
+second removal need not succeed. Neither helper retries or implicitly removes
+all bindings. Binding success acknowledges storage and hooks, not later key
+execution. [`send-keys`](api.md#send-keys-function) sends pane input and does
+not exercise a frontend's key-binding dispatch.
 
 ## Wait channels
 
