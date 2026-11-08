@@ -9,7 +9,7 @@ data. Conflicts fail before mutation, and partial application retains evidence."
    #:workspace #:workspace-plan #:workspace-step #:workspace-result
    #:workspace-error #:invalid-workspace #:workspace-conflict
    #:invalid-workspace-document #:workspace-limit-exceeded
-   #:workspace-apply-failed
+   #:workspace-apply-failed #:workspace-deadline-exceeded
    #:workspace-path #:workspace-limit #:failed-step
    #:make-workspace #:workspace-data #:parse-workspace #:read-workspace
    #:plan-workspace #:plan-steps #:step-action #:step-data
@@ -28,7 +28,8 @@ data. Conflicts fail before mutation, and partial application retains evidence."
   (:documentation "Return the exhausted workspace limit name, or NIL, without I/O."))
 
 (defgeneric failed-step (condition)
-  (:documentation "Return the WORKSPACE-STEP that failed, or NIL before execution.
+  (:documentation "Return the failed or refused next WORKSPACE-STEP, or NIL for final verification.
+NIL does not imply that no mutations completed; inspect RESULT-OUTCOMES.
 
 See also: RESULT-OUTCOMES, APPLY-WORKSPACE."))
 
@@ -88,6 +89,14 @@ See also: RESULT-SNAPSHOT, RESULT-OUTCOMES, APPLY-WORKSPACE."))
   ((step :initarg :step :initform nil)
    (outcomes :initarg :outcomes :initform #()))
   (:documentation "Workspace application stopped with retained partial outcomes."))
+
+(define-condition workspace-deadline-exceeded (workspace-error) ()
+  (:documentation "The application budget expired at a workspace boundary.
+WORKSPACE-LIMIT returns :TOTAL-TIMEOUT. No new command outcome is implied;
+previous completed outcomes remain on a wrapping WORKSPACE-APPLY-FAILED.
+An already admitted core call retains its own timeout and cleanup contract.
+
+See also: APPLY-WORKSPACE, WORKSPACE-LIMIT, RESULT-OUTCOMES."))
 
 (defmethod workspace-path ((condition workspace-error))
   (deep-copy (slot-value condition 'path)))
@@ -1095,16 +1104,31 @@ See also: PARSE-WORKSPACE, WORKSPACE-DATA."
     (error 'workspace-apply-failed
            :message (if step
                         "Workspace application stopped at a planned step"
-                        "Workspace mutations completed but final topology proof failed")
+                        "Workspace application stopped during final verification")
            :cause cause :outcome cause-outcome :client client :step step
            :outcomes (coerce (nreverse retained) 'simple-vector))))
 
-(defun fetch-options (cancel-token timeout timeout-p output-limit output-limit-p)
-  (operation-options cancel-token timeout timeout-p output-limit output-limit-p))
+(defun check-workspace-deadline (client deadline)
+  (when deadline
+    (let ((remaining (- deadline (libtmux.internal::monotonic-seconds))))
+      (unless (plusp remaining)
+        (error 'workspace-deadline-exceeded :client client :limit :total-timeout
+               :message "Workspace application exhausted its total time budget"))
+      remaining)))
+
+(defun workspace-call-options (client options deadline)
+  (if deadline
+      (let ((result (copy-list options)))
+        (setf (getf result :timeout)
+              (min (check-workspace-deadline client deadline)
+                   (getf options :timeout (slot-value client 'libtmux::timeout))))
+        result)
+      options))
 
 (defun apply-workspace
     (client workspace
-     &key cancel-token (timeout nil timeout-p) (output-limit nil output-limit-p))
+     &key cancel-token (timeout nil timeout-p) (output-limit nil output-limit-p)
+       (total-timeout nil total-timeout-p))
   "Create or reuse WORKSPACE through explicit CLIENT and return WORKSPACE-RESULT.
 The function first calls FETCH-SNAPSHOT and PLAN-WORKSPACE. A proven match
 returns immediately with no command outcomes. A missing session executes each
@@ -1112,34 +1136,66 @@ planned core mutation once, in order, then captures and proves the final
 topology. TIMEOUT and OUTPUT-LIMIT, when supplied, apply separately to each core
 operation; CANCEL-TOKEN is shared. Conflicts dispatch no mutation.
 
-Failure after dispatch signals WORKSPACE-APPLY-FAILED. RESULT-OUTCOMES retains
-every dispatched outcome, including one whose post-command observation cannot
-advance workspace state; FAILED-STEP identifies the planned step. Final-proof
-failure has no failed step. No rollback or automatic retry occurs.
+TOTAL-TIMEOUT, when supplied, is a nonnegative finite number of seconds shared
+across the application. Each acquisition and core step receives the smaller of
+its remaining total budget and TIMEOUT or the client's default. The budget is
+also checked after initial and final planning. Zero refuses the initial read;
+omission adds no application budget. OUTPUT-LIMIT remains per operation.
 
-See also: PLAN-WORKSPACE, RESULT-SNAPSHOT, RESULT-OUTCOMES, FAILED-STEP."
+This budget controls admission at workspace boundaries. Preparation before a
+core timer starts, synchronous platform calls and additive cleanup can let an
+admitted core call run or dispatch past it; caller wall time is not bounded.
+Boundary expiry before the first core-step invocation signals
+WORKSPACE-DEADLINE-EXCEEDED directly. Execution begins with that invocation,
+which can itself fail before dispatch. Later expiry becomes WORKSPACE-APPLY-FAILED's cause,
+retaining completed outcomes. It does not imply an uncertain command effect.
+
+Failure within a core step or later signals WORKSPACE-APPLY-FAILED. RESULT-OUTCOMES retains
+every dispatched outcome, including one whose post-command observation cannot
+advance workspace state; FAILED-STEP identifies the failed or unstarted next
+step. Final-verification failure has no failed step. No rollback or automatic
+retry occurs.
+
+See also: PLAN-WORKSPACE, RESULT-SNAPSHOT, RESULT-OUTCOMES, FAILED-STEP,
+WORKSPACE-DEADLINE-EXCEEDED."
   (check-type client libtmux:client)
   (check-type workspace workspace)
-  (let* ((options (fetch-options cancel-token timeout timeout-p
-                                 output-limit output-limit-p))
-         (initial (apply *fetch-snapshot-function* client options))
+  (when total-timeout-p
+    (let ((limit (if output-limit-p output-limit
+                     (slot-value client 'libtmux::output-limit))))
+      (libtmux.internal::check-limits total-timeout limit)
+      (libtmux.internal::check-limits
+       (if timeout-p timeout (slot-value client 'libtmux::timeout)) limit)))
+  (let* ((deadline (when total-timeout-p
+                     (+ (libtmux.internal::monotonic-seconds) total-timeout)))
+         (options (operation-options cancel-token timeout timeout-p
+                                     output-limit output-limit-p))
+         (initial (apply *fetch-snapshot-function* client
+                         (workspace-call-options client options deadline)))
          (steps (plan-steps (plan-workspace workspace initial))))
+    (check-workspace-deadline client deadline)
     (when (zerop (length steps))
       (return-from apply-workspace
         (make-instance 'workspace-result :snapshot initial
                                          :outcomes #() :created-p nil)))
-    (let ((state nil) (outcomes nil))
+    (let ((state nil) (outcomes nil) (started-p nil))
       (loop for step across steps
             do (handler-case
-                   (multiple-value-bind (outcome next-state)
-                       (funcall *execute-step-function* step client state options)
-                     (when outcome (push outcome outcomes))
-                     (setf state next-state))
+                   (let ((step-options (workspace-call-options client options deadline)))
+                     (setf started-p t)
+                     (multiple-value-bind (outcome next-state)
+                         (funcall *execute-step-function* step client state step-options)
+                       (when outcome (push outcome outcomes))
+                       (setf state next-state)))
                  (error (cause)
-                   (apply-failure cause client step outcomes))))
+                   (if started-p
+                       (apply-failure cause client step outcomes)
+                       (error cause)))))
       (handler-case
-          (let* ((final (apply *fetch-snapshot-function* client options))
+          (let* ((final (apply *fetch-snapshot-function* client
+                               (workspace-call-options client options deadline)))
                  (remaining (plan-steps (plan-workspace workspace final))))
+            (check-workspace-deadline client deadline)
             (unless (zerop (length remaining))
               (error 'libtmux:incomplete-snapshot
                      :message "Workspace session is absent after completed mutations"))

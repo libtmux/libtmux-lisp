@@ -146,6 +146,22 @@ that it now plans as a no-op. Failure to prove the final topology is reported;
 it does not erase already completed mutations. Reapplying an exact workspace is
 a zero-mutation no-op.
 
+`apply-workspace` accepts an optional `:total-timeout` in seconds. It starts
+before the initial capture, caps each core call by the smaller of remaining
+time and the per-operation timeout, and checks again after initial and final
+planning. Omission keeps the per-operation policy. Zero refuses even the first
+read. Output limits remain per operation, and cancellation is shared.
+
+This is an admission budget between workspace operations. Core preparation,
+synchronous platform calls and additive cleanup can carry an admitted call
+past it; it does not impose a hard wall-time or absolute dispatch deadline
+inside core. Boundary exhaustion raises `workspace-deadline-exceeded` directly
+before the first core-step invocation. That invocation begins execution and may
+itself fail before dispatch. Later, `workspace-apply-failed` retains
+that cause, completed outcomes and the next unstarted step, or no step during
+final verification. An exhausted budget does not make completed effects
+uncertain and never triggers a retry.
+
 ## Explicit exclusions
 
 Version 1 has no YAML, plugins, lifecycle scripts, environment expansion,

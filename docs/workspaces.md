@@ -80,12 +80,13 @@ mutation, then proves the final topology with another capture.
 ```lisp
 (defun apply-workspace-document (client pathname)
   "Plan and apply one bounded workspace document through explicit CLIENT.
-Return the local plan steps and retained application result as two values."
+Return the preview steps and application result as two values. Application
+shares a 30-second budget; file loading and the preview precede that budget."
   (let* ((workspace (ws:read-workspace pathname))
          (snapshot (tm:fetch-snapshot client))
          (plan (ws:plan-workspace workspace snapshot)))
     (values (ws:plan-steps plan)
-            (ws:apply-workspace client workspace))))
+            (ws:apply-workspace client workspace :total-timeout 30))))
 ```
 <!-- /example -->
 
@@ -103,6 +104,32 @@ core outcome with status, phase, diagnostics, elapsed time, and optional
 replacement observation. Successfully dispatched commands remain present even
 when later workspace state validation fails. An exact second apply returns false from
 `result-created-p` and an empty outcome vector.
+
+## Bound application time
+
+[`apply-workspace`](workspace-api.md#apply-workspace-function) accepts
+`:total-timeout` in seconds, shared across its initial capture, core steps and
+final verification. The example supplies 30 seconds for application; its file
+loading and preview happen first. Omit the argument to keep only per-operation
+timeouts. An explicit value must be a nonnegative finite real; zero refuses
+the initial read.
+
+Each core call receives the smaller of the remaining application budget and
+`:timeout` or the client's default. `:output-limit` still applies separately to
+each core operation, and `:cancel-token` is shared. The application budget
+checks admission between operations and after local planning. It cannot
+interrupt core preparation, synchronous platform calls or additive cleanup;
+an admitted call may run or dispatch past it. It is not a hard caller wall-time
+limit.
+
+[`workspace-deadline-exceeded`](workspace-api.md#workspace-deadline-exceeded-type)
+reports expiry between calls without inventing a command outcome. Before the
+first core-step invocation it is signalled directly. Execution begins with that
+invocation, which can itself fail before dispatch. Later,
+[`workspace-apply-failed`](workspace-api.md#workspace-apply-failed-type)
+retains it as the cause with all completed outcomes. The failed step is the
+next step refused admission, or `nil` during final verification. Inspect the
+retained evidence before deciding what to do next; no automatic retry occurs.
 
 ## Use the CLI without an implicit server
 

@@ -447,8 +447,16 @@ is a companion precedent for a workspace product over libtmux. The Lisp
 [workspace contract](../design/workspace-v1.md) defines its own narrower scope.
 Its native schema does not accept tmuxp documents. A displayed plan is a preview:
 apply captures and plans again. Topology reuse does not prove command, directory,
-layout or declaration provenance equality. Total-application deadlines, drift
-metadata and broader reconciliation remain separate unfinished work.
+layout or declaration provenance equality.
+
+The optional [`:total-timeout` application budget](../workspaces.md#bound-application-time)
+is shared within one application and checked after planning. Each core call
+receives the smaller of remaining time and its per-operation timeout. This
+controls workspace admission; preparation before core's relative timer,
+synchronous platform calls and cleanup can still carry an admitted call past
+it. Boundary expiry has its own condition and retains completed outcomes,
+without retry or an invented uncertain effect. Hard wall-time enforcement,
+drift metadata and broader reconciliation remain separate unfinished work.
 
 ### Qualify control mode and source filtering before exposing them
 

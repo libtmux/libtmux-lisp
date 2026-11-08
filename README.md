@@ -247,12 +247,13 @@ plan and retained application evidence:
 ```lisp
 (defun apply-workspace-document (client pathname)
   "Plan and apply one bounded workspace document through explicit CLIENT.
-Return the local plan steps and retained application result as two values."
+Return the preview steps and application result as two values. Application
+shares a 30-second budget; file loading and the preview precede that budget."
   (let* ((workspace (ws:read-workspace pathname))
          (snapshot (tm:fetch-snapshot client))
          (plan (ws:plan-workspace workspace snapshot)))
     (values (ws:plan-steps plan)
-            (ws:apply-workspace client workspace))))
+            (ws:apply-workspace client workspace :total-timeout 30))))
 ```
 <!-- /example -->
 

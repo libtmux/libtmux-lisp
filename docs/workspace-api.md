@@ -17,7 +17,7 @@ data. Conflicts fail before mutation, and partial application retains evidence.
 
 ### apply-workspace
 
-`(apply-workspace client workspace &key cancel-token (timeout nil timeout-p) (output-limit nil output-limit-p))`
+`(apply-workspace client workspace &key cancel-token (timeout nil timeout-p) (output-limit nil output-limit-p) (total-timeout nil total-timeout-p))`
 
 Create or reuse WORKSPACE through explicit CLIENT and return WORKSPACE-RESULT.
 The function first calls FETCH-SNAPSHOT and PLAN-WORKSPACE. A proven match
@@ -26,13 +26,28 @@ planned core mutation once, in order, then captures and proves the final
 topology. TIMEOUT and OUTPUT-LIMIT, when supplied, apply separately to each core
 operation; CANCEL-TOKEN is shared. Conflicts dispatch no mutation.
 
-Failure after dispatch signals WORKSPACE-APPLY-FAILED. RESULT-OUTCOMES retains
+TOTAL-TIMEOUT, when supplied, is a nonnegative finite number of seconds shared
+across the application. Each acquisition and core step receives the smaller of
+its remaining total budget and TIMEOUT or the client's default. The budget is
+also checked after initial and final planning. Zero refuses the initial read;
+omission adds no application budget. OUTPUT-LIMIT remains per operation.
+
+This budget controls admission at workspace boundaries. Preparation before a
+core timer starts, synchronous platform calls and additive cleanup can let an
+admitted core call run or dispatch past it; caller wall time is not bounded.
+Boundary expiry before the first core-step invocation signals
+WORKSPACE-DEADLINE-EXCEEDED directly. Execution begins with that invocation,
+which can itself fail before dispatch. Later expiry becomes WORKSPACE-APPLY-FAILED's cause,
+retaining completed outcomes. It does not imply an uncertain command effect.
+
+Failure within a core step or later signals WORKSPACE-APPLY-FAILED. RESULT-OUTCOMES retains
 every dispatched outcome, including one whose post-command observation cannot
-advance workspace state; FAILED-STEP identifies the planned step. Final-proof
-failure has no failed step. No rollback or automatic retry occurs.
+advance workspace state; FAILED-STEP identifies the failed or unstarted next
+step. Final-verification failure has no failed step. No rollback or automatic
+retry occurs.
 
 
-See also: [failed-step](#failed-step-function), [plan-workspace](#plan-workspace-function), [result-outcomes](#result-outcomes-function), [result-snapshot](#result-snapshot-function).
+See also: [failed-step](#failed-step-function), [plan-workspace](#plan-workspace-function), [result-outcomes](#result-outcomes-function), [result-snapshot](#result-snapshot-function), [workspace-deadline-exceeded](#workspace-deadline-exceeded-type).
 
 [Source](../src/workspace.lisp)
 
@@ -42,7 +57,8 @@ See also: [failed-step](#failed-step-function), [plan-workspace](#plan-workspace
 
 `(failed-step condition)`
 
-Return the WORKSPACE-STEP that failed, or NIL before execution.
+Return the failed or refused next WORKSPACE-STEP, or NIL for final verification.
+NIL does not imply that no mutations completed; inspect RESULT-OUTCOMES.
 
 
 See also: [apply-workspace](#apply-workspace-function), [result-outcomes](#result-outcomes-function).
@@ -283,6 +299,22 @@ Direct supertypes: `workspace-error`.
 ### workspace-conflict
 
 Captured topology conflicts with the declared workspace.
+
+[Source](../src/workspace.lisp)
+
+Direct supertypes: `workspace-error`.
+
+<a id="workspace-deadline-exceeded-type"></a>
+
+### workspace-deadline-exceeded
+
+The application budget expired at a workspace boundary.
+WORKSPACE-LIMIT returns :TOTAL-TIMEOUT. No new command outcome is implied;
+previous completed outcomes remain on a wrapping WORKSPACE-APPLY-FAILED.
+An already admitted core call retains its own timeout and cleanup contract.
+
+
+See also: [apply-workspace](#apply-workspace-function), [result-outcomes](#result-outcomes-function), [workspace-limit](#workspace-limit-function).
 
 [Source](../src/workspace.lisp)
 

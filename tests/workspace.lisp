@@ -415,3 +415,126 @@
              (is (typep (libtmux:error-cause condition)
                         'libtmux:incomplete-snapshot))))
       (libtmux:close-client client))))
+
+(defmacro with-workspace-clock ((now) &body body)
+  (let ((original (gensym "CLOCK")))
+    `(let ((,now 0)
+           (,original (symbol-function 'libtmux.internal::monotonic-seconds)))
+       (unwind-protect
+            (progn
+              (setf (symbol-function 'libtmux.internal::monotonic-seconds)
+                    (lambda () ,now))
+              ,@body)
+         (setf (symbol-function 'libtmux.internal::monotonic-seconds) ,original)))))
+
+(test workspace-total-budget-caps-each-core-call-without-resetting
+  (dolist (explicit-timeout-p '(nil t))
+    (let ((client (make-instance 'libtmux:client :timeout 2)))
+      (unwind-protect
+           (with-workspace-clock (now)
+             (let* ((workspace (workspace-call :make-workspace (example-workspace-data)))
+                    (initial (workspace-snapshot :name "other"))
+                    (final (workspace-snapshot))
+                    (token (libtmux:make-cancellation-token))
+                    (fetches 0) (calls nil)
+                    (libtmux.workspace::*fetch-snapshot-function*
+                      (lambda (ignored-client &rest options)
+                        (declare (ignore ignored-client))
+                        (push (copy-list options) calls)
+                        (incf now)
+                        (if (= 1 (incf fetches)) initial final)))
+                    (libtmux.workspace::*execute-step-function*
+                      (lambda (step ignored-client state options)
+                        (declare (ignore step ignored-client))
+                        (push (copy-list options) calls)
+                        (incf now)
+                        (values (fake-workspace-outcome) state))))
+               (let ((result
+                       (apply #'workspace-call :apply-workspace client workspace
+                              :total-timeout 8 :cancel-token token :output-limit 8192
+                              (when explicit-timeout-p (list :timeout 4)))))
+                 (is (eq final (workspace-call :result-snapshot result)))
+                 (is (= 5 (length (workspace-call :result-outcomes result))))
+                 (is (every (lambda (options) (eq token (getf options :cancel-token))) calls))
+                 (is (every (lambda (options) (= 8192 (getf options :output-limit))) calls))
+                 (is (equal (if explicit-timeout-p '(4 4 4 4 4 3 2)
+                                '(2 2 2 2 2 2 2))
+                            (mapcar (lambda (options) (getf options :timeout))
+                                    (nreverse calls)))))))
+        (libtmux:close-client client)))))
+
+(test workspace-total-budget-refuses-later-work-and-retains-completed-outcomes
+  (dolist (phase '(:before-fetch :reuse :before-first-step :between-steps :final-proof))
+    (let ((client (make-instance 'libtmux:client)))
+      (unwind-protect
+           (with-workspace-clock (now)
+             (let* ((workspace (workspace-call :make-workspace (example-workspace-data)))
+                    (initial (workspace-snapshot :name "other"))
+                    (final (workspace-snapshot))
+                    (fetches 0) (executions 0)
+                    (libtmux.workspace::*fetch-snapshot-function*
+                      (lambda (ignored-client &rest options)
+                        (declare (ignore ignored-client options))
+                        (incf fetches)
+                        (incf now (if (and (eq phase :final-proof) (= fetches 2)) 2 1))
+                        (when (eq phase :before-first-step)
+                          (setf (symbol-function 'libtmux.internal::monotonic-seconds)
+                                (lambda () (incf now))))
+                        (if (or (eq phase :reuse) (= fetches 2)) final initial)))
+                    (libtmux.workspace::*execute-step-function*
+                      (lambda (step ignored-client state options)
+                        (declare (ignore step ignored-client options))
+                        (incf executions)
+                        (incf now)
+                        (values (fake-workspace-outcome) state))))
+               (handler-case
+                   (progn
+                     (workspace-call :apply-workspace client workspace
+                                     :total-timeout
+                                     (ecase phase
+                                       (:before-fetch 0) (:reuse 1)
+                                       ((:before-first-step :between-steps) 3)
+                                       (:final-proof 8)))
+                     (fail "Expired workspace application returned success"))
+                 (error (condition)
+                   (let* ((partial-p (member phase '(:between-steps :final-proof)))
+                          (cause (if partial-p (libtmux:error-cause condition) condition)))
+                     (when partial-p
+                       (is (workspace-condition-p condition :workspace-apply-failed))
+                       (let ((outcomes (workspace-call :result-outcomes condition)))
+                         (is (= (if (eq phase :between-steps) 2 5) (length outcomes)))
+                         (is (every (lambda (outcome)
+                                      (eq :succeeded (libtmux:outcome-status outcome)))
+                                    outcomes)))
+                       (let ((step (workspace-call :failed-step condition)))
+                         (if (eq phase :between-steps)
+                             (is (eq :split-pane (workspace-call :step-action step)))
+                             (is (null step)))))
+                     (is (workspace-condition-p cause :workspace-deadline-exceeded))
+                     (is (eq :total-timeout (workspace-call :workspace-limit cause)))
+                     (is (eq client (libtmux:error-client cause)))
+                     (is (null (libtmux:error-outcome cause)))
+                     (is (not (typep cause 'libtmux:outcome-unknown))))))
+               (is (= (ecase phase
+                        (:before-fetch 0) ((:reuse :before-first-step :between-steps) 1)
+                        (:final-proof 2))
+                      fetches))
+               (is (= (ecase phase
+                        ((:before-fetch :reuse :before-first-step) 0)
+                        (:between-steps 2) (:final-proof 5))
+                      executions))))
+        (libtmux:close-client client)))))
+
+(test workspace-total-budget-validates-before-io
+  (let* ((workspace (workspace-call :make-workspace (example-workspace-data)))
+         (client (make-instance 'libtmux:client))
+         (calls 0)
+         (libtmux.workspace::*fetch-snapshot-function*
+           (lambda (&rest arguments) (declare (ignore arguments)) (incf calls))))
+    (unwind-protect
+         (progn
+           (dolist (invalid (list nil -1 "1" #C(1 1) (ash 1 4096)))
+             (signals libtmux:invalid-argument
+               (workspace-call :apply-workspace client workspace :total-timeout invalid)))
+           (is (zerop calls)))
+      (libtmux:close-client client))))
