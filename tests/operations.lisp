@@ -193,7 +193,8 @@
 (test conflicting-command-aliases-fail-before-payload
   (with-tmux-fixture (fixture)
     (with-fixture-client (client fixture)
-      (let ((window (aref (libtmux:fetch-windows client) 0)))
+      (let* ((snapshot (libtmux:fetch-snapshot client))
+             (window (aref (libtmux:windows snapshot) 0)))
         (fixture-ok fixture "set-option" "-s" "command-alias[100]"
                     "rename-window=set-option -g @unexpected yes ; rename-window")
         (handler-case
@@ -208,6 +209,12 @@
         (fixture-ok fixture "set-option" "-s" "command-alias[101]"
                     "list-panes=set-option -g @unexpected yes ; list-panes")
         (signals libtmux:unsupported-configuration (libtmux:fetch-snapshot client))
+        (is (= 1 (nth-value 2 (fixture-command fixture "show-options" "-g" "@unexpected"))))
+        (fixture-ok fixture "set-option" "-su" "command-alias[101]")
+        (fixture-ok fixture "set-option" "-s" "command-alias[101]"
+                    "lock-session=set-option -g @unexpected yes")
+        (signals libtmux:unsupported-configuration
+          (libtmux:lock-session client (aref (libtmux:sessions snapshot) 0)))
         (is (= 1 (nth-value 2 (fixture-command fixture "show-options" "-g" "@unexpected"))))
         (fixture-ok fixture "set-option" "-su" "command-alias[101]")
         (fixture-ok fixture "set-option" "-s" "command-alias[102]" "project-rename=rename-window")

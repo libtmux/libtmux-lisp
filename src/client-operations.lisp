@@ -111,7 +111,7 @@ CLIENT must own TARGET.
 Blocks under shared preflight/dispatch limits; returns no replacement. Stale or
 foreign targets signal STALE-TARGET; other failures retain their outcome.
 Preflight cannot exclude client replacement before dispatch. Never retries.
-See also: FETCH-CLIENTS, SET-OPTION, SUSPEND-CLIENT, OUTCOME-STATUS."
+See also: FETCH-CLIENTS, LOCK-SESSION, LOCK-SERVER, SET-OPTION, SUSPEND-CLIENT, OUTCOME-STATUS."
   (libtmux.internal::request-client-action
    client target "lock-client" nil
    (list :cancel-token cancel-token :timeout timeout :output-limit output-limit)))

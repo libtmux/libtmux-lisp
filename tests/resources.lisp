@@ -84,6 +84,15 @@
       (signals libtmux:invalid-argument (libtmux:wait-for nil "channel" :operation :unknown))
       (is (zerop calls)))))
 
+(test lock-session-rejects-invalid-targets-and-command-overrides
+  (let ((calls 0))
+    (let ((libtmux.internal::*process-started-hook*
+            (lambda (process) (declare (ignore process)) (incf calls))))
+      (signals libtmux:invalid-argument (libtmux:lock-session nil nil))
+      (signals libtmux:unsupported-configuration
+        (libtmux.internal::check-command-aliases "lock-session=kill-server" nil))
+      (is (zerop calls)))))
+
 (test unsupported-host-fails-before-program-resolution
   (dolist (feature '(:sbcl :linux :x86-64))
     (let ((*features* (remove feature *features*)))

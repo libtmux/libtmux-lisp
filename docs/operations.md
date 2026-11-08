@@ -26,6 +26,7 @@ daemon bootstrap is a separate unfinished part of the implementation.
 | `pipe-pane` | Pane; explicit shell source, direction and daemon-owned pipe |
 | [`switch-client`](api.md#switch-client-function) | Captured terminal client and destination session; outcome with optional replacement |
 | [`detach-client`](api.md#detach-client-function), [`refresh-client`](api.md#refresh-client-function), [`suspend-client`](api.md#suspend-client-function), [`lock-client`](api.md#lock-client-function) | Captured terminal client; outcome acknowledging the request |
+| [`lock-session`](api.md#lock-session-function), [`lock-server`](api.md#lock-server-function) | Frontends attached to a captured session or the addressed daemon; request outcome |
 | [`wait-for`](api.md#wait-for-function) | Literal server channel; signal, wait, lock or unlock outcome |
 | `clear-history`, `copy-mode` | Pane; command outcome |
 | `resize-pane`, `resize-window` | Physical target; outcome with optional replacement |
@@ -139,6 +140,20 @@ terminal restoration, completed redraw, process suspension, lock startup or
 authentication. Coordinate dependent work through the frontend's own completion
 signal. Missing dispatch/completion evidence remains an unknown outcome; the
 library never retries these requests automatically.
+
+[`lock-session`](api.md#lock-session-function) requests locking for frontends
+attached to the selected session when tmux executes the command.
+[`lock-server`](api.md#lock-server-function) requests it across the addressed
+daemon. Both use live membership, including frontends attached after the
+caller's capture. They return one request outcome, with no per-frontend results.
+Control clients, already suspended frontends and empty or oversized lock
+commands are skipped; no eligible frontends is a successful no-op.
+
+These requests run the configured frontend lock programs. They do not block
+other tmux commands or suspend pane processes. Closing the library client leaves
+the frontend programs running. Hooks can add effects or fail after requests
+have been sent, so a failed outcome does not undo a lock request. See tmux's
+[`server_lock`](https://github.com/tmux/tmux/blob/3.8/server-fn.c#L175-L218).
 
 ## Wait channels
 

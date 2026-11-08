@@ -93,6 +93,8 @@ See docs/index.md for the tutorial, API reference and current capability limits.
 
 **Coordinate server requests**
 
+[lock-server](#lock-server-function)
+[lock-session](#lock-session-function)
 [wait-for](#wait-for-function)
 
 **Select, arrange and link targets**
@@ -840,9 +842,49 @@ Blocks under shared preflight/dispatch limits; returns no replacement. Stale or
 foreign targets signal STALE-TARGET; other failures retain their outcome.
 Preflight cannot exclude client replacement before dispatch. Never retries.
 
-See also: [fetch-clients](#fetch-clients-function), [outcome-status](#outcome-status-function), [set-option](#set-option-function), [suspend-client](#suspend-client-function).
+See also: [fetch-clients](#fetch-clients-function), [lock-server](#lock-server-function), [lock-session](#lock-session-function), [outcome-status](#outcome-status-function), [set-option](#set-option-function), [suspend-client](#suspend-client-function).
 
 [Source](../src/client-operations.lisp)
+
+<a id="lock-server-function"></a>
+
+### lock-server
+
+`(lock-server client &key cancel-token timeout output-limit)`
+
+Request locking of all attached frontends on CLIENT's daemon.
+Return a COMMAND-OUTCOME after guarded dispatch. Live frontend membership
+determines the recipients; this is wider than one captured session. Each
+frontend runs its configured lock-command. Control clients, suspended
+frontends and empty/oversized commands are skipped. Success acknowledges
+the request, not startup, completion or authentication. Blocks under shared
+preflight/dispatch limits and returns no replacement. Failures retain their
+outcome. Lock programs belong to the frontends; closing CLIENT leaves them
+running. Never retries.
+
+See also: [error-outcome](#error-outcome-function), [lock-client](#lock-client-function), [lock-session](#lock-session-function), [outcome-status](#outcome-status-function), [set-option](#set-option-function).
+
+[Source](../src/server-operations.lisp)
+
+<a id="lock-session-function"></a>
+
+### lock-session
+
+`(lock-session client session &key cancel-token timeout output-limit)`
+
+Request locking of SESSION's attached frontends; return a COMMAND-OUTCOME.
+CLIENT must own the captured SESSION. The live session membership determines
+which frontends receive the request. Each runs its configured lock-command;
+control clients, suspended frontends and empty/oversized commands are skipped.
+Success acknowledges the request, not startup, completion or authentication.
+Blocks under shared preflight/dispatch limits and returns no replacement.
+Foreign or vanished sessions signal STALE-TARGET; other failures retain their
+outcome. Lock programs belong to the frontends; closing CLIENT leaves them
+running. Never retries.
+
+See also: [error-outcome](#error-outcome-function), [lock-client](#lock-client-function), [lock-server](#lock-server-function), [outcome-status](#outcome-status-function), [set-option](#set-option-function).
+
+[Source](../src/server-operations.lisp)
 
 <a id="make-cancellation-token-function"></a>
 

@@ -88,44 +88,102 @@
         (is (null (terminal-client-cleanup-failures owned)))
         (is (member (sb-ext:process-status (terminal-client-process owned)) '(:exited :signaled)))))))
 
+(defun call-with-lock-program (fixture session function)
+  (let* ((nonce (format nil "lock-~A" (gensym)))
+         (ready-path (namestring (merge-pathnames (concatenate 'string nonce "-ready")
+                                                 (fixture-directory fixture))))
+         (release-path (namestring (merge-pathnames (concatenate 'string nonce "-release")
+                                                   (fixture-directory fixture))))
+         (ready nil) (release nil) (lock-pidfd nil))
+    (unwind-protect
+         (progn
+           (sb-posix:mkfifo ready-path #o600)
+           (sb-posix:mkfifo release-path #o600)
+           (setf ready (sb-posix:open ready-path (logior sb-posix:o-rdwr sb-posix:o-nonblock))
+                 release (sb-posix:open release-path (logior sb-posix:o-rdwr sb-posix:o-nonblock)))
+           (fixture-ok fixture "set-option" "-t" session "lock-command"
+                       (format nil "exec /bin/bash -c 'exec 3<>\"~A\"; printf \"%s\\n\" \"$$\" > \"~A\"; read -r -t 0.75 release <&3'"
+                               release-path ready-path))
+           (funcall function
+                    (lambda ()
+                      (unless (sb-sys:wait-until-fd-usable ready :input 0.5)
+                        (error "Owned lock command did not report readiness"))
+                      (let* ((buffer (make-array 64 :element-type '(unsigned-byte 8)))
+                             (length (sb-sys:with-pinned-objects (buffer)
+                                       (sb-posix:read ready (sb-sys:vector-sap buffer) (length buffer))))
+                             (pid (parse-integer (libtmux.internal::strict-text (subseq buffer 0 length)))))
+                        (setf lock-pidfd (fixture-pidfd-open pid 0))
+                        (is (>= lock-pidfd 0))
+                        (is (not (sb-sys:wait-until-fd-usable lock-pidfd :input 0)))))))
+      ;; Retire the shell before the enclosing terminal scope can close.
+      (unwind-protect
+           (progn
+             (when release
+               (libtmux.internal::raw-write release (libtmux.internal::octet-vector #(120 10))))
+             (when (and lock-pidfd (>= lock-pidfd 0))
+               (unless (sb-sys:wait-until-fd-usable lock-pidfd :input 0.5)
+                 (error "Owned lock command did not exit after release"))))
+        (when (and lock-pidfd (>= lock-pidfd 0)) (sb-posix:close lock-pidfd))
+        (when ready (sb-posix:close ready))
+        (when release (sb-posix:close release))))))
+
 (test attached-client-lock-executes-and-releases-the-owned-lock-command
   (with-tmux-fixture (fixture)
     (with-fixture-client (client fixture)
       (call-with-attached-terminal-client
        fixture
        (lambda (terminal)
-         (let* ((ready-path (namestring (merge-pathnames "lock-ready" (fixture-directory fixture))))
-                (release-path (namestring (merge-pathnames "lock-release" (fixture-directory fixture))))
-                (ready nil) (release nil) (lock-pidfd nil))
-           (unwind-protect
-                (progn
-                  (sb-posix:mkfifo ready-path #o600)
-                  (sb-posix:mkfifo release-path #o600)
-                  (setf ready (sb-posix:open ready-path (logior sb-posix:o-rdwr sb-posix:o-nonblock))
-                        release (sb-posix:open release-path (logior sb-posix:o-rdwr sb-posix:o-nonblock)))
-                  (fixture-ok fixture "set-option" "-t" "fixture" "lock-command"
-                              (format nil "exec /bin/bash -c 'exec 3<>\"~A\"; printf \"%s\\n\" \"$$\" > \"~A\"; read -r -t 0.75 release <&3'"
-                                      release-path ready-path))
-                  (is (eq :succeeded
-                          (libtmux:outcome-status
-                           (libtmux:lock-client client (terminal-observation client terminal)))))
-                  (unless (sb-sys:wait-until-fd-usable ready :input 0.5)
-                    (error "Owned lock command did not report readiness"))
-                  (let* ((buffer (make-array 64 :element-type '(unsigned-byte 8)))
-                         (length (sb-sys:with-pinned-objects (buffer)
-                                   (sb-posix:read ready (sb-sys:vector-sap buffer) (length buffer))))
-                         (pid (parse-integer (libtmux.internal::strict-text (subseq buffer 0 length)))))
-                    (setf lock-pidfd (fixture-pidfd-open pid 0))
-                    (is (>= lock-pidfd 0))
-                    (is (not (sb-sys:wait-until-fd-usable lock-pidfd :input 0)))))
-             ;; Retire the shell before the enclosing terminal scope can close.
-             (unwind-protect
-                  (progn
-                    (when release
-                      (libtmux.internal::raw-write release (libtmux.internal::octet-vector #(120 10))))
-                    (when (and lock-pidfd (>= lock-pidfd 0))
-                      (unless (sb-sys:wait-until-fd-usable lock-pidfd :input 0.5)
-                        (error "Owned lock command did not exit after release"))))
-               (when (and lock-pidfd (>= lock-pidfd 0)) (sb-posix:close lock-pidfd))
-               (when ready (sb-posix:close ready))
-               (when release (sb-posix:close release))))))))))
+         (call-with-lock-program
+          fixture "fixture"
+          (lambda (await)
+            (is (eq :succeeded
+                    (libtmux:outcome-status
+                     (libtmux:lock-client client (terminal-observation client terminal)))))
+            (funcall await))))))))
+
+(test session-and-server-locks-respect-live-membership
+  (dolist (scope '(:session :server))
+    (with-tmux-fixture (fixture)
+      (fixture-ok fixture "new-session" "-d" "-s" "second" "/bin/cat")
+      (with-fixture-client (client fixture)
+        (is (eq :succeeded (libtmux:outcome-status (libtmux:lock-server client))))
+        (call-with-attached-terminal-client
+         fixture
+         (lambda (first)
+           (call-with-attached-terminal-client
+            fixture
+            (lambda (second)
+              (let* ((snapshot (libtmux:fetch-snapshot client))
+                     (sessions (libtmux:sessions snapshot))
+                     (target (find "fixture" sessions :key #'libtmux:name :test #'string=))
+                     (other (find "second" sessions :key #'libtmux:name :test #'string=))
+                     (first-target (terminal-observation client first))
+                     (second-target (terminal-observation client second)))
+                (libtmux:switch-client client second-target other :observe nil)
+                (with-fixture-client (foreign fixture)
+                  (signals libtmux:stale-target (libtmux:lock-session foreign target)))
+                (call-with-lock-program
+                 fixture "fixture"
+                 (lambda (await-first)
+                   (call-with-lock-program
+                    fixture "second"
+                    (lambda (await-second)
+                      (is (eq :succeeded
+                              (libtmux:outcome-status
+                               (ecase scope
+                                 (:session (libtmux:lock-session client target))
+                                 (:server (libtmux:lock-server client))))))
+                      ;; Newer list-clients omits suspended clients; address each directly.
+                      (dolist (expected (list (list first-target target t)
+                                             (list second-target other (eq scope :server))))
+                        (destructuring-bind (observation session suspended-p) expected
+                          (let* ((prefix (format nil "~D " (libtmux:field-value observation :client/pid)))
+                                 (row (fixture-ok
+                                       fixture "display-message" "-p"
+                                       "-c" (concatenate 'string (libtmux:name observation) ":")
+                                       "-t" (concatenate 'string (libtmux:id session) ":")
+                                       "#{client_pid} #{client_flags}")))
+                            (is (uiop:string-prefix-p prefix row))
+                            (is (eq (not (null (search "suspended" row))) suspended-p)))))
+                      (funcall await-first)
+                      (when (eq scope :server) (funcall await-second)))))))))))))))

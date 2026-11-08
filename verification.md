@@ -58,6 +58,9 @@ PTY clients through SBCL's fork path, without control mode. They join captured
 PIDs to retained child pidfds, observe native SIGTSTP stops, and use an owned
 bounded FIFO lock command. Request acknowledgements and frontend effects have
 separate assertions. Partial acquisition and nonlocal exits check cleanup.
+Session/server locking uses two ordinary frontends in separate sessions. Native
+suspended flags establish recipient scope, and independent FIFO readiness proves
+each requested lock program started before owned cleanup releases it.
 Wait-channel tests prove a waiter is queued through native listing before
 cancellation, then inspect the daemon's remaining queue. Lost lock
 acknowledgements remain separate from queued-waiter disposal; neither closing

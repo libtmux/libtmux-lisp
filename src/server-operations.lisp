@@ -1,5 +1,36 @@
 (in-package #:libtmux)
 
+(defun lock-session (client session &key cancel-token timeout output-limit)
+  "Request locking of SESSION's attached frontends; return a COMMAND-OUTCOME.
+CLIENT must own the captured SESSION. The live session membership determines
+which frontends receive the request. Each runs its configured lock-command;
+control clients, suspended frontends and empty/oversized commands are skipped.
+Success acknowledges the request, not startup, completion or authentication.
+Blocks under shared preflight/dispatch limits and returns no replacement.
+Foreign or vanished sessions signal STALE-TARGET; other failures retain their
+outcome. Lock programs belong to the frontends; closing CLIENT leaves them
+running. Never retries.
+See also: LOCK-CLIENT, LOCK-SERVER, SET-OPTION, OUTCOME-STATUS, ERROR-OUTCOME."
+  (libtmux.internal::perform-command
+   client (list session)
+   (list "lock-session" "-t" (libtmux.internal::physical-target session :session))
+   :cancel-token cancel-token :timeout timeout :output-limit output-limit))
+
+(defun lock-server (client &key cancel-token timeout output-limit)
+  "Request locking of all attached frontends on CLIENT's daemon.
+Return a COMMAND-OUTCOME after guarded dispatch. Live frontend membership
+determines the recipients; this is wider than one captured session. Each
+frontend runs its configured lock-command. Control clients, suspended
+frontends and empty/oversized commands are skipped. Success acknowledges
+the request, not startup, completion or authentication. Blocks under shared
+preflight/dispatch limits and returns no replacement. Failures retain their
+outcome. Lock programs belong to the frontends; closing CLIENT leaves them
+running. Never retries.
+See also: LOCK-CLIENT, LOCK-SESSION, SET-OPTION, OUTCOME-STATUS, ERROR-OUTCOME."
+  (libtmux.internal::perform-command
+   client nil '("lock-server")
+   :cancel-token cancel-token :timeout timeout :output-limit output-limit))
+
 (defun wait-for (client channel &key (operation :wait) cancel-token timeout output-limit)
   "Wait, signal, lock or unlock the literal CHANNEL; return a COMMAND-OUTCOME.
 OPERATION is :WAIT (default), :SIGNAL, :LOCK or :UNLOCK. CHANNEL is a nonempty

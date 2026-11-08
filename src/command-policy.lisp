@@ -6,7 +6,7 @@
     "kill-pane" "kill-server" "kill-session" "kill-window" "last-pane" "last-window"
     "link-window" "list-buffers" "list-clients" "list-commands" "list-keys"
     "list-panes" "list-sessions" "list-windows" "load-buffer" "lock-client"
-    "lock-server" "move-pane" "move-window" "new-session" "new-window"
+    "lock-server" "lock-session" "move-pane" "move-window" "new-session" "new-window"
     "next-layout" "next-window" "paste-buffer" "pipe-pane" "previous-layout"
     "previous-window" "refresh-client" "rename-session" "rename-window"
     "resize-pane" "resize-window" "respawn-pane" "respawn-window" "rotate-window"

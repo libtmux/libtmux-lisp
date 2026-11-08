@@ -21,6 +21,9 @@
 
 ### Added
 
+- Add session-wide and server-wide frontend lock requests with retained
+  command outcomes and explicit request-versus-frontend completion semantics.
+
 - Add explicit wait-channel signal, wait, lock and unlock requests. Blocking
   operations require tmux 3.8's disconnected-waiter cleanup; locks stay explicit.
 
