@@ -30,7 +30,9 @@ Re-evaluate its changed test definition in the editor, then rerun that name:
 (fiveam:!)
 ```
 
-`fiveam:!!` and `fiveam:!!!` rerun the second and third previous selections.
+[`fiveam:!!`](https://github.com/lispci/fiveam/blob/3ba1300a9dd6bafdaef2af76d261d73bdf7e4bf0/src/run.lisp)
+and [`fiveam:!!!`](https://github.com/lispci/fiveam/blob/3ba1300a9dd6bafdaef2af76d261d73bdf7e4bf0/src/run.lisp)
+rerun the second and third previous selections.
 These rerun functions do not shift their history. To enter the debugger on an
 unexpected condition, run the test with `debug!`:
 
