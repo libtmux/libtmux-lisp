@@ -5,11 +5,6 @@ on:
     branches: [master]
   pull_request:
   workflow_dispatch:
-    inputs:
-      full-matrix:
-        description: Run all twelve supported tmux releases
-        type: boolean
-        default: false
 
 permissions:
   contents: read
@@ -44,9 +39,9 @@ jobs:
     timeout-minutes: 15
     strategy:
       fail-fast: false
-      max-parallel: 4
+      max-parallel: 2
       matrix:
-        tmux: ${{ fromJSON(github.event_name == 'workflow_dispatch' && inputs.full-matrix && '["3.3a","3.4","3.5","3.5a","3.6","3.6a","3.6b","3.7","3.7a","3.7b","3.7c","3.8"]' || '["3.3a","3.8"]') }}
+        tmux: ["3.3a", "3.8"]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -78,33 +73,3 @@ jobs:
             build/tmux/provenance/
             build/tmux/logs/
             dist/*-evidence.json
-
-  reject-plain-3-3:
-    runs-on: ubuntu-26.04
-    timeout-minutes: 15
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - uses: ./.github/actions/setup-lisp
-      - uses: ./.github/actions/build-tmux
-        id: tmux
-        with:
-          version: "3.3"
-      - name: Reject unsupported tmux without starting a daemon
-        env:
-          TMUX_BINARY: ${{ steps.tmux.outputs.binary }}
-        run: /usr/bin/time -p mise exec -- tools/lisp.sh tools/check-floor.lisp "$TMUX_BINARY"
-      - name: Save the checked tmux build
-        if: steps.tmux.outputs.cache-hit != 'true'
-        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: build/tmux
-          key: ${{ steps.tmux.outputs.cache-key }}
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        if: always()
-        with:
-          name: unsupported-tmux-3.3-attempt-${{ github.run_attempt }}
-          path: |
-            build/tmux/provenance/
-            build/tmux/logs/

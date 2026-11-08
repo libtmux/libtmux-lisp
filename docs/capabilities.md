@@ -44,10 +44,11 @@ documentation links. `mise run package` checks an isolated ASDF consumer;
 `mise run integration` exercises the native transport and named operations.
 See [verification](../verification.md) for evidence boundaries and commands.
 
-Every-push CI checks exact tmux 3.3a and 3.8. A twelve-version workflow exists;
-its configuration alone is not proof that all cells pass. The library rejects
-plain 3.3. Runtime flags and some operation semantics depend on the live daemon
-version as documented in the [operation contracts](operations.md).
+CI uses the latest stable SBCL pin and checks two tmux releases: the supported
+floor, 3.3a, and the newest stable release, currently 3.8. The library rejects
+plain 3.3; unit tests check that floor. Runtime flags and some operation
+semantics depend on the live daemon version as documented in the
+[operation contracts](operations.md).
 Configuration mutations require one of the twelve exact reviewed catalogs from
 3.3a through 3.8; an unreviewed neighboring release is rejected rather than
 silently borrowing another version's schema.

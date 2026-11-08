@@ -300,8 +300,9 @@ mutation blindly. See
 [outcome handling](docs/tutorial.md#handle-command-and-observation-outcomes).
 
 The examples are shipped source, executed on isolated servers and checked for
-excerpt drift. CI runs exact tmux 3.3a and 3.8 on every push; the full twelve
-version matrix is a separate gate. No benchmark result is claimed.
+excerpt drift. CI uses the latest stable SBCL pin and two tmux releases: the
+supported floor, 3.3a, and the newest stable release, currently 3.8. No benchmark
+result is claimed.
 
 For changes, read [Contributing](.github/CONTRIBUTING.md) and
 [Writing](.github/WRITING.md). Licensed under [MIT](LICENSE).

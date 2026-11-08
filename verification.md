@@ -86,7 +86,8 @@ injected tutorial failure before its Lisp termination call. Production loading
 does not change the application's process-reaping policy. Readiness FIFOs,
 semaphores and pidfds coordinate tests without polling sleeps.
 
-Verify the unsupported release separately with the exact 3.3 executable:
+Unit tests cover floor rejection without adding a third tmux build to CI.
+For an optional maintenance probe, use the exact 3.3 executable:
 
 ```console
 $ mise exec -- tools/lisp.sh tools/check-floor.lisp /path/to/tmux-3.3/tmux

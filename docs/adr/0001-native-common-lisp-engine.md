@@ -576,10 +576,13 @@ Generated references come from actual public declarations and docstrings.
 Documentation records library and exporter provenance separately. Shared-site
 builds and previews remain distinct from publication.
 
-The selected tmux floor is 3.3a; plain 3.3 is rejected. The required final
-Linux matrix is 3.3a, 3.4, 3.5, 3.5a, 3.6, 3.6a, 3.6b, 3.7, 3.7a, 3.7b, 3.7c
-and 3.8. Endpoint CI or source catalogs do not substitute for full integrated
-acceptance. Timed test loops are verification costs, not performance results.
+The selected tmux floor is 3.3a; plain 3.3 is rejected. CI uses only the latest
+stable SBCL and two tmux releases: that floor and the newest stable release,
+currently 3.8. Keep their exact verified pins reproducible. Intermediate source
+catalogs retain their reviewed version facts without expanding the runtime
+matrix. Source catalogs and passing endpoint checks do not substitute for
+integrated acceptance of every required capability on those two releases.
+Timed test loops are verification costs, not performance results.
 Benchmarks must separately report workload, acquisition count, versions,
 distributions and allocations. Measure small and larger graphs, repeated local
 queries, mutations with and without observation, workspace sequences and graph

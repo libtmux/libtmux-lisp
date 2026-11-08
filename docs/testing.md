@@ -125,17 +125,18 @@ for the loop budgets and current coverage.
 ## GitHub Actions
 
 The workflow uses the same mise tasks, pinned SBCL/ASDF, Qlot lock and FiveAM
-suites as local development. Pushes to `master` and pull requests run unit,
-workflow and package checks, exact tmux 3.3a/3.8 integration, and a separate
-plain-3.3 rejection check. The explicit Ubuntu 26.04 image supplies the Linux
-capabilities required by the process backend.
+suites as local development. CI uses one language version: the latest stable
+SBCL pin in [.tool-versions](../.tool-versions), currently 2.6.10. Pushes to
+`master`, pull requests and manual runs check two tmux releases: the supported
+floor, 3.3a, and the newest stable release, currently 3.8. Unit tests cover
+rejection of plain 3.3 without another tmux build. The explicit Ubuntu 26.04
+image supplies the Linux capabilities required by the process backend.
 
-The manual workflow can select all twelve supported tmux releases:
+Run the same endpoint checks manually:
 
 ```console
 $ gh workflow run tests.yml \
-  --ref master \
-  --field full-matrix=true
+    --ref master
 ```
 
 Qlot dependencies use a cache keyed by the toolchain configuration and lock.
