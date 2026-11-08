@@ -37,7 +37,7 @@
                (:file "src/command-encoding"
                       :description "Literal, format, argv and shell-source boundaries for tmux commands.")
                (:file "src/configuration-codec"
-                      :description "Private bounded decoding of inert tmux quoted-data values.")
+                      :description "Private bounded parsing of inert tmux values and guarded control prefixes.")
                (:file "src/options-catalog"
                       :description "Generated exact-version tmux option and hook schema facts.")
                (:file "src/configuration-registry"
