@@ -31,8 +31,9 @@ systems are unreleased.
 
 ## Install from source
 
-Use Linux x86-64 (including WSL), kernel 6.9+, Bash and a native tmux 3.3a+
-binary. Plain tmux 3.3 is rejected. The pinned toolchain is SBCL 2.6.10,
+Use Linux x86-64 (including WSL), kernel 6.9+, Bash and a native tmux binary.
+The supported tmux range is 3.3a through 3.8, including intermediate releases.
+Plain tmux 3.3 is rejected. The pinned toolchain is SBCL 2.6.10,
 ASDF/UIOP 3.3.7 and Qlot 1.8.4. The
 [process requirements](docs/transport.md#supported-process-boundary) also apply
 to WSL; its distribution name alone does not establish kernel capabilities.
@@ -300,9 +301,9 @@ mutation blindly. See
 [outcome handling](docs/tutorial.md#handle-command-and-observation-outcomes).
 
 The examples are shipped source, executed on isolated servers and checked for
-excerpt drift. CI uses the latest stable SBCL pin and two tmux releases: the
-supported floor, 3.3a, and the newest stable release, currently 3.8. No benchmark
-result is claimed.
+excerpt drift. All tmux releases from 3.3a through 3.8 are supported. CI uses the
+latest stable SBCL pin and tests only the range's endpoints, 3.3a and 3.8, to
+reduce build time. No benchmark result is claimed.
 
 For changes, read [Contributing](.github/CONTRIBUTING.md) and
 [Writing](.github/WRITING.md). Licensed under [MIT](LICENSE).

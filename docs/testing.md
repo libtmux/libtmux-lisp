@@ -125,10 +125,12 @@ for the loop budgets and current coverage.
 ## GitHub Actions
 
 The workflow uses the same mise tasks, pinned SBCL/ASDF, Qlot lock and FiveAM
-suites as local development. CI uses one language version: the latest stable
-SBCL pin in [.tool-versions](../.tool-versions), currently 2.6.10. Pushes to
-`master`, pull requests and manual runs check two tmux releases: the supported
-floor, 3.3a, and the newest stable release, currently 3.8. Unit tests cover
+suites as local development. The supported tmux range is 3.3a through 3.8,
+including every intermediate release. CI samples only the two endpoints to
+reduce build time; that selection does not narrow compatibility. It uses one
+language version: the latest stable SBCL pin in
+[.tool-versions](../.tool-versions), currently 2.6.10. Pushes to `master`, pull
+requests and manual runs check tmux 3.3a and 3.8. Unit tests cover
 rejection of plain 3.3 without another tmux build. The explicit Ubuntu 26.04
 image supplies the Linux capabilities required by the process backend.
 

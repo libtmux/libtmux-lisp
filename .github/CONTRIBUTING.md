@@ -16,7 +16,8 @@ version changes.
 The bootstrap versions were checked on 2026-11-06 against the current stable
 [SBCL release](https://www.sbcl.org/),
 [ASDF release](https://asdf.common-lisp.dev/), and mise release.
-It makes no older-version compatibility commitment. Other host platforms are
+The Lisp toolchain tracks current stable releases. Tmux compatibility covers
+3.3a through 3.8, including intermediate releases. Other host platforms are
 not configured yet.
 
 Mise downloads the tools directly from their upstream release sites and
@@ -60,7 +61,8 @@ The runner loads pinned ASDF before `.qlot/setup.lisp` to avoid redundant
 ASDF upgrades. It does not install dependencies during a check.
 
 Integration tests require tmux. Set `LIBTMUX_TEST_TMUX` to select a particular
-binary; it defaults to `tmux` on PATH. The compatibility floor is 3.3a.
+binary; it defaults to `tmux` on PATH. The supported range is 3.3a through 3.8.
+CI tests only those two endpoints to reduce build time.
 
 ## Verification
 

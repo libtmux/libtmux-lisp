@@ -7,7 +7,7 @@ workspace bootstrap. Persistent control/events remain future work.
 | Area | Available now | Remaining work |
 | --- | --- | --- |
 | Runtime | SBCL 2.6.10, ASDF/UIOP 3.3.7, Linux x86-64, kernel 6.9+, Bash | Other implementation/OS support |
-| Acquisition | Finite CLOS snapshots, explicit window links, identity, bounds and replacement observations | Complete all-version acceptance after further operations |
+| Acquisition | Finite CLOS snapshots, explicit window links, identity, bounds and replacement observations | Complete acceptance after further operations |
 | Local processing | Ordinary lists/vectors, functions, owned plists, presence via multiple values, validated relation/regex queries and eager QuerySets | Source-side filter lowering |
 | Operations | Creation, rename, selection, geometry, placement, input, buffers, respawn, shell pipes, typed option/hook/environment mutations, captured terminal-client requests, session/server frontend locking, message/command/key printing, key binding/removal, server ACL entries, wait channels (blocking wait/lock require 3.8), explicit entity/server termination | Remaining named server-command helpers, decoded configuration readers and daemon bootstrap |
 | Concurrency | Synchronous calls; cancellation; one operation per client | Public asynchronous API and persistent control transport |
@@ -44,10 +44,11 @@ documentation links. `mise run package` checks an isolated ASDF consumer;
 `mise run integration` exercises the native transport and named operations.
 See [verification](../verification.md) for evidence boundaries and commands.
 
-CI uses the latest stable SBCL pin and checks two tmux releases: the supported
-floor, 3.3a, and the newest stable release, currently 3.8. The library rejects
-plain 3.3; unit tests check that floor. Runtime flags and some operation
-semantics depend on the live daemon version as documented in the
+The supported tmux range is 3.3a through 3.8, including intermediate releases.
+CI uses the latest stable SBCL pin and checks only the two endpoints, 3.3a and
+3.8, to reduce build time. The library rejects plain 3.3; unit tests check that
+floor. Runtime flags and some operation semantics depend on the live daemon
+version as documented in the
 [operation contracts](operations.md).
 Configuration mutations require one of the twelve exact reviewed catalogs from
 3.3a through 3.8; an unreviewed neighboring release is rejected rather than
