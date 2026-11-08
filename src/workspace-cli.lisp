@@ -246,7 +246,7 @@ status. An unavailable exit code or failed step is omitted. MAIN does not call
 UIOP:QUIT, close caller streams, or enter the debugger.
 Nested diagnostic details stop after eight levels and mark detailsTruncated.
 
-See also: APPLY-WORKSPACE, OUTCOME-STATUS, OUTCOME-PHASE."
+See also: APPLY-WORKSPACE, LIBTMUX:OUTCOME-STATUS, LIBTMUX:OUTCOME-PHASE."
   (handler-case
       (run-command arguments stdout)
     (cli-usage-error (condition)

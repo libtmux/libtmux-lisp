@@ -127,6 +127,17 @@ require(
     "authored API cross-reference was not preserved",
 )
 
+cli = symbols[ids.index("libtmux.workspace.cli:main")]
+require(
+    {"libtmux.workspace:apply-workspace", "libtmux:outcome-status", "libtmux:outcome-phase"}
+    <= set(cli["documentation"].get("seeAlso", [])),
+    "workspace CLI lost authored references to another public package",
+)
+workspace_reference = (ROOT / "docs/workspace-api.md").read_text()
+for anchor in ("outcome-status-function", "outcome-phase-function"):
+    require(f"(api.md#{anchor})" in workspace_reference,
+            f"workspace reference does not link the core {anchor}")
+
 print(
     "Native Common Lisp documentation artifact: PASS "
     f"({len(packages)} packages, {len(symbols)} declarations, {len(files)} inputs)"

@@ -41,6 +41,10 @@ and method applicability in generated references rather than duplicating them
 by hand. Package documentation explains package-wide contracts; ASDF component
 descriptions identify module responsibilities.
 
+Use `See also:` with exported symbol names for API-browser references. Qualify
+references to another package, such as `LIBTMUX:OUTCOME-STATUS`. The exporter
+rejects unknown or ambiguous references and preserves their package identity.
+
 Use Lisp docstring conventions and actual exported symbols. Describe CLOS
 objects, sequence inputs and conditions through their native contracts.
 Similar names across ports require their own semantic evidence. Document only

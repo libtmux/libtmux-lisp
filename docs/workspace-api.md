@@ -359,6 +359,6 @@ UIOP:QUIT, close caller streams, or enter the debugger.
 Nested diagnostic details stop after eight levels and mark detailsTruncated.
 
 
-See also: [apply-workspace](#apply-workspace-function).
+See also: [apply-workspace](#apply-workspace-function), [libtmux:outcome-phase](api.md#outcome-phase-function), [libtmux:outcome-status](api.md#outcome-status-function).
 
 [Source](../src/workspace-cli.lisp)

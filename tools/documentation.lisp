@@ -12,6 +12,15 @@
   (:local-nicknames (#:internal #:libtmux.internal)))
 (in-package #:libtmux.documentation)
 
+(defparameter *artifact-packages*
+  '(("libtmux" :libtmux "libtmux" "core" "src/package.lisp")
+    ("libtmux.json" :libtmux.json "libtmux/json" "core" "src/json.lisp")
+    ("libtmux.query" :libtmux.query "libtmux/query" "core" "src/query.lisp")
+    ("libtmux.workspace" :libtmux.workspace "libtmux/workspace" "workspace"
+     "src/workspace.lisp")
+    ("libtmux.workspace.cli" :libtmux.workspace.cli "libtmux/workspace/cli"
+     "workspace" "src/workspace-cli.lisp")))
+
 (defun public-symbols (&optional (package :libtmux))
   (sort (loop for symbol being the external-symbols of (find-package package)
               collect symbol) #'string< :key #'symbol-name))
@@ -19,37 +28,69 @@
 (defun spelling (symbol)
   (string-downcase (symbol-name symbol)))
 
-(defun symbol-token-character-p (character)
-  (or (alphanumericp character)
-      (find character "-+*/<>=?!%&_")))
-
-(defun symbol-mentioned-p (symbol text)
-  "Return true when TEXT names SYMBOL as a complete uppercase Lisp token."
-  (let ((name (symbol-name symbol)))
-    (loop with start = 0
-          for position = (search name text :start2 start)
-          while position
-          for end = (+ position (length name))
-          when (and (or (zerop position)
-                        (not (symbol-token-character-p (char text (1- position)))))
-                    (or (= end (length text))
-                        (not (symbol-token-character-p (char text end)))))
-            return t
-          do (setf start (1+ position))
-          finally (return nil))))
-
 (defun api-anchor (symbol)
   (cond ((fboundp symbol) (format nil "#~A-function" (spelling symbol)))
         ((find-class symbol nil) (format nil "#~A-type" (spelling symbol)))))
 
+(defun reference-page (package)
+  (or (cdr (assoc (package-name (find-package package))
+                  '(("LIBTMUX" . "api.md")
+                    ("LIBTMUX.QUERY" . "query-api.md")
+                    ("LIBTMUX.JSON" . "json-api.md")
+                    ("LIBTMUX.WORKSPACE" . "workspace-api.md")
+                    ("LIBTMUX.WORKSPACE.CLI" . "workspace-api.md"))
+                  :test #'string=))
+      (error "No public reference page for package ~A" package)))
+
+(defun referenced-symbols (symbol references package)
+  "Resolve authored names through public packages without reading or interning."
+  (labels ((public-reference (name owner)
+             (when owner
+               (multiple-value-bind (candidate status) (find-symbol name owner)
+                 (when (and (eq status :external) (api-anchor candidate)) candidate))))
+           (resolve-reference (token)
+             (let* ((colon (position #\: token))
+                    (owner (and colon (find-package (subseq token 0 colon))))
+                    (local (unless colon (public-reference token package)))
+                    (matches
+                      (cond
+                        (colon
+                         (when (member owner *artifact-packages*
+                                       :key (lambda (spec) (find-package (second spec))))
+                           (let ((candidate (public-reference (subseq token (1+ colon)) owner)))
+                             (when candidate (list candidate)))))
+                        (local (list local))
+                        (t (remove-duplicates
+                            (loop for spec in *artifact-packages*
+                                  for candidate = (public-reference token (second spec))
+                                  when candidate collect candidate))))))
+               (unless (= 1 (length matches))
+                 (error "Unknown or ambiguous public reference ~A in ~A" token symbol))
+               (first matches))))
+    (sort
+     (remove-duplicates
+      (loop for token in (uiop:split-string
+                          references :separator '(#\Space #\Tab #\Newline #\Return #\,))
+            for name = (string-upcase (string-right-trim "." token))
+            when (plusp (length name))
+              append (let ((candidate (resolve-reference name)))
+                       (unless (eq candidate symbol) (list candidate)))))
+     #'string< :key (lambda (candidate)
+                     (format nil "~A:~A" (symbol-name candidate)
+                             (package-name (symbol-package candidate)))))))
+
 (defun see-also (symbol references &optional (package (symbol-package symbol)))
   "Build API-browser links from an explicit See also docstring line."
   (let ((references
-          (loop for candidate in (public-symbols package)
-                for anchor = (api-anchor candidate)
-                when (and anchor (not (eq candidate symbol))
-                          (symbol-mentioned-p candidate references))
-                  collect (format nil "[~A](~A)" (spelling candidate) anchor))))
+          (loop for candidate in (referenced-symbols symbol references package)
+                for page = (reference-page (symbol-package candidate))
+                for local-p = (string= page (reference-page package))
+                collect (format nil "[~A](~A~A)"
+                                (if local-p (spelling candidate)
+                                    (format nil "~(~A~):~A"
+                                            (package-name (symbol-package candidate))
+                                            (spelling candidate)))
+                                (if local-p "" page) (api-anchor candidate)))))
     (when references
       (format nil "See also: ~{~A~^, ~}." references))))
 
@@ -104,15 +145,6 @@
     ("Configure options, hooks and environment" "configuration-operations")
     ("Terminate explicit targets" "termination")
     ("Inspect failure evidence" "conditions")))
-
-(defparameter *artifact-packages*
-  '(("libtmux" :libtmux "libtmux" "core" "src/package.lisp")
-    ("libtmux.json" :libtmux.json "libtmux/json" "core" "src/json.lisp")
-    ("libtmux.query" :libtmux.query "libtmux/query" "core" "src/query.lisp")
-    ("libtmux.workspace" :libtmux.workspace "libtmux/workspace" "workspace"
-     "src/workspace.lisp")
-    ("libtmux.workspace.cli" :libtmux.workspace.cli "libtmux/workspace/cli"
-     "workspace" "src/workspace-cli.lisp")))
 
 (defun git-output (&rest arguments)
   (string-right-trim
@@ -238,12 +270,6 @@
             (if collision
                 (ecase kind (:function "/function") (:type "/type"))
                 ""))))
-
-(defun referenced-symbols (symbol references package)
-  (loop for candidate in (public-symbols package)
-        when (and (not (eq candidate symbol))
-                  (symbol-mentioned-p candidate references))
-          collect candidate))
 
 (defun documentation-structure (symbol type &optional (package (symbol-package symbol)))
   (let* ((documentation (required-documentation symbol type))
