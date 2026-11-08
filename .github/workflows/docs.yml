@@ -1,8 +1,8 @@
 name: docs
 
-# Publishes this port's documentation to libtmux.org: trunk as
-# /en/lisp/latest/, and each `v*` release tag as its own version, which is the
-# default. A prerelease tag also publishes `next`.
+# Builds trunk, pull-request and release documentation artifacts. Publication
+# requires a manual dispatch with publish enabled. Trunk uses /en/lisp/latest/;
+# release tags use their own versions and prereleases also build next.
 #
 # libtmux/docs builds and publishes the tree through two reusable workflows
 # pinned to one commit. Bump both pins together.
@@ -56,7 +56,7 @@ jobs:
   # The shared identity uses github.sha, the tested pull-request merge commit.
   # Fork pull requests build without publishing.
   build:
-    uses: libtmux/docs/.github/workflows/port-docs.yml@f31ed42b379f13f435fda8b94023a128bc4df978
+    uses: libtmux/docs/.github/workflows/port-docs.yml@6c9c3ac2a135a1a95810d180b2d1ff6a7cb3b033
     with:
       port: lisp
       tag-prefix: ''
@@ -70,14 +70,14 @@ jobs:
 
   publish:
     needs: build
-    if: needs.build.outputs.should-publish == 'true'
+    if: github.event_name == 'workflow_dispatch' && inputs.publish == true && needs.build.outputs.should-publish == 'true'
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON(needs.build.outputs.matrix) }}
     permissions:
       contents: read
       id-token: write
-    uses: libtmux/docs/.github/workflows/reusable-deploy.yml@f31ed42b379f13f435fda8b94023a128bc4df978
+    uses: libtmux/docs/.github/workflows/reusable-deploy.yml@6c9c3ac2a135a1a95810d180b2d1ff6a7cb3b033
     with:
       path-prefix: lisp/${{ matrix.version }}
       artifact: docs-lisp-${{ matrix.version }}

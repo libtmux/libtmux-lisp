@@ -174,3 +174,7 @@ Keep one logical topic per commit. Preserve unrelated work and stage explicit
 paths. Describe the resulting behavior, why it matters, commands run, elapsed
 times, and evidence gaps. An empty system loading successfully does not prove
 an implemented library. The project uses MIT.
+
+The documentation workflow builds artifacts for pushes, pull requests and tags.
+Publishing requires a manual dispatch with `publish` enabled. Keep both shared
+workflow pins at the same reviewed commit. A passing build is not publication.
