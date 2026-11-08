@@ -21,7 +21,7 @@ These files implement the core `libtmux` system; their internal package is priva
 | [src/witness-sbcl](../src/witness-sbcl.lisp) | Server generation authority using socket and Linux process identities. |
 | [src/capture](../src/capture.lisp) | Explicit bounded acquisition and replacement observations. |
 | [src/command-encoding](../src/command-encoding.lisp) | Literal, format, argv and shell-source boundaries for tmux commands. |
-| [src/configuration-codec](../src/configuration-codec.lisp) | Private bounded parsing of inert tmux values and guarded control prefixes. |
+| [src/configuration-codec](../src/configuration-codec.lisp) | Private bounded decoding of tmux values, guarded prefixes and environment frames. |
 | [src/options-catalog](../src/options-catalog.lisp) | Generated exact-version tmux option and hook schema facts. |
 | [src/configuration-registry](../src/configuration-registry.lisp) | Native option discovery, scope authority and typed value/key normalization. |
 | [src/dispatch](../src/dispatch.lisp) | Target guards, dispatch evidence and independent observation outcomes. |

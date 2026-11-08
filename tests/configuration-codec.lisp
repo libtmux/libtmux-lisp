@@ -160,3 +160,208 @@
     (signals libtmux:invalid-argument (libtmux.internal::decode-configuration-prefix 42 "nonce" 0))
     (signals libtmux:invalid-argument (libtmux.internal::decode-configuration-prefix wire "bad:nonce" 0))
     (signals libtmux:invalid-argument (libtmux.internal::decode-configuration-prefix wire "nonce" -1))))
+
+(test configuration-environment-leaf-consumes-schema-before-terminator
+  (let* ((value (format nil "first~%%end 42 10 0~%last"))
+         (body (format nil "APP=\"~A\"; export APP;~%%end 42 10 0~%" value))
+         (wire (libtmux.internal::encode-utf8 (concatenate 'string body "opaque hook tail"))))
+    (is (equal (list :present value (length body) :end)
+               (multiple-value-list
+                 (libtmux.internal::decode-configuration-environment-leaf
+                  wire (libtmux.internal::encode-utf8 "APP") 42 10 :profile :direct))))))
+
+(test configuration-environment-leaf-refuses-indistinguishable-success
+  (let* ((begin (format nil "%begin 42 10 0~%"))
+         (close (format nil "%end 42 10 0~%"))
+         (hook-begin (format nil "%begin 42 20 0~%"))
+         (hook-close (format nil "%end 42 20 0~%"))
+         (name (concatenate 'string close hook-begin "X"))
+         (body (format nil "~A=\"value\"; export ~A;~%" name name))
+         (residual (subseq body (+ (length close) (length hook-begin))))
+         (present (concatenate 'string begin body close hook-begin hook-close (format nil "%exit~%")))
+         (empty (concatenate 'string begin close hook-begin residual close hook-begin hook-close
+                             (format nil "%exit~%"))))
+    (is (string= present empty))
+    (let ((condition
+            (handler-case
+                (libtmux.internal::decode-configuration-environment-leaf
+                 (libtmux.internal::encode-utf8 present) (libtmux.internal::encode-utf8 name)
+                 42 10 :start (length begin) :profile :direct)
+              (libtmux:decoding-error (condition) condition))))
+      (is (eq 'libtmux.internal::ambiguous-environment-frame (type-of condition))))))
+
+(test configuration-environment-leaf-accepts-a-distinct-observed-tuple
+  (let* ((name (format nil "%end 42 10 0~%%begin 42 20 0~%X"))
+         (close (format nil "%end 43 0 0~%"))
+         (body (format nil "~A=\"value\"; export ~A;~%~A" name name close)))
+    (is (equal (list :present "value" (length body) :end)
+               (multiple-value-list
+                 (libtmux.internal::decode-configuration-environment-leaf
+                  (libtmux.internal::encode-utf8 body) (libtmux.internal::encode-utf8 name)
+                  43 0 :profile :direct))))
+    (is (equal (list :empty nil (length close) :end)
+               (multiple-value-list
+                 (libtmux.internal::decode-configuration-environment-leaf
+                  (libtmux.internal::encode-utf8 (concatenate 'string close "opaque hook tail"))
+                  (libtmux.internal::encode-utf8 name) 43 0 :profile :direct))))))
+
+(defun configuration-environment-value-wire (quoted)
+  (concatenate '(vector (unsigned-byte 8))
+               (libtmux.internal::encode-utf8 "APP=")
+               (libtmux.internal::octet-vector quoted)
+               (libtmux.internal::encode-utf8 (format nil "; export APP;~%%end 7 9 0~%"))))
+
+(test configuration-environment-escapes-follow-the-source-profile
+  (let ((all '(:direct :vis-noslash :vis-noslash-dollar)))
+    (dolist (case
+             (list (list all #(34 34) "")
+                   (list all #(34 111 102 102 34) "off")
+                   (list all #(34 92 34 92 92 92 36 92 96 34)
+                         (coerce (list #\" #\\ #\$ #\`) 'string))
+                   (list all #(34 92 92 110 34) (coerce (list #\\ #\n) 'string))
+                   (list '(:direct) #(34 10 9 13 7 8 11 12 1 127 34)
+                         (map 'string #'code-char #(10 9 13 7 8 11 12 1 127)))
+                   (list '(:vis-noslash :vis-noslash-dollar)
+                         #(34 10 9 92 114 92 97 92 98 92 118 92 102 92 48 48 49 92 49 55 55 34)
+                         (map 'string #'code-char #(10 9 13 7 8 11 12 1 127)))
+                   (list all #(34 233 155 170 206 187 34) "雪λ")
+                   (list '(:direct :vis-noslash) #(34 92 36 65 34) "$A")
+                   (list '(:vis-noslash-dollar) #(34 92 92 36 65 34) "$A")
+                   (list all #(34 92 36 49 34) "$1")
+                   (list '(:vis-noslash-dollar) #(34 92 92 92 92 36 65 34)
+                         (concatenate 'string (string #\\) "$A"))
+                   (list all #(34 92 92 92 36 49 34) (concatenate 'string (string #\\) "$1"))))
+      (dolist (profile (first case))
+        (let* ((wire (configuration-environment-value-wire (second case)))
+               (original (copy-seq wire)))
+          (multiple-value-bind (state value offset terminal)
+              (libtmux.internal::decode-configuration-environment-leaf
+               wire (libtmux.internal::encode-utf8 "APP") 7 9 :profile profile)
+            (is (equal (list :present (third case) (length wire) :end)
+                       (list state value offset terminal)))
+            (fill value #\Z)
+            (is (equalp original wire))))))))
+
+(test configuration-environment-rejects-non-emitted-escapes
+  (dolist (profile '(:direct :vis-noslash :vis-noslash-dollar))
+    (dolist (quoted '(#(34 92 110 34) #(34 92 116 34) #(34 92 115 34)
+                      #(34 92 48 48 48 34) #(34 92 49 48 49 34)
+                      #(34 92 51 48 51 92 50 53 49 34) #(34 36 65 34) #(34 96 34)
+                      #(34 0 34) #(34 255 34)))
+      (signals libtmux:decoding-error
+        (libtmux.internal::decode-configuration-environment-leaf
+         (configuration-environment-value-wire quoted) (libtmux.internal::encode-utf8 "APP")
+         7 9 :profile profile))))
+  (dolist (profile '(:vis-noslash :vis-noslash-dollar))
+    (dolist (quoted '(#(34 13 34) #(34 7 34) #(34 92 48 49 53 34)))
+      (signals libtmux:decoding-error
+        (libtmux.internal::decode-configuration-environment-leaf
+         (configuration-environment-value-wire quoted) (libtmux.internal::encode-utf8 "APP")
+         7 9 :profile profile))))
+  (dolist (quoted '(#(34 92 36 65 34) #(34 92 92 36 49 34) #(34 92 92 92 36 65 34)))
+    (signals libtmux:decoding-error
+      (libtmux.internal::decode-configuration-environment-leaf
+       (configuration-environment-value-wire quoted) (libtmux.internal::encode-utf8 "APP")
+       7 9 :profile :vis-noslash-dollar))))
+
+(test configuration-environment-states-use-exact-native-schemas
+  (dolist (name (list "APP" "unset X" "unknown variable: X"))
+    (let ((body (format nil "~A=\"value\"; export ~A;~%%end 7 9 0~%" name name)))
+      (is (eq :present
+              (libtmux.internal::decode-configuration-environment-leaf
+               (libtmux.internal::encode-utf8 body) (libtmux.internal::encode-utf8 name) 7 9)))))
+  (dolist (case (list (list :removed (format nil "unset APP;~%%end 7 9 0~%") :end)
+                     (list :missing (format nil "unknown variable: APP~%%error 7 9 0~%") :error)
+                     (list :empty (format nil "%end 7 9 0~%") :end)))
+    (let* ((body (second case))
+           (wire (concatenate '(vector (unsigned-byte 8)) (libtmux.internal::encode-utf8 body) #(255 0))))
+      (is (equal (list (first case) nil (length body) (third case))
+                 (multiple-value-list
+                   (libtmux.internal::decode-configuration-environment-leaf
+                    wire (libtmux.internal::encode-utf8 "APP") 7 9))))))
+  (let* ((name (format nil "RAW$A~%%error 7 9 0~%"))
+         (body (format nil "unknown variable: ~A~%%error 7 9 0~%" name)))
+    (is (equal (list :missing nil (length body) :error)
+               (multiple-value-list
+                 (libtmux.internal::decode-configuration-environment-leaf
+                  (libtmux.internal::encode-utf8 body) (libtmux.internal::encode-utf8 name)
+                  7 9 :profile :vis-noslash-dollar)))))
+  (dolist (body (list (format nil "APP=\"value\"; export OTHER;~%%end 7 9 0~%")
+                     (format nil "APP=\"value\"; export APP;~%%error 7 9 0~%")
+                     (format nil "unknown variable: APP~%%end 7 9 0~%")
+                     (format nil "unknown variable: OTHER~%%error 7 9 0~%")
+                     (format nil "unset APP;~%%end 7 8 0~%")))
+    (signals libtmux:decoding-error
+      (libtmux.internal::decode-configuration-environment-leaf
+       (libtmux.internal::encode-utf8 body) (libtmux.internal::encode-utf8 "APP") 7 9))))
+
+(test configuration-environment-budgets-count-octets-without-a-second-begin
+  (let* ((wire (configuration-environment-value-wire #(34 233 155 170 34)))
+         (name (libtmux.internal::encode-utf8 "APP"))
+         (budget (libtmux.internal::make-configuration-decode-budget
+                  :remaining-bytes (length wire) :remaining-frames 0)))
+    (is (eq :present (libtmux.internal::decode-configuration-environment-leaf
+                     wire name 7 9 :value-limit 3 :budget budget)))
+    (is (zerop (libtmux.internal::configuration-decode-budget-remaining-bytes budget)))
+    (is (zerop (libtmux.internal::configuration-decode-budget-remaining-frames budget)))
+    (signals libtmux:output-limit-exceeded
+      (libtmux.internal::decode-configuration-environment-leaf wire name 7 9 :value-limit 2))
+    (signals libtmux:output-limit-exceeded
+      (libtmux.internal::decode-configuration-environment-leaf wire name 7 9 :budget budget))
+    (is (string= "" (nth-value 1
+                     (libtmux.internal::decode-configuration-environment-leaf
+                      (configuration-environment-value-wire #(34 34)) name 7 9 :value-limit 0))))
+    (let ((original (symbol-function 'libtmux.internal::strict-text))
+          (cancelled nil) (failure (make-condition 'libtmux:command-cancelled)))
+      (unwind-protect
+           (progn
+             (setf (symbol-function 'libtmux.internal::strict-text)
+                   (lambda (bytes)
+                     (prog1 (funcall original bytes)
+                       (when (equalp bytes #(233 155 170)) (setf cancelled t)))))
+             (let ((caught
+                     (handler-case
+                         (libtmux.internal::decode-configuration-environment-leaf
+                          wire name 7 9 :budget (libtmux.internal::make-configuration-decode-budget
+                                                :check (lambda () (when cancelled (error failure)))))
+                       (libtmux:command-cancelled (condition) condition))))
+               (is (eq failure caught))))
+        (setf (symbol-function 'libtmux.internal::strict-text) original)))))
+
+(test configuration-environment-owns-names-results-and-checks-forward-work
+  (let* ((name (libtmux.internal::encode-utf8 "APP"))
+         (wire (configuration-environment-value-wire #(34 118 97 108 117 101 34)))
+         (budget (libtmux.internal::make-configuration-decode-budget :check (lambda () (fill name 0))))
+         (first (nth-value 1 (libtmux.internal::decode-configuration-environment-leaf
+                              wire name 7 9 :budget budget)))
+         (second (nth-value 1 (libtmux.internal::decode-configuration-environment-leaf
+                               wire (libtmux.internal::encode-utf8 "APP") 7 9))))
+    (is (string= first second))
+    (fill first #\Z)
+    (is (string= "value" second)))
+  (let* ((name (make-string 513 :initial-element (code-char 1)))
+         (printed (with-output-to-string (stream)
+                    (dotimes (index (length name))
+                      (declare (ignorable index))
+                      (write-char #\\ stream)
+                      (write-string "001" stream))))
+         (wire (libtmux.internal::encode-utf8
+                 (format nil "~A=\"value\"; export ~A;~%%end 7 9 0~%" printed printed)))
+         (original (symbol-function 'libtmux.internal::visit-configuration-environment-name))
+         (emitted 0) (failure (make-condition 'libtmux:deadline-exceeded)))
+    (unwind-protect
+         (progn
+           (setf (symbol-function 'libtmux.internal::visit-configuration-environment-name)
+                 (lambda (name profile emit check)
+                   (funcall original name profile
+                            (lambda (byte) (incf emitted) (funcall emit byte)) check)))
+           (let ((caught
+                   (handler-case
+                       (libtmux.internal::decode-configuration-environment-leaf
+                        wire (libtmux.internal::encode-utf8 name) 7 9 :profile :vis-noslash
+                        :budget (libtmux.internal::make-configuration-decode-budget
+                                 :check (lambda () (when (>= emitted 300) (error failure)))))
+                     (libtmux:deadline-exceeded (condition) condition))))
+             (is (eq failure caught))
+             (is (< 0 emitted (length printed)))))
+      (setf (symbol-function 'libtmux.internal::visit-configuration-environment-name) original))))
