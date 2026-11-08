@@ -21,6 +21,9 @@
 
 ### Added
 
+- Add explicit wait-channel signal, wait, lock and unlock requests. Blocking
+  operations require tmux 3.8's disconnected-waiter cleanup; locks stay explicit.
+
 - Add captured terminal-client switching, redraw, detach, suspend and lock
   requests with explicit authority, environment policy and retained outcomes.
 

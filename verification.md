@@ -58,6 +58,10 @@ PTY clients through SBCL's fork path, without control mode. They join captured
 PIDs to retained child pidfds, observe native SIGTSTP stops, and use an owned
 bounded FIFO lock command. Request acknowledgements and frontend effects have
 separate assertions. Partial acquisition and nonlocal exits check cleanup.
+Wait-channel tests prove a waiter is queued through native listing before
+cancellation, then inspect the daemon's remaining queue. Lost lock
+acknowledgements remain separate from queued-waiter disposal; neither closing
+nor cancellation automatically releases a granted lock.
 
 The integration runner is a dedicated child-process subreaper. It verifies
 that no test-owned worker or tmux daemon survives the test image, including an

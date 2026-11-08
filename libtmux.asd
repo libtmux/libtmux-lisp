@@ -52,6 +52,8 @@
                       :description "Rename, select and terminal capture operations with explicit clients.")
                (:file "src/client-operations"
                       :description "Captured terminal-client targeting, switching and explicit frontend requests.")
+               (:file "src/server-operations"
+                      :description "Explicit server wait channels, requests and daemon-owned state.")
                (:file "src/creation"
                       :description "Detached session/window/pane creation from argv or explicit shell source.")
                (:file "src/process-operations"
@@ -174,6 +176,7 @@
                (:file "tests/capture")
                (:file "tests/operations")
                (:file "tests/client-operations")
+               (:file "tests/server-operations")
                (:file "tests/termination")
                (:file "tests/creation")
                (:file "tests/geometry")

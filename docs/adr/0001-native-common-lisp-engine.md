@@ -340,6 +340,19 @@ destination environment by default: tmux's
 [`cmd_switch_client_exec`](https://github.com/tmux/tmux/blob/3.8/cmd-switch-client.c#L157-L165)
 updates it unless `-E` is supplied. Environment update is an explicit option.
 
+Blocking server commands also need daemon-side lifecycle review: retiring the
+owned subprocess does not dispose of tmux's command queue. The named
+[`wait-for`](../api.md#wait-for-function) helper admits blocking wait/lock only
+from 3.8, where
+[`cmd_wait_for_client_lost`](https://github.com/tmux/tmux/blob/3.8/cmd-wait-for.c#L483-L515)
+removes disconnected waiters. Signal/unlock retain the core floor. Granted
+locks remain daemon state; cancellation and client closure do not unlock them.
+Foreground `run-shell` remains unqualified: its
+[`completion callback`](https://github.com/tmux/tmux/blob/3.8/cmd-run-shell.c#L291-L308)
+can clear a waiting flag after client loss, while the removed client's queue
+has no later server-loop pump. The API must distinguish the daemon's job
+from retained command state.
+
 Raw [`run-command`](../api.md#run-command-function) is an explicit escape hatch.
 It does not provide named-operation target validation or imply that an
 unqualified control-mode route is supported.

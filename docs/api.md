@@ -91,6 +91,10 @@ See docs/index.md for the tutorial, API reference and current capability limits.
 [suspend-client](#suspend-client-function)
 [switch-client](#switch-client-function)
 
+**Coordinate server requests**
+
+[wait-for](#wait-for-function)
+
 **Select, arrange and link targets**
 
 [break-pane](#break-pane-function)
@@ -1750,6 +1754,36 @@ for setting and scope rules. Never retries.
 See also: [set-option](#set-option-function).
 
 [Source](../src/configuration-operations.lisp)
+
+<a id="wait-for-function"></a>
+
+### wait-for
+
+`(wait-for client channel &key (operation :wait) cancel-token timeout output-limit)`
+
+Wait, signal, lock or unlock the literal CHANNEL; return a COMMAND-OUTCOME.
+OPERATION is :WAIT (default), :SIGNAL, :LOCK or :UNLOCK. CHANNEL is a nonempty
+string without NUL. This call performs I/O on an existing daemon. :WAIT and
+:LOCK require tmux 3.8, whose client-loss handling removes queued waiters;
+older daemons signal UNSUPPORTED-CAPABILITY before dispatch. :SIGNAL and
+:UNLOCK support the library's tmux floor.
+
+A signal wakes current waiters or retains one pending wake. Repeated signals
+are not an idempotent latch or a counting semaphore. Locks have no owner and
+survive this call and CLOSE-CLIENT within the daemon's lifetime; unlock them
+explicitly. Continuation does not identify a sender; server shutdown can flush
+waiting requests. Signals and locks
+share a channel, so applications should use separate names for those protocols.
+
+One operation owns CLIENT at a time. Use another client to signal or unlock
+a blocked call. TIMEOUT and OUTPUT-LIMIT cover preflight and waiting together.
+Cancellation or lost acknowledgement can leave signal consumption or a lock
+grant uncertain; inspect ERROR-OUTCOME. Never retries or unlocks automatically.
+Signals INVALID-ARGUMENT, COMMAND-FAILED or an operational condition.
+
+See also: [cancel](#cancel-function), [close-client](#close-client-function), [error-outcome](#error-outcome-function), [outcome-status](#outcome-status-function), [unsupported-capability](#unsupported-capability-type).
+
+[Source](../src/server-operations.lisp)
 
 <a id="width-function"></a>
 

@@ -26,6 +26,7 @@ daemon bootstrap is a separate unfinished part of the implementation.
 | `pipe-pane` | Pane; explicit shell source, direction and daemon-owned pipe |
 | [`switch-client`](api.md#switch-client-function) | Captured terminal client and destination session; outcome with optional replacement |
 | [`detach-client`](api.md#detach-client-function), [`refresh-client`](api.md#refresh-client-function), [`suspend-client`](api.md#suspend-client-function), [`lock-client`](api.md#lock-client-function) | Captured terminal client; outcome acknowledging the request |
+| [`wait-for`](api.md#wait-for-function) | Literal server channel; signal, wait, lock or unlock outcome |
 | `clear-history`, `copy-mode` | Pane; command outcome |
 | `resize-pane`, `resize-window` | Physical target; outcome with optional replacement |
 | `select-layout`, `next-layout`, `previous-layout` | Physical window; outcome with optional replacement |
@@ -138,6 +139,33 @@ terminal restoration, completed redraw, process suspension, lock startup or
 authentication. Coordinate dependent work through the frontend's own completion
 signal. Missing dispatch/completion evidence remains an unknown outcome; the
 library never retries these requests automatically.
+
+## Wait channels
+
+[`wait-for`](api.md#wait-for-function) accepts `:operation :wait` (the default),
+`:signal`, `:lock` or `:unlock`, and a nonempty literal channel name. Signal and
+unlock work on the supported tmux floor. Wait and lock require tmux 3.8's
+client-loss cleanup; older daemons signal
+[`unsupported-capability`](api.md#unsupported-capability-type) before dispatch.
+This is a capability restriction, not a change to the core tmux floor.
+
+A signal wakes existing waiters. With none waiting, one signal leaves a pending
+wake; a second can remove it. This is neither an idempotent latch nor a counting
+semaphore. Use an application protocol when acknowledgements or sender identity
+matter. Server shutdown can also flush waiting requests.
+
+Locks belong to the daemon channel, not a Lisp client or thread. They survive a
+completed call and client closure within the daemon's lifetime. Unlock explicitly;
+no resource macro or automatic cleanup unlocks them. Signals and locks share
+native channel state, so use different channel names for those protocols.
+
+Each call blocks its caller. Use a second connection client to signal or unlock
+another client's pending operation. Timeout and byte limits include preflight.
+Cancellation removes the owned command process; tmux 3.8 removes a disconnected
+queued waiter. Cancellation or lost receipts cannot prove that a signal was not
+consumed or a lock was not granted. Inspect the retained outcome and coordinate
+recovery through the application; the library does not retry a channel request.
+See [`cmd_wait_for_client_lost`](https://github.com/tmux/tmux/blob/3.8/cmd-wait-for.c#L483-L515).
 
 ## Links and pane placement
 

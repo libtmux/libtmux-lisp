@@ -74,6 +74,16 @@
   (signals libtmux:invalid-argument (libtmux.internal::octet-vector #(0 256)))
   (signals libtmux:invalid-argument (libtmux.internal::check-limits -1 100)))
 
+(test wait-channel-validation-precedes-io
+  (let ((calls 0))
+    (let ((libtmux.internal::*process-started-hook*
+            (lambda (process) (declare (ignore process)) (incf calls))))
+      (signals libtmux:invalid-argument (libtmux:wait-for nil ""))
+      (signals libtmux:invalid-argument (libtmux:wait-for nil (string #\Null)))
+      (signals libtmux:invalid-argument (libtmux:wait-for nil 7))
+      (signals libtmux:invalid-argument (libtmux:wait-for nil "channel" :operation :unknown))
+      (is (zerop calls)))))
+
 (test unsupported-host-fails-before-program-resolution
   (dolist (feature '(:sbcl :linux :x86-64))
     (let ((*features* (remove feature *features*)))
