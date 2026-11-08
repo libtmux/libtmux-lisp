@@ -1,10 +1,5 @@
 (in-package #:libtmux.internal)
 
-(defun outcome-text (outcome)
-  (handler-bind ((libtmux:decoding-error
-                   (lambda (condition) (setf (slot-value condition 'libtmux::outcome) outcome))))
-    (strict-text (libtmux:outcome-stdout outcome))))
-
 (defun rename-entity (client target model text format-p observe options)
   (apply #'perform-command client (list target)
          (list (ecase model (:session "rename-session") (:window "rename-window"))

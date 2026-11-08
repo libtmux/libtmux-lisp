@@ -29,7 +29,7 @@ These files implement the core `libtmux` system; their internal package is priva
 | [src/configuration-operations](../src/configuration-operations.lisp) | Typed option, hook and environment mutations over live versioned schemas. |
 | [src/operations](../src/operations.lisp) | Rename, select and terminal capture operations with explicit clients. |
 | [src/client-operations](../src/client-operations.lisp) | Captured terminal-client targeting, switching and explicit frontend requests. |
-| [src/server-operations](../src/server-operations.lisp) | Literal message printing, explicit server requests and wait-channel state. |
+| [src/server-operations](../src/server-operations.lisp) | Literal message printing, server ACL changes, locks and wait-channel state. |
 | [src/key-bindings](../src/key-bindings.lisp) | Command/key printer inspection and explicit native key-binding source. |
 | [src/creation](../src/creation.lisp) | Detached session/window/pane creation from argv or explicit shell source. |
 | [src/process-operations](../src/process-operations.lisp) | Explicit pane respawn and daemon-owned shell pipe configuration. |

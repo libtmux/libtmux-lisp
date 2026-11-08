@@ -25,6 +25,9 @@
 
 ### Added
 
+- Add literal user/group server ACL operations and native listing output,
+  preserving versioned frontend permission updates and command outcomes.
+
 - Add command/key printer inspection and single-key binding/removal with
   explicit argv versus tmux source, parser effects and future key execution.
 

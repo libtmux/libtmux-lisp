@@ -32,6 +32,7 @@ See docs/index.md for the tutorial, API reference and current capability limits.
    #:respawn-pane #:respawn-window #:pipe-pane
    #:switch-client #:detach-client #:refresh-client #:suspend-client #:lock-client
    #:wait-for #:lock-session #:lock-server #:display-message
+   #:server-access #:list-server-access
    #:list-commands #:list-keys #:bind-key #:unbind-key
    #:resize-pane #:resize-window #:select-layout #:next-layout #:previous-layout
    #:next-window #:previous-window #:last-window #:last-pane

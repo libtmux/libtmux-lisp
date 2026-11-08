@@ -74,6 +74,11 @@ second key after removal. Direct fixture reads verify literal values and
 parse-time environment effects retained after a failed binding.
 Printer profiles distinguish tmux 3.7 through 3.7c's single-row status routing
 and missing-key success from normal multi-row output and other releases.
+Server-access fixtures use the existing `nobody` account and its primary group
+on private sockets, without changing OS identities or permissions. They prove
+entry lifecycle, literal names, group gating and tmux 3.8's recomputation of an
+unrelated owner's frontend flags. Cross-user authorization, connection and
+revocation remain unverified.
 
 The integration runner is a dedicated child-process subreaper. It verifies
 that no test-owned worker or tmux daemon survives the test image, including an

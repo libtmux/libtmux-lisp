@@ -1,5 +1,54 @@
 (in-package #:libtmux)
 
+(defun server-access (client principal access &key group-p cancel-token timeout output-limit)
+  "Change PRINCIPAL's native daemon ACL entry; return a COMMAND-OUTCOME.
+PRINCIPAL is a nonempty literal account name, resolved by the daemon's name
+service, not a numeric UID/GID. GROUP-P selects a group and requires live tmux
+3.8; older daemons signal UNSUPPORTED-CAPABILITY before payload dispatch.
+
+ACCESS is :ALLOW (add a writable entry), :DENY (remove an entry), :READ-ONLY
+or :READ-WRITE (update or add). Adding an existing entry and removing an absent
+one are errors. Root and the daemon-owner UID cannot be changed. :DENY creates
+no deny rule: from 3.8, a removed user can still match its peer GID's entry.
+Explicit UID entries take precedence over that GID; supplementary groups are
+not searched. Cross-user filesystem access must be configured separately.
+
+From 3.8, removal and permission updates recompute every connected client's
+read-only state. This can clear an unrelated frontend's separate read-only
+flag when its effective ACL entry is writable. Updates can schedule client
+disconnection; success does not prove frontend exit. Already scheduled exits
+are not cancelled by a later grant.
+
+Blocks under shared preflight/dispatch limits, acquires no observation and
+never retries. Invalid input signals INVALID-ARGUMENT; native errors and
+uncertain effects retain their outcome. Earlier captures stay unchanged.
+See also: LIST-SERVER-ACCESS, FETCH-CLIENTS, REFRESH, ERROR-OUTCOME."
+  (let* ((principal (libtmux.internal::text-argument principal "Account name" nil))
+         (flag (case access
+                 (:allow "-a") (:deny "-d") (:read-only "-r") (:read-write "-w")
+                 (otherwise
+                  (libtmux.internal::invalid-argument
+                   "Access must be :allow, :deny, :read-only or :read-write")))))
+    (libtmux.internal::perform-command
+     client nil (append (list "server-access" flag) (when group-p '("-g"))
+                        (list "--" (libtmux.internal::literal-format principal)))
+     :minimum-version (when group-p "3.8") :feature :group-server-access
+     :cancel-token cancel-token :timeout timeout :output-limit output-limit)))
+
+(defun list-server-access (client &key cancel-token timeout output-limit)
+  "Print the daemon ACL; return owned UTF-8 text and a COMMAND-OUTCOME.
+The ordinary native listing preserves escaping and whitespace. Before 3.8,
+rows use (R)/(W); from 3.8 they include U/G account kinds. UID 0 is omitted and
+unresolvable names print as unknown. An empty listing does not prove that no
+account has access. This is printer output, not a decoded authorization model.
+Blocks under shared preflight/dispatch limits and never retries or acquires an
+observation. Invalid UTF-8 signals DECODING-ERROR; native and operational
+failures retain their outcomes.
+See also: SERVER-ACCESS, OUTCOME-STDOUT, ERROR-OUTCOME."
+  (libtmux.internal::printed-command
+   client '("server-access" "-l")
+   :cancel-token cancel-token :timeout timeout :output-limit output-limit))
+
 (defun display-message (client message &key target format-p cancel-token timeout output-limit)
   "Print MESSAGE through tmux; return owned UTF-8 text and a COMMAND-OUTCOME.
 Always uses the ordinary -p printer, preserving its whitespace and trailing lines.

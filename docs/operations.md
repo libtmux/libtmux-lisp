@@ -242,6 +242,44 @@ all bindings. Binding success acknowledges storage and hooks, not later key
 execution. [`send-keys`](api.md#send-keys-function) sends pane input and does
 not exercise a frontend's key-binding dispatch.
 
+## Server access
+
+[`server-access`](api.md#server-access-function) takes a literal account name
+and one access operation. `:allow` adds a writable entry; `:deny` removes one;
+`:read-only` and `:read-write` update or add an entry. Duplicate additions and
+missing removals remain errors. Tmux resolves names through the daemon's name
+service; strings are not treated as numeric UIDs. Root and the daemon-owner UID
+cannot be changed. `:group-p t` selects a group name and requires live tmux 3.8;
+older daemons reject that request before payload dispatch.
+
+Removal does not create a deny rule. From tmux 3.8, a user without an explicit
+entry can still match its connecting peer's GID. An explicit UID entry wins
+over the GID entry; supplementary groups are not searched. Socket and directory
+access must be configured separately; an ACL entry alone does not make the
+endpoint reachable.
+
+Permission changes can affect connected clients. In tmux 3.8, removal and
+read-only/read-write updates recompute every client's effective ACL. A writable
+entry can therefore clear an unrelated frontend's separately set read-only
+flag. A request can schedule disconnection without proving frontend exit, and
+a later grant does not cancel an already scheduled exit. `:allow` alone does
+not recompute connected-client flags. Earlier captures retain their values;
+use [`refresh`](api.md#refresh-function) to acquire a replacement observation.
+See the native [command](https://github.com/tmux/tmux/blob/3.8/cmd-server-access.c#L61-L152)
+and [ACL update](https://github.com/tmux/tmux/blob/3.8/server-acl.c#L71-L110).
+
+[`list-server-access`](api.md#list-server-access-function) returns ordinary
+UTF-8 listing text and an outcome. Native rows use `(R)`/`(W)` before 3.8 and
+include `U`/`G` account kinds from 3.8. UID 0 is omitted; a failed name lookup
+prints `unknown`. Empty text cannot establish that nobody has access. This
+listing is intended for inspection and is not a decoded authorization model.
+
+Tests cover entry lifecycle, literal input, version gates and the frontend
+flag effect on private sockets under one OS user. Cross-user connection,
+authorization and revocation behavior remain unverified by this library's
+suite. No test changes users, socket permissions or privileges. Calls retain
+uncertain outcomes and never retry automatically.
+
 ## Wait channels
 
 [`wait-for`](api.md#wait-for-function) accepts `:operation :wait` (the default),

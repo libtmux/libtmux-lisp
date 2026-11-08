@@ -2,6 +2,74 @@
 
 (in-suite integration)
 
+(test server-access-entry-lifecycle-and-client-flags
+  (with-tmux-fixture (fixture)
+    (with-fixture-client (client fixture)
+      (let* ((account (sb-posix:getpwnam "nobody"))
+             (user (sb-posix:passwd-name account))
+             (group (sb-posix:group-name (sb-posix:getgrgid (sb-posix:passwd-gid account))))
+             (owner (sb-posix:passwd-name (sb-posix:getpwuid (sb-posix:getuid))))
+             (modern (libtmux.internal::version-at-least-p (libtmux:tmux-version client) "3.8")))
+        (when (member (sb-posix:passwd-uid account) (list 0 (sb-posix:getuid)))
+          (error "The ACL fixture needs nobody to be a non-owner account"))
+        (labels ((entry (access &optional group-p)
+                   (format nil "~A (~A~A)" (if group-p group user)
+                           (if modern (if group-p "G," "U,") "") access))
+                 (listed (text) (search text (libtmux:list-server-access client))))
+          (multiple-value-bind (text outcome) (libtmux:list-server-access client)
+            (is (stringp text))
+            (is (eq :succeeded (libtmux:outcome-status outcome))))
+          (is (eq :succeeded (libtmux:outcome-status (libtmux:server-access client user :allow))))
+          (is (listed (entry "W")))
+          (signals libtmux:command-failed (libtmux:server-access client user :allow))
+          (libtmux:server-access client user :read-only)
+          (is (listed (entry "R")))
+          (call-with-attached-terminal-client
+           fixture
+           (lambda (terminal)
+             (declare (ignore terminal))
+             (let ((name (string-right-trim '(#\Newline)
+                                           (fixture-ok fixture "list-clients" "-F" "#{client_name}"))))
+               (fixture-ok fixture "refresh-client" "-t" name "-f" "read-only")
+               (is (equal (format nil "1~%")
+                          (fixture-ok fixture "display-message" "-c" name "-p" "#{client_readonly}")))
+               (libtmux:server-access client user :read-write)
+               (is (listed (entry "W")))
+               ;; In 3.8 an unrelated ACL update recomputes the owner's flags.
+               (is (equal (format nil "~D~%" (if modern 0 1))
+                          (fixture-ok fixture "display-message" "-c" name "-p" "#{client_readonly}"))))))
+          (libtmux:server-access client user :deny)
+          (is (not (listed (entry "W"))))
+          (signals libtmux:command-failed (libtmux:server-access client user :deny))
+          (libtmux:server-access client user :read-only)
+          (is (listed (entry "R")))
+          (signals libtmux:command-failed (libtmux:server-access client owner :read-only))
+          (signals libtmux:command-failed (libtmux:server-access client "root" :allow))
+          (handler-case
+              (progn (libtmux:server-access client "libtmux-no-account-#{pid}" :allow)
+                     (fail "An unknown literal account succeeded"))
+            (libtmux:command-failed (condition)
+              (is (search "libtmux-no-account-#{pid}"
+                          (libtmux.internal::strict-text
+                           (libtmux:outcome-stderr (libtmux:error-outcome condition)))))))
+          (if modern
+              (progn
+                (libtmux:server-access client group :read-write :group-p t)
+                (is (listed (entry "W" t)))
+                (is (listed (entry "R")))
+                (signals libtmux:command-failed (libtmux:server-access client group :allow :group-p t))
+                (libtmux:server-access client group :read-only :group-p t)
+                (is (listed (entry "R" t)))
+                (libtmux:server-access client group :deny :group-p t)
+                (is (not (listed (entry "R" t)))))
+              (handler-case
+                  (progn (libtmux:server-access client group :allow :group-p t)
+                         (fail "An older daemon admitted a group ACL operation"))
+                (libtmux:unsupported-capability (condition)
+                  (is (eq :not-dispatched
+                          (libtmux:outcome-status (libtmux:error-outcome condition)))))))
+          (libtmux:server-access client user :deny))))))
+
 (test display-message-preserves-literals-formats-and-link-context
   (with-tmux-fixture (fixture)
     (fixture-ok fixture "link-window" "-s" "@0" "-t" "fixture:3")

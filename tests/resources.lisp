@@ -111,6 +111,16 @@
       (signals libtmux:invalid-argument (libtmux:unbind-key nil "x" :table ""))
       (is (zerop calls)))))
 
+(test server-access-validation-precedes-io
+  (let ((calls 0))
+    (let ((libtmux.internal::*process-started-hook*
+            (lambda (process) (declare (ignore process)) (incf calls))))
+      (signals libtmux:invalid-argument (libtmux:server-access nil 7 :allow))
+      (signals libtmux:invalid-argument (libtmux:server-access nil "" :allow))
+      (signals libtmux:invalid-argument (libtmux:server-access nil (string #\Null) :allow))
+      (signals libtmux:invalid-argument (libtmux:server-access nil "principal" :unknown))
+      (is (zerop calls)))))
+
 (test lock-session-rejects-invalid-targets-and-command-overrides
   (let ((calls 0))
     (let ((libtmux.internal::*process-started-hook*

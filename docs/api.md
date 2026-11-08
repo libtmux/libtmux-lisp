@@ -94,8 +94,10 @@ See docs/index.md for the tutorial, API reference and current capability limits.
 **Coordinate server requests**
 
 [display-message](#display-message-function)
+[list-server-access](#list-server-access-function)
 [lock-server](#lock-server-function)
 [lock-session](#lock-session-function)
+[server-access](#server-access-function)
 [wait-for](#wait-for-function)
 
 **Inspect commands and bind keys**
@@ -928,6 +930,25 @@ See also: [bind-key](#bind-key-function), [error-outcome](#error-outcome-functio
 
 [Source](../src/key-bindings.lisp)
 
+<a id="list-server-access-function"></a>
+
+### list-server-access
+
+`(list-server-access client &key cancel-token timeout output-limit)`
+
+Print the daemon ACL; return owned UTF-8 text and a COMMAND-OUTCOME.
+The ordinary native listing preserves escaping and whitespace. Before 3.8,
+rows use (R)/(W); from 3.8 they include U/G account kinds. UID 0 is omitted and
+unresolvable names print as unknown. An empty listing does not prove that no
+account has access. This is printer output, not a decoded authorization model.
+Blocks under shared preflight/dispatch limits and never retries or acquires an
+observation. Invalid UTF-8 signals DECODING-ERROR; native and operational
+failures retain their outcomes.
+
+See also: [error-outcome](#error-outcome-function), [outcome-stdout](#outcome-stdout-function), [server-access](#server-access-function).
+
+[Source](../src/server-operations.lisp)
+
 <a id="load-buffer-function"></a>
 
 ### load-buffer
@@ -1629,6 +1650,38 @@ tmux processed the send request, not that the application consumed it. An
 oversized encoded command is rejected without silently splitting the input.
 
 [Source](../src/terminal-operations.lisp)
+
+<a id="server-access-function"></a>
+
+### server-access
+
+`(server-access client principal access &key group-p cancel-token timeout output-limit)`
+
+Change PRINCIPAL's native daemon ACL entry; return a COMMAND-OUTCOME.
+PRINCIPAL is a nonempty literal account name, resolved by the daemon's name
+service, not a numeric UID/GID. GROUP-P selects a group and requires live tmux
+3.8; older daemons signal UNSUPPORTED-CAPABILITY before payload dispatch.
+
+ACCESS is :ALLOW (add a writable entry), :DENY (remove an entry), :READ-ONLY
+or :READ-WRITE (update or add). Adding an existing entry and removing an absent
+one are errors. Root and the daemon-owner UID cannot be changed. :DENY creates
+no deny rule: from 3.8, a removed user can still match its peer GID's entry.
+Explicit UID entries take precedence over that GID; supplementary groups are
+not searched. Cross-user filesystem access must be configured separately.
+
+From 3.8, removal and permission updates recompute every connected client's
+read-only state. This can clear an unrelated frontend's separate read-only
+flag when its effective ACL entry is writable. Updates can schedule client
+disconnection; success does not prove frontend exit. Already scheduled exits
+are not cancelled by a later grant.
+
+Blocks under shared preflight/dispatch limits, acquires no observation and
+never retries. Invalid input signals INVALID-ARGUMENT; native errors and
+uncertain effects retain their outcome. Earlier captures stay unchanged.
+
+See also: [error-outcome](#error-outcome-function), [fetch-clients](#fetch-clients-function), [list-server-access](#list-server-access-function), [refresh](#refresh-function).
+
+[Source](../src/server-operations.lisp)
 
 <a id="session-function"></a>
 

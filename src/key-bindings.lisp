@@ -1,11 +1,5 @@
 (in-package #:libtmux.internal)
 
-(defun printed-command (client arguments &rest options)
-  (let ((outcome (apply #'perform-command client nil arguments options)))
-    (handler-bind ((libtmux:decoding-error
-                     (lambda (condition) (setf (slot-value condition 'libtmux::client) client))))
-      (values (outcome-text outcome) outcome))))
-
 (defun binding-command-source (command command-p source source-p)
   (when (eq command-p source-p)
     (invalid-argument "Specify exactly one of command argv or command-source"))

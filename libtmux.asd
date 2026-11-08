@@ -53,7 +53,7 @@
                (:file "src/client-operations"
                       :description "Captured terminal-client targeting, switching and explicit frontend requests.")
                (:file "src/server-operations"
-                      :description "Literal message printing, explicit server requests and wait-channel state.")
+                      :description "Literal message printing, server ACL changes, locks and wait-channel state.")
                (:file "src/key-bindings"
                       :description "Command/key printer inspection and explicit native key-binding source.")
                (:file "src/creation"

@@ -239,3 +239,14 @@
   (lambda (outcome capture)
     (declare (ignore outcome))
     (values (resolve-observation client target capture) t)))
+
+(defun outcome-text (outcome)
+  (handler-bind ((libtmux:decoding-error
+                   (lambda (condition) (setf (slot-value condition 'libtmux::outcome) outcome))))
+    (strict-text (libtmux:outcome-stdout outcome))))
+
+(defun printed-command (client arguments &rest options)
+  (let ((outcome (apply #'perform-command client nil arguments options)))
+    (handler-bind ((libtmux:decoding-error
+                     (lambda (condition) (setf (slot-value condition 'libtmux::client) client))))
+      (values (outcome-text outcome) outcome))))
