@@ -72,7 +72,10 @@ Copy data containers and strings; captured entity observations may be shared."
   (:documentation "One-way cancellation state; idle tokens own no OS descriptors."))
 
 (defun make-cancellation-token ()
-  "Create a token for one or more operations. CANCEL is idempotent."
+  "Create a token for one or more operations. CANCEL is idempotent.
+Signals UNSUPPORTED-PLATFORM outside the qualified runtime profile.
+See also: CANCEL, CANCELLED-P, OPEN-CLIENT."
+  (libtmux.internal::require-process-profile)
   (make-instance 'cancellation-token))
 
 (defun cancelled-p (token)
@@ -103,6 +106,14 @@ a mutation. Inspect the operation's outcome and dispatch phase."
 (defun invalid-argument (format-control &rest arguments)
   (error 'libtmux:invalid-argument
          :message (apply #'format nil format-control arguments)))
+
+(defun require-process-profile ()
+  (unless (every (lambda (feature) (member feature *features*))
+                 '(:sbcl :linux :x86-64))
+    (error 'libtmux:unsupported-platform :feature :runtime-profile
+           :message (format nil "The process backend requires SBCL on Linux x86-64; found ~A ~A on ~A (~A)"
+                            (lisp-implementation-type) (lisp-implementation-version)
+                            (software-type) (machine-type)))))
 
 (defun finite-vector (value &optional (name "Sequence"))
   (cond

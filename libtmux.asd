@@ -14,9 +14,9 @@
                       :description "Typed failure conditions and retained diagnostic readers.")
                (:file "src/transport"
                       :description "Owned command outcomes, cancellation tokens and transport validation.")
-               #+sbcl (:file "src/backend-sbcl"
+               (:file "src/backend-sbcl" :if-feature (:and :sbcl :linux :x86-64)
                       :description "SBCL/Linux synchronization and native operating-system capability checks.")
-               #+sbcl (:file "src/process-sbcl"
+               (:file "src/process-sbcl" :if-feature (:and :sbcl :linux :x86-64)
                       :description "Bounded subprocess lifecycle, nonblocking pipe service and cleanup ownership.")
                (:file "src/client"
                       :description "Connection scopes, single-operation leases and explicit raw tmux commands.")
@@ -30,7 +30,7 @@
                       :description "Captured CLOS observations, local readers, identity and owned projections.")
                (:file "src/graph"
                       :description "Physical-entity normalization, explicit window links and graph consistency.")
-               #+sbcl (:file "src/witness-sbcl"
+               (:file "src/witness-sbcl" :if-feature (:and :sbcl :linux :x86-64)
                       :description "Server generation authority using socket and Linux process identities.")
                (:file "src/capture"
                       :description "Explicit bounded acquisition and replacement observations.")

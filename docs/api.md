@@ -448,7 +448,7 @@ Return the unsupported capability's keyword identifier. No I/O.
 
 [Source](../src/conditions.lisp)
 
-Applicable first argument types: [unsupported-capability](#unsupported-capability-type).
+Applicable first argument types: [unsupported-capability](#unsupported-capability-type), [unsupported-platform](#unsupported-platform-type).
 
 <a id="error-field-function"></a>
 
@@ -800,6 +800,9 @@ condition; a failure after dispatch may have an uncertain outcome.
 `(make-cancellation-token)`
 
 Create a token for one or more operations. CANCEL is idempotent.
+Signals UNSUPPORTED-PLATFORM outside the qualified runtime profile.
+
+See also: [cancel](#cancel-function), [cancelled-p](#cancelled-p-function), [open-client](#open-client-function).
 
 [Source](../src/transport.lisp)
 
@@ -911,11 +914,16 @@ failure separately. Signals STALE-TARGET or an operational condition.
 `(open-client &key (program "tmux") socket-name socket-path config-file (timeout 30) (output-limit (* 16 1024 1024)))`
 
 Open an SBCL/Linux subprocess client and check its tmux version.
-PROGRAM must resolve to a native x86_64 ELF tmux executable.
+Checks the runtime profile and required OS facilities before resolving PROGRAM.
+An unsupported profile or facility signals UNSUPPORTED-PLATFORM; ERROR-FEATURE
+identifies the requirement. PROGRAM must resolve to a native x86_64 ELF tmux
+executable; pass the underlying binary when PATH selects a script or shim.
 SOCKET-NAME and SOCKET-PATH are mutually exclusive; omission selects tmux's
 default socket. No daemon is started. TIMEOUT is seconds; OUTPUT-LIMIT bounds
 combined stdout/stderr bytes per command. Signals an operational condition on
 version/launch failure. Returned configuration strings are owned by the client.
+
+See also: [close-client](#close-client-function), [error-feature](#error-feature-function), [unsupported-platform](#unsupported-platform-type), [with-client](#with-client-function).
 
 [Source](../src/client.lisp)
 
@@ -1954,7 +1962,10 @@ Direct supertypes: [libtmux-error](#libtmux-error-type).
 
 ### unsupported-platform
 
-The process backend lacks a required operating-system facility.
+The selected runtime lacks a qualified backend or required facility.
+ERROR-FEATURE identifies the requirement; ERROR-CAUSE retains a failed probe
+when available. OPEN-CLIENT checks the profile before resolving PROGRAM.
+See also: OPEN-CLIENT, ERROR-FEATURE, ERROR-CAUSE.
 
 [Source](../src/conditions.lisp)
 

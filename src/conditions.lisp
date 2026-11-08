@@ -36,8 +36,12 @@ An invalid caller value is retained as supplied; it need not be a keyword."))
 
 (define-condition invalid-argument (libtmux-error) ()
   (:documentation "An argument violates the operation's declared contract."))
-(define-condition unsupported-platform (libtmux-error) ()
-  (:documentation "The process backend lacks a required operating-system facility."))
+(define-condition unsupported-platform (libtmux-error)
+  ((feature :initarg :feature :initform :runtime-profile :reader error-feature))
+  (:documentation "The selected runtime lacks a qualified backend or required facility.
+ERROR-FEATURE identifies the requirement; ERROR-CAUSE retains a failed probe
+when available. OPEN-CLIENT checks the profile before resolving PROGRAM.
+See also: OPEN-CLIENT, ERROR-FEATURE, ERROR-CAUSE."))
 (define-condition unsupported-tmux (libtmux-error) ()
   (:documentation "The selected tmux does not meet the supported version floor."))
 (define-condition unsupported-capability (libtmux-error)

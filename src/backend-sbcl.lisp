@@ -80,7 +80,9 @@
       (unless (and (= 20 (read-sequence header stream))
                    (equalp (subseq header 0 6) #(127 69 76 70 2 1))
                    (= (aref header 18) 62) (zerop (aref header 19)))
-        (invalid-argument "Program must be a native x86_64 ELF executable")))
+        (invalid-argument
+         "Selected program ~S must be a native x86_64 ELF executable; supply the underlying binary with :PROGRAM instead of a script or shim"
+         path)))
     path))
 
 (defun process-environment ()
@@ -121,18 +123,44 @@
 
 (defvar *process-platform-ready* nil)
 
+(defun probe-platform-facility (feature message function)
+  (handler-case (funcall function)
+    (libtmux:unsupported-platform (condition) (error condition))
+    (error (cause)
+      (error 'libtmux:unsupported-platform :feature feature
+             :message message :cause cause))))
+
 (defun ensure-process-platform ()
+  (require-process-profile)
   (unless *process-platform-ready*
-    (let ((fd (pidfd-open (sb-posix:getpid) 0)))
+    (let ((fd (probe-platform-facility
+               :pidfd "Linux pidfds and the libc pidfd_open wrapper are required"
+               (lambda () (pidfd-open (sb-posix:getpid) 0)))))
       (when (minusp fd)
-        (error 'libtmux:unsupported-platform :message "Linux pidfds are required"))
+        (error 'libtmux:unsupported-platform :feature :pidfd
+               :message (format nil "Linux pidfd_open failed (errno ~D); check kernel and process permissions"
+                                (sb-alien:get-errno))))
       (unwind-protect
            ;; A caller outside a group-leader process gets ESRCH for its own PID.
            ;; Unsupported scope flags are rejected with EINVAL before lookup.
-           (unless (or (zerop (pidfd-signal fd 0 (sb-sys:int-sap 0) 4))
+           (unless (or (zerop (probe-platform-facility
+                              :pidfd-process-group
+                              "The libc pidfd_send_signal wrapper is required"
+                              (lambda () (pidfd-signal fd 0 (sb-sys:int-sap 0) 4))))
                        (= (sb-alien:get-errno) sb-posix:esrch))
-             (error 'libtmux:unsupported-platform
-                    :message "Linux pidfd process-group signalling (kernel 6.9+) is required"))
-        (sb-posix:close fd)))
-    (native-program "/bin/bash")
+             (error 'libtmux:unsupported-platform :feature :pidfd-process-group
+                    :message (format nil "Linux pidfd process-group signalling (kernel 6.9+) failed (errno ~D)"
+                                     (sb-alien:get-errno))))
+        (close-descriptor fd)))
+    (let ((fd (probe-platform-facility
+               :eventfd "Linux eventfd and its libc wrapper are required"
+               #'cancellation-event-open)))
+      (when (minusp fd)
+        (error 'libtmux:unsupported-platform :feature :eventfd
+               :message (format nil "Linux eventfd failed (errno ~D); check process permissions and descriptor limits"
+                                (sb-alien:get-errno))))
+      (close-descriptor fd))
+    (probe-platform-facility
+     :launcher "The process backend requires a native /bin/bash launcher"
+     (lambda () (native-program "/bin/bash")))
     (setf *process-platform-ready* t)))

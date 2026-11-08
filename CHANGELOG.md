@@ -4,6 +4,10 @@
 
 ### Fixed
 
+- Report unsupported runtime facilities before resolving the tmux executable.
+  Probe failures retain their requirement and cause; script or shim errors
+  identify the selected file and the underlying-binary option.
+
 - Preserve partial and uncertain command outcomes in workspace CLI JSON errors,
   including nested causes, failed steps and raw diagnostic bytes.
 

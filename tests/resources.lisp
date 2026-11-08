@@ -73,3 +73,43 @@
   (signals libtmux:invalid-argument (libtmux.internal::argument-vector '("a" 1)))
   (signals libtmux:invalid-argument (libtmux.internal::octet-vector #(0 256)))
   (signals libtmux:invalid-argument (libtmux.internal::check-limits -1 100)))
+
+(test unsupported-host-fails-before-program-resolution
+  (dolist (feature '(:sbcl :linux :x86-64))
+    (let ((*features* (remove feature *features*)))
+      (let ((condition
+              (handler-case
+                  (libtmux:open-client :program "libtmux-deliberately-absent-program")
+                (libtmux:libtmux-error (condition) condition))))
+        (is (typep condition 'libtmux:unsupported-platform))
+        (when (typep condition 'libtmux:unsupported-platform)
+          (is (eq :runtime-profile (libtmux:error-feature condition)))
+          (is (search "SBCL on Linux x86-64" (libtmux:error-message condition))))))))
+
+(test script-program-error-identifies-selected-path
+  (let* ((path (namestring (asdf:system-relative-pathname "libtmux" "tools/lisp.sh")))
+         (condition (handler-case (libtmux.internal::native-program path)
+                      (libtmux:invalid-argument (condition) condition))))
+    (is (typep condition 'libtmux:invalid-argument))
+    (is (search path (libtmux:error-message condition)))
+    (is (search ":PROGRAM" (libtmux:error-message condition)))))
+
+(test platform-probe-failure-retains-cause-before-program-resolution
+  (let ((original (symbol-function 'libtmux.internal::ensure-process-platform))
+        (cause (make-condition 'simple-error :format-control "missing libc symbol")))
+    (unwind-protect
+         (progn
+           (setf (symbol-function 'libtmux.internal::ensure-process-platform)
+                 (lambda ()
+                   (libtmux.internal::probe-platform-facility
+                    :pidfd "libc pidfd_open is required" (lambda () (error cause)))))
+           (let ((condition
+                   (handler-case
+                       (libtmux:open-client :program "libtmux-deliberately-absent-program")
+                     (libtmux:libtmux-error (condition) condition))))
+             (is (typep condition 'libtmux:unsupported-platform))
+             (is (eq :pidfd (libtmux:error-feature condition)))
+             (is (eq cause (libtmux:error-cause condition)))
+             (is (null (libtmux:error-client condition)))
+             (is (null (libtmux:error-outcome condition)))))
+      (setf (symbol-function 'libtmux.internal::ensure-process-platform) original))))

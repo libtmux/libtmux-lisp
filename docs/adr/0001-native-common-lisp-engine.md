@@ -95,12 +95,16 @@ Kernel, libc and executable requirements are separate; a distribution or WSL
 label does not establish them. Script shims are rejected by the native ELF
 executable policy. Supply the underlying binary explicitly.
 
-Current diagnostics are incomplete: executable validation precedes the platform
-probe, and non-SBCL loading has no replacement operational backend. A missing
-facility is not guaranteed to surface as `unsupported-platform` on every host.
-Early capability diagnostics are follow-up work. Calls use libc bindings through
-`sb-alien`; adding CFFI alone would not qualify ARM64 or replace Linux witness
-semantics. Other platforms need their own verified profile or backend.
+[`open-client`](../api.md#open-client) rejects an unsupported runtime profile
+before resolving the executable. ASDF selects the native backend files only
+for SBCL/Linux x86-64. The first open probes pidfd/group signalling, eventfd and
+the Bash launcher; [`unsupported-platform`](../api.md#unsupported-platform)
+retains a requirement identifier and any underlying probe condition. The
+checks are cached within the image and do not establish continuing availability
+or broader platform qualification. Non-SBCL hosts have no replacement backend.
+Calls use libc bindings through `sb-alien`; adding CFFI alone would not qualify
+ARM64 or replace Linux witness semantics. Other platforms need their own
+verified profile or backend.
 
 Domain/query source separation supports later portability work, but
 `libtmux/query` currently loads the core and its selected backend. There is no

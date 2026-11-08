@@ -225,11 +225,16 @@ failure signals CLEANUP-FAILED; the active owner still retains cleanup duty."))
 (defun open-client (&key (program "tmux") socket-name socket-path config-file
                         (timeout 30) (output-limit (* 16 1024 1024)))
   "Open an SBCL/Linux subprocess client and check its tmux version.
-PROGRAM must resolve to a native x86_64 ELF tmux executable.
+Checks the runtime profile and required OS facilities before resolving PROGRAM.
+An unsupported profile or facility signals UNSUPPORTED-PLATFORM; ERROR-FEATURE
+identifies the requirement. PROGRAM must resolve to a native x86_64 ELF tmux
+executable; pass the underlying binary when PATH selects a script or shim.
 SOCKET-NAME and SOCKET-PATH are mutually exclusive; omission selects tmux's
 default socket. No daemon is started. TIMEOUT is seconds; OUTPUT-LIMIT bounds
 combined stdout/stderr bytes per command. Signals an operational condition on
-version/launch failure. Returned configuration strings are owned by the client."
+version/launch failure. Returned configuration strings are owned by the client.
+See also: WITH-CLIENT, CLOSE-CLIENT, UNSUPPORTED-PLATFORM, ERROR-FEATURE."
+  (libtmux.internal::require-process-profile)
   (libtmux.internal::check-limits timeout output-limit)
   (when (and socket-name socket-path)
     (libtmux.internal::invalid-argument "Specify socket-name or socket-path, not both"))
@@ -237,6 +242,7 @@ version/launch failure. Returned configuration strings are owned by the client."
     (when value
       (unless (and (stringp value) (plusp (length value)) (not (find #\Null value)))
         (libtmux.internal::invalid-argument "Socket/configuration values must be nonempty strings without NUL"))))
+  (libtmux.internal::ensure-process-platform)
   (let ((client (make-instance 'client
                  :program (libtmux.internal::native-program program)
                  :socket-name (and socket-name (copy-seq socket-name))

@@ -81,14 +81,23 @@ remains usable locally after client closure.
 
 The first backend targets SBCL on Linux x86-64. It requires pidfds, eventfd,
 pidfd process-group signalling (Linux 6.9 or newer), their libc wrappers, and
-Bash. The platform probe checks pidfd/group signalling, but executable validation
-runs first and other backend failures are not a complete capability report.
-Non-SBCL operational loading has no replacement backend. SBCL creates the child
+Bash. [`open-client`](api.md#open-client) checks the runtime profile before
+resolving the executable. The first open also probes pidfd/group signalling,
+eventfd and the launcher, closing the temporary descriptors before proceeding.
+[`unsupported-platform`](api.md#unsupported-platform) identifies the requirement
+through [`error-feature`](api.md#error-feature): `:runtime-profile`, `:pidfd`,
+`:pidfd-process-group`, `:eventfd` or `:launcher`.
+[`error-cause`](api.md#error-cause) retains a failed probe when available.
+The check is cached in the running image; it is not a continuing health monitor
+or qualification of another implementation or platform. Non-SBCL hosts have no
+replacement backend. SBCL creates the child
 group for redirected stdin. A private FIFO exec barrier delays target execution
 until Lisp retains the pidfd, verifies the group and admits dispatch. It passes
 argv as separate positional arguments and does not evaluate caller strings as
 shell source.
-Only trusted native ELF target executables are accepted.
+Only trusted native ELF target executables are accepted. A script or
+tool-manager shim error names the selected file; pass the underlying tmux
+binary through `open-client`'s `:program` argument.
 
 The backend forces `LC_ALL=C.UTF-8`, clears `TMUX` and `TMUX_PANE`, and normalizes
 Bash startup variables used by its fixed launcher. It is not a byte-for-byte
