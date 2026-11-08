@@ -52,3 +52,78 @@
   (signals libtmux:output-limit-exceeded
     (libtmux.internal::decode-rows :session
       (record-bytes '("session/1" "$0" "name" "1" "0" "1")) :field-limit 3)))
+
+(defun listing-batch-fixture ()
+  (mapcar #'record-bytes
+          '(("w/links/1" "321" "42" "/s" "3.8")
+            ("window-link/1" "$0" "0" "@0" "name" "80" "24" "1" "1" "layout")
+            ("w/panes/1" "321" "42" "/s" "3.8")
+            ("pane/1" "$0" "0" "@0" "%250" "0" "1" "80" "24" "cat"
+             "/tmp" "title" "123" "0" "")
+            ("w/clnts/1" "321" "42" "/s" "3.8")
+            ("client/1" "tty1" "124" "42" "tty1" "$0" "0" "0"))))
+
+(test listing-batch-preserves-separate-witnesses-and-limits
+  (let ((blocks (listing-batch-fixture)))
+    (dolist (client-present '(nil t))
+      (let ((witnesses nil))
+        (let ((rows (multiple-value-list
+                     (libtmux.internal::decode-listing-batch
+                      (apply #'concatenate '(vector (unsigned-byte 8))
+                             (subseq blocks 0 (if client-present 6 5)))
+                      (lambda (rows)
+                        (push (libtmux.internal::row-value (aref rows 0) :server/pid)
+                              witnesses))
+                      :row-limit 1 :field-limit 13))))
+          (is (equal '(321 321 321) witnesses))
+          (is (equal (list 1 1 (if client-present 1 0)) (mapcar #'length rows)))
+          (is (equal "%0" (libtmux.internal::row-value (aref (second rows) 0) :pane/id))))))
+    (let ((prefixes (apply #'concatenate '(vector (unsigned-byte 8))
+                           (list (first blocks) (third blocks) (fifth blocks)))))
+      (is (every #'zerop
+                 (mapcar #'length
+                         (multiple-value-list
+                          (libtmux.internal::decode-listing-batch
+                           prefixes #'identity :field-limit 9)))))
+      (signals libtmux:output-limit-exceeded
+        (libtmux.internal::decode-listing-batch prefixes #'identity :field-limit 8)))
+    (signals libtmux:output-limit-exceeded
+      (libtmux.internal::decode-listing-batch
+       (apply #'concatenate '(vector (unsigned-byte 8))
+              (append (subseq blocks 0 4) (list (fourth blocks)) (subseq blocks 4)))
+       #'identity :row-limit 1))
+    (let ((checks 0))
+      (signals libtmux:command-cancelled
+        (libtmux.internal::decode-listing-batch
+         (apply #'concatenate '(vector (unsigned-byte 8)) blocks) #'identity
+         :check-budget (lambda ()
+                         (when (= 2 (incf checks))
+                           (error 'libtmux:command-cancelled :message "Cancelled decode"))))))
+    (is (< (loop for argument in (libtmux.internal::listing-batch-command)
+                 sum (1+ (length (libtmux.internal::encode-utf8 argument))))
+           16000))))
+
+(test listing-batch-rejects-invalid-framing
+  (let ((blocks (listing-batch-fixture)))
+    (dolist (invalid
+             (list (rest blocks)
+                   (append (list (first blocks)) blocks)
+                   (append (list (third blocks)) (rest blocks))
+                   (append (subseq blocks 0 2) (subseq blocks 3))
+                   (append blocks (list (first blocks)))
+                   (append (subseq blocks 0 3)
+                           (list (record-bytes '("pane/1" "wrong-columns")))
+                           (subseq blocks 4))
+                   (append blocks (list (record-bytes '("unexpected"))))))
+      (signals libtmux:decoding-error
+        (libtmux.internal::decode-listing-batch
+         (apply #'concatenate '(vector (unsigned-byte 8)) invalid) #'identity)))
+    (dolist (count '(0 2 4))
+      (signals libtmux:incomplete-snapshot
+        (libtmux.internal::decode-listing-batch
+         (apply #'concatenate '(vector (unsigned-byte 8)) (subseq blocks 0 count))
+         #'identity)))
+    (let ((bytes (apply #'concatenate '(vector (unsigned-byte 8)) blocks)))
+      (signals libtmux:decoding-error
+        (libtmux.internal::decode-listing-batch
+         (subseq bytes 0 (1- (length bytes))) #'identity)))))

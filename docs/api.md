@@ -572,12 +572,15 @@ Acquire a complete snapshot and return its fresh session vector. OPTIONS go to F
 `(fetch-snapshot client &key cancel-token (timeout (slot-value client (quote timeout))) (output-limit (slot-value client (quote output-limit))) (row-limit 100000) (entity-limit 100000) (field-limit 1048576))`
 
 Acquire an eager native graph; all later accessors on it are local.
-TIMEOUT and OUTPUT-LIMIT bound the whole acquisition, including at most two
-retries after contradictory observations. ROW-LIMIT bounds each listing;
+TIMEOUT controls one acquisition deadline and OUTPUT-LIMIT caps combined output,
+including at most two retries after contradictory observations. Synchronous
+setup and additional cleanup can extend caller wall time. ROW-LIMIT bounds each listing;
 ENTITY-LIMIT bounds the complete graph; FIELD-LIMIT bounds encoded field bytes.
 No daemon is started. A live daemon with zero sessions yields empty vectors;
 connection/listing failures remain errors. Closing CLIENT leaves this snapshot
 usable. This is an interval observation, not a transactional snapshot.
+
+See also: [error-outcome](#error-outcome-function), [fetch-panes](#fetch-panes-function), [provenance](#provenance-function), [refresh](#refresh-function).
 
 [Source](../src/capture.lisp)
 

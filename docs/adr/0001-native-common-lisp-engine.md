@@ -435,20 +435,20 @@ open, the caller's earlier target capture and hook/payload subprocesses:
 
 | Operation | Launches |
 | --- | ---: |
-| Nonempty `fetch-snapshot` or convenience fetch | 7 |
+| Nonempty `fetch-snapshot` or convenience fetch | 5 |
 | Empty live-daemon snapshot | 4 |
-| `rename-window`, default observation | 15 |
-| `rename-window`, observation disabled | 8 |
-| `capture-pane` | 8 |
-| `new-session`, including observation | 10 |
-| `new-window` or `split-pane`, including observation | 15 |
+| `rename-window`, default observation | 11 |
+| `rename-window`, observation disabled | 6 |
+| `capture-pane` | 6 |
+| `new-session`, including observation | 8 |
+| `new-window` or `split-pane`, including observation | 11 |
 
-The nonempty capture performs one alias audit, an initial witness, four listings
-and a closing witness. Launch counts establish work, not latency. Bash execs
+The nonempty capture performs one alias audit, an initial witness, a session
+listing, a batch of three remaining listings and a closing witness. Launch counts establish work, not latency. Bash execs
 the target in the same supervised child. Full preflight also makes a targeted
 mutation depend on obtaining a valid complete graph during unrelated churn.
 
-Batching non-waiting listings may reduce launches. tmux
+Batching non-waiting listings reduces launches without changing capture semantics. tmux
 [`cmdq_next`](https://github.com/tmux/tmux/blob/3.8/cmd-queue.c#L706-L785)
 drains queued work, but hooks can intervene and captured values such as a pane's
 cwd involve an
@@ -458,14 +458,14 @@ audit ordering, framing, witness checks, empty-server handling, bounds and
 contradiction detection. Narrow preflight and deferred creation observation
 also require explicit return/outcome and target-validation contracts.
 
-The first batching change should keep the audit, fresh initial witness,
-separate session listing and fresh closing witness. Combine only the remaining
-window-link, pane and attached-client listings, retaining each connection
-witness prefix. This targets five launches for a nonempty capture and preserves
-the four-launch empty path. A two-launch prototype that reuses an earlier
-witness does not establish equivalent fresh acquisition. Implement the smaller
-change with failure, shared-budget and generation tests before reconsidering
-further reductions.
+The batch combines window-link, pane and attached-client listings. Distinct
+witness tags identify each block, including an empty client block; all three
+witnesses are verified. Tag widths preserve the existing field-limit behavior.
+The alias audit, fresh initial witness, separate session listing and fresh
+closing witness remain. Nonempty acquisition uses five launches; the empty path
+uses four. A two-launch prototype that reuses an earlier witness does not
+establish equivalent fresh acquisition. Further reductions require separate
+failure, shared-budget and generation evidence.
 
 The narrow process backend gives ownership and cleanup concrete semantics, but
 requires Linux capabilities and a trusted executable. Adding another backend

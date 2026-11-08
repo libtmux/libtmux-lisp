@@ -26,7 +26,7 @@
         (let ((libtmux.internal::*process-started-hook*
                 (lambda (process) (declare (ignore process)) (incf calls))))
           (setf capture (libtmux:fetch-snapshot client))
-          (is (= 7 calls))
+          (is (= 5 calls))
           (is (= 2 (length (libtmux:sessions capture))))
           (is (= 2 (length (libtmux:windows capture))))
           (is (= 2 (length (libtmux:panes capture))))
@@ -34,7 +34,7 @@
           (let ((pane (find "%0" (libtmux:panes capture) :key #'libtmux:id :test #'equal)))
             (is (equal title (libtmux:title pane)))
             (libtmux:entity-data pane)
-            (is (= 7 calls)))
+            (is (= 5 calls)))
           (let* ((window (aref (libtmux:windows capture) 0)) (old-name (libtmux:name window)))
             (fixture-ok fixture "rename-window" "-t" "@0" "changed")
             (let ((replacement (libtmux:refresh client window)))
@@ -50,7 +50,11 @@
     (with-fixture-client (client fixture)
       (fixture-ok fixture "set-option" "-g" "exit-empty" "off")
       (fixture-ok fixture "kill-session" "-t" "fixture")
-      (let ((capture (libtmux:fetch-snapshot client)))
+      (let* ((calls 0)
+             (libtmux.internal::*process-started-hook*
+               (lambda (process) (declare (ignore process)) (incf calls)))
+             (capture (libtmux:fetch-snapshot client)))
+        (is (= 4 calls))
         (is (zerop (length (libtmux:sessions capture))))
         (is (zerop (length (libtmux:panes capture))))
         (is (integerp (getf (libtmux:provenance capture) :server/pid)))
@@ -76,6 +80,125 @@
           (is (not (null changed)))
           (is (= 2 session-reads))
           (is (= 2 (length (libtmux:windows capture)))))))))
+
+(test batched-listing-hooks-retain-contradiction-retries
+  (with-tmux-fixture (fixture)
+    (with-fixture-client (client fixture)
+      (fixture-ok fixture "set-hook" "-g" "after-list-windows"
+                  "set-hook -gu after-list-windows ; split-window -d -t fixture:0.0 /bin/cat")
+      (let ((calls 0))
+        (let* ((libtmux.internal::*process-started-hook*
+                 (lambda (process) (declare (ignore process)) (incf calls)))
+               (capture (libtmux:fetch-snapshot client)))
+          (is (= 10 calls))
+          (is (= 2 (length (libtmux:panes capture))))))
+      (fixture-ok fixture "set-hook" "-g" "after-list-windows"
+                  "split-window -d -t fixture:0.0 /bin/cat")
+      (unwind-protect
+           (let* ((calls 0)
+                  (libtmux.internal::*process-started-hook*
+                    (lambda (process) (declare (ignore process)) (incf calls))))
+             (signals libtmux:incomplete-snapshot (libtmux:fetch-snapshot client))
+             (is (= 15 calls)))
+        (fixture-ok fixture "set-hook" "-gu" "after-list-windows")))))
+
+(defclass capture-evidence-transport (libtmux.internal::subprocess-transport)
+  ((mode :initarg :mode :initform :observe)
+   (events :initform nil)))
+
+(defmethod libtmux.internal::execute-command :around
+    ((transport capture-evidence-transport) argv
+     &key input timeout output-limit cancel-token keep-input-open)
+  (declare (ignore input cancel-token keep-input-open))
+  (let ((outcome (call-next-method)))
+    (when (find "list-panes" argv :test #'equal)
+      (ecase (slot-value transport 'mode)
+        (:observe
+         (setf (slot-value outcome 'libtmux::stderr)
+               (libtmux.internal::octet-vector #(1 2 3))))
+        (:malformed
+         (setf (aref (slot-value outcome 'libtmux::stdout) 0) (char-code #\X)))
+        (:foreign-witness
+         (let* ((bytes (slot-value outcome 'libtmux::stdout))
+                (text (libtmux.internal::strict-text bytes))
+                (prefix (search (format nil "w/panes/1~C" #\Tab) text))
+                (start (+ prefix (length "w/panes/1") 1))
+                (end (position #\Tab text :start start)))
+           (setf (slot-value outcome 'libtmux::stdout)
+                 (libtmux.internal::encode-utf8
+                  (concatenate 'string (subseq text 0 start) "1" (subseq text end))))))
+        (:failed
+         (setf (slot-value outcome 'libtmux::status) :failed
+               (slot-value outcome 'libtmux::exit-code) 1
+               (slot-value outcome 'libtmux::reason) :exit))))
+    (push (list timeout output-limit outcome) (slot-value transport 'events))
+    outcome))
+
+(test batched-capture-shares-budgets-and-retains-failure-evidence
+  (with-tmux-fixture (fixture)
+    (with-fixture-client (client fixture)
+      (let ((transport (make-instance 'capture-evidence-transport)))
+        (setf (slot-value client 'libtmux::transport) transport)
+        (libtmux:fetch-snapshot client :row-limit 1)
+        (let ((events (reverse (slot-value transport 'events))))
+          (is (= 5 (length events)))
+          (loop for (previous current) on events while current
+                for outcome = (third previous)
+                do (is (= (second current)
+                          (- (second previous)
+                             (length (libtmux:outcome-stdout outcome))
+                             (length (libtmux:outcome-stderr outcome)))))
+                   (is (<= (first current) (first previous))))
+          (is (equalp #(1 2 3) (libtmux:outcome-stderr (third (fourth events))))))
+        (dolist (mode '(:malformed :failed :foreign-witness))
+          (setf (slot-value transport 'mode) mode
+                (slot-value transport 'events) nil)
+          (handler-case
+              (progn (libtmux:fetch-snapshot client) (fail "Invalid batch was accepted"))
+            (libtmux:libtmux-error (condition)
+              (is (typep condition (ecase mode
+                                     (:malformed 'libtmux:decoding-error)
+                                     (:failed 'libtmux:command-failed)
+                                     (:foreign-witness 'libtmux:incomplete-snapshot))))
+              (is (eq (libtmux:error-outcome condition)
+                      (third (first (slot-value transport 'events)))))
+              (is (= (if (eq mode :foreign-witness) 12 4)
+                     (length (slot-value transport 'events)))))))
+        (is (null (slot-value client 'libtmux::witness)))
+        (setf (slot-value transport 'mode) :observe)
+        (is (= 1 (length (libtmux:fetch-panes client))))))))
+
+(test batched-capture-preserves-cancel-and-deadline-admission
+  (with-tmux-fixture (fixture)
+    (with-fixture-client (client fixture)
+      (dolist (phase '(:before :after))
+        (dolist (reason '(:cancel :deadline))
+          (let ((token (libtmux:make-cancellation-token)) (batch nil))
+            (flet ((interrupt ()
+                     (if (eq reason :cancel) (libtmux:cancel token)
+                         (setf (libtmux.internal::process-job-deadline batch) 0))))
+              (let ((libtmux.internal::*before-dispatch-hook*
+                      (lambda (job)
+                        (when (find "list-panes" (libtmux.internal::process-job-argv job)
+                                    :test #'equal)
+                          (setf batch job)
+                          (when (eq phase :before) (interrupt)))))
+                    (libtmux.internal::*process-started-hook*
+                      (lambda (process)
+                        (declare (ignore process))
+                        (when (and batch (eq phase :after)) (interrupt)))))
+                (handler-case
+                    (progn (libtmux:fetch-snapshot client :cancel-token token)
+                           (fail "Interrupted batch completed"))
+                  (libtmux:libtmux-error (condition)
+                    (is (typep condition (if (eq reason :cancel)
+                                            'libtmux:command-cancelled
+                                            'libtmux:deadline-exceeded)))
+                    (is (not (null batch)))
+                    (when (eq phase :before)
+                      (is (eq :not-dispatched
+                              (libtmux:outcome-status (libtmux:error-outcome condition))))))))))))
+      (is (= 1 (length (libtmux:fetch-panes client)))))))
 
 (defun replace-fixture-server (fixture)
   (fixture-ok fixture "kill-server")

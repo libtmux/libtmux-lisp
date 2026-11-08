@@ -19,7 +19,7 @@
     (invalidate-client-generation client)
     (inconsistent-capture "A listing connected to a different tmux server")))
 
-(defun capture-command (client name token budget &optional witness)
+(defun execute-capture-command (client arguments token budget)
   (check-capture-budget budget token)
   (let ((remaining-time (- (capture-budget-deadline budget) (monotonic-seconds))))
     (unless (plusp remaining-time)
@@ -27,31 +27,47 @@
     (unless (plusp (capture-budget-remaining budget))
       (error 'libtmux:output-limit-exceeded :message "Snapshot acquisition exceeded its total byte limit"))
     (let ((outcome (check-outcome
-                    (execute-tmux client
-                                  (if witness
-                                      (append (row-command :witness) '(";") (rest (row-command name)))
-                                      (row-command name)) token remaining-time
+                    (execute-tmux client arguments token remaining-time
                                   (capture-budget-remaining budget) nil))))
       (decf (capture-budget-remaining budget)
             (+ (length (slot-value outcome 'libtmux::stdout))
                (length (slot-value outcome 'libtmux::stderr))))
-      (handler-bind ((libtmux:libtmux-error
-                       (lambda (condition)
-                         (setf (slot-value condition 'libtmux::outcome) outcome))))
-        (let* ((bytes (slot-value outcome 'libtmux::stdout))
-               (start (if witness
-                          (1+ (or (position 10 bytes)
-                                  (inconsistent-capture "Missing listing connection witness")))
-                          0)))
-          (when witness
-            (verify-listing-witness
-             client (decode-rows :witness (subseq bytes 0 start) :row-limit 1
-                                         :field-limit (capture-budget-field-limit budget)) witness))
-          (decode-rows name (make-array (- (length bytes) start) :element-type '(unsigned-byte 8)
-                                                                  :displaced-to bytes :displaced-index-offset start)
-                       :row-limit (capture-budget-row-limit budget)
-                       :field-limit (capture-budget-field-limit budget)
-                       :check-budget (lambda () (check-capture-budget budget token))))))))
+      outcome)))
+
+(defun capture-command (client name token budget &optional witness)
+  (let ((outcome (execute-capture-command
+                  client (if witness
+                             (append (row-command :witness) '(";") (rest (row-command name)))
+                             (row-command name)) token budget)))
+    (handler-bind ((libtmux:libtmux-error
+                     (lambda (condition)
+                       (setf (slot-value condition 'libtmux::outcome) outcome))))
+      (let* ((bytes (slot-value outcome 'libtmux::stdout))
+             (start (if witness
+                        (1+ (or (position 10 bytes)
+                                (inconsistent-capture "Missing listing connection witness")))
+                        0)))
+        (when witness
+          (verify-listing-witness
+           client (decode-rows :witness (subseq bytes 0 start) :row-limit 1
+                                       :field-limit (capture-budget-field-limit budget)) witness))
+        (decode-rows name (make-array (- (length bytes) start) :element-type '(unsigned-byte 8)
+                                     :displaced-to bytes :displaced-index-offset start)
+                     :row-limit (capture-budget-row-limit budget)
+                     :field-limit (capture-budget-field-limit budget)
+                     :check-budget (lambda () (check-capture-budget budget token)))))))
+
+(defun capture-listing-batch (client token budget witness)
+  (let ((outcome (execute-capture-command client (listing-batch-command) token budget)))
+    (handler-bind ((libtmux:libtmux-error
+                     (lambda (condition)
+                       (setf (slot-value condition 'libtmux::outcome) outcome))))
+      (decode-listing-batch
+       (slot-value outcome 'libtmux::stdout)
+       (lambda (rows) (verify-listing-witness client rows witness))
+       :row-limit (capture-budget-row-limit budget)
+       :field-limit (capture-budget-field-limit budget)
+       :check-budget (lambda () (check-capture-budget budget token))))))
 
 (defun read-server-witness (client token budget)
   (handler-case
@@ -82,9 +98,8 @@
            (session-rows (capture-command client :session token budget before))
            (link-rows #()) (pane-rows #()) (client-rows #()) (after nil))
       (when (plusp (length session-rows))
-        (setf link-rows (capture-command client :window-link token budget before)
-              pane-rows (capture-command client :pane token budget before)
-              client-rows (capture-command client :client token budget before)))
+        (multiple-value-setq (link-rows pane-rows client-rows)
+          (capture-listing-batch client token budget before)))
       (unwind-protect
            (progn
              (setf after (read-server-witness client token budget))
@@ -144,12 +159,14 @@
                                   (output-limit (slot-value client 'output-limit))
                                   (row-limit 100000) (entity-limit 100000) (field-limit 1048576))
   "Acquire an eager native graph; all later accessors on it are local.
-TIMEOUT and OUTPUT-LIMIT bound the whole acquisition, including at most two
-retries after contradictory observations. ROW-LIMIT bounds each listing;
+TIMEOUT controls one acquisition deadline and OUTPUT-LIMIT caps combined output,
+including at most two retries after contradictory observations. Synchronous
+setup and additional cleanup can extend caller wall time. ROW-LIMIT bounds each listing;
 ENTITY-LIMIT bounds the complete graph; FIELD-LIMIT bounds encoded field bytes.
 No daemon is started. A live daemon with zero sessions yields empty vectors;
 connection/listing failures remain errors. Closing CLIENT leaves this snapshot
-usable. This is an interval observation, not a transactional snapshot."
+usable. This is an interval observation, not a transactional snapshot.
+See also: FETCH-PANES, PROVENANCE, REFRESH, ERROR-OUTCOME."
   (libtmux.internal::check-limits timeout output-limit)
   (dolist (limit (list row-limit entity-limit field-limit))
     (unless (typep limit '(integer 1))

@@ -90,6 +90,18 @@ invalidates the attempt. Final continuity checks detect server replacement and
 persistent selected-endpoint changes. This does not make graph acquisition
 transactional: tmux state can change between the listing commands.
 
+A successful nonempty capture uses five tmux launches: alias audit, initial
+witness, session listing, a batch of window-link/pane/client listings, and final
+witness. Each batched listing has its own connection witness, and both outer
+witnesses retain the full process/socket checks. A live empty daemon uses four
+launches. Counts exclude client opening and retries.
+
+The batch has one command outcome. A framing or witness failure retains that
+outcome; it does not invent an outcome for each listing. Row limits remain per
+listing, while stdout and stderr across all launches share the total byte cap.
+Hooks can change state inside a batch, so graph validation and bounded retries
+remain necessary.
+
 ## Bounds and failures
 
 Provenance records monotonic acquisition bounds and Common Lisp universal-time

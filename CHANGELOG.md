@@ -7,6 +7,11 @@
 - Preserve partial and uncertain command outcomes in workspace CLI JSON errors,
   including nested causes, failed steps and raw diagnostic bytes.
 
+### Changed
+
+- Reduce nonempty capture acquisition from seven tmux launches to five, keeping
+  fresh daemon witnesses, per-listing bounds and contradiction retries.
+
 ### Added
 
 - Accept function objects and global function names in QuerySet filtering,
