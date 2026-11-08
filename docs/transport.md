@@ -46,8 +46,12 @@ mutation automatically.
 
 The default command timeout is 30 seconds. The default combined stdout/stderr
 limit is 16 MiB. Override these through client defaults or per-command
-`:timeout` and `:output-limit`. The deadline includes launch and pipe service
-after argument validation. A byte limit retains at most the configured count.
+`:timeout` and `:output-limit`. The low-level deadline starts after validation,
+argument copies and executable inspection. It charges setup, launch and pipe
+service, but synchronous setup/launch cannot be interrupted by its later checks.
+The gate rechecks admission before releasing the target. This is an execution
+deadline, not a hard limit on caller wall time. A byte limit retains at most the
+configured count.
 Input is written while both output pipes are drained, avoiding pipe deadlock.
 
 One external operation owns a client at a time; concurrent work signals
@@ -59,8 +63,11 @@ Cancellation signals `command-cancelled` from the operation and retains its
 dispatch evidence; it does not undo a completed mutation.
 
 Closing rejects new operations, requests cancellation and waits for the owner.
-Normal process stop allows 50 ms before KILL and bounds teardown at 500 ms;
-client close waits up to 750 ms for an active owner. A failed join signals
+Normal process stop allows 50 ms before KILL and 500 ms for stop/drain. Final
+cleanup can separately wait another 500 ms for child exit. Client close has a
+750 ms active-owner join allowance after its initial lock/cancellation work;
+lock acquisition and retained-job cleanup add time. Timed condition-wait
+reacquisition has no separate lock timeout. A failed join signals
 `cleanup-failed` and leaves the client closing. If child authority or cleanup
 cannot be completed, the client retains the resources. Correct the underlying
 resource problem and retry `close-client`. `client-cleanup-failures` returns a
@@ -74,9 +81,13 @@ remains usable locally after client closure.
 
 The first backend targets SBCL on Linux x86-64. It requires pidfds, eventfd,
 pidfd process-group signalling (Linux 6.9 or newer), their libc wrappers, and
-Bash. Runtime checks reject missing capabilities. A private FIFO exec barrier
-establishes process-group ownership before dispatch. It passes argv as separate
-positional arguments and does not evaluate caller strings as shell source.
+Bash. The platform probe checks pidfd/group signalling, but executable validation
+runs first and other backend failures are not a complete capability report.
+Non-SBCL operational loading has no replacement backend. SBCL creates the child
+group for redirected stdin. A private FIFO exec barrier delays target execution
+until Lisp retains the pidfd, verifies the group and admits dispatch. It passes
+argv as separate positional arguments and does not evaluate caller strings as
+shell source.
 Only trusted native ELF target executables are accepted.
 
 The backend forces `LC_ALL=C.UTF-8`, clears `TMUX` and `TMUX_PANE`, and normalizes
@@ -89,3 +100,6 @@ The bounds cover the supervised process group. They cannot force an
 uninterruptible kernel syscall to return or contain a descendant that
 deliberately leaves that group. An unfinished launch remains owned and is
 reported as incomplete cleanup.
+
+See the [architecture decision](adr/0001-native-common-lisp-engine.md#supervise-subprocesses-with-explicit-scopes-and-bounded-outcomes)
+for launcher alternatives and saved-image limitations.

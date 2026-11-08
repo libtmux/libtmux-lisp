@@ -14,12 +14,14 @@ usage and the [capability table](../capabilities.md) for current availability.
 
 ## Status
 
-Proposed for architecture review. This record describes the committed core,
-query and workspace design and the intended boundaries of unfinished work.
-It does not establish completion of the full suite.
+Proposed for architectural acceptance after review. Implementation status and
+release qualification are separate: a committed implementation does not settle
+an architectural review, and acceptance does not establish runtime support.
+The decisions below describe the committed core and the boundaries of remaining
+work. They preserve the existing ownership and explicit-effect contracts.
 
 Core acquisition, local queries, optional codecs, named mutations and workspace
-bootstrap are implemented. Decoded configuration readers, source filtering,
+creation are implemented. Decoded configuration readers, source filtering,
 persistent control/events and final suite qualification remain open. Private
 decoder or relay experiments do not establish a public acquisition backend.
 The [verification record](../../verification.md) owns commands and evidence;
@@ -42,7 +44,7 @@ sequence functions without triggering new tmux commands.
 The OCaml port offers another relevant comparison: its pure core separates
 [`Source`](https://github.com/libtmux/libtmux-ocaml/blob/53a51bed2caa198be0fc3d81cb464e29d9f29403/lib/libtmux.mli#L92-L108),
 [`Window_link`](https://github.com/libtmux/libtmux-ocaml/blob/53a51bed2caa198be0fc3d81cb464e29d9f29403/lib/libtmux.mli#L258-L283)
-and [`Expr`](https://github.com/libtmux/libtmux-ocaml/blob/53a51bed2caa198be0fc3d81cb464e29d9f29403/lib/libtmux.mli#L542-L637).
+and [`Expr`](https://github.com/libtmux/libtmux-ocaml/blob/53a51bed2caa198be0fc3d81cb464e29d9f29403/lib/libtmux.mli#L552-L638).
 These are behavioral precedents. Common Lisp owns its representation,
 conditions, multiple-value contracts and resource scopes.
 
@@ -59,6 +61,18 @@ library does not implement a tmux daemon, a terminal emulator or operating-syste
 confinement. Public asynchronous operations and event subscriptions remain
 separate unfinished capabilities.
 
+## Terminology
+
+- **Acquisition** is external work that reads tmux over a recorded interval.
+- **Capture** is that acquisition's retained data; a **snapshot** is its graph.
+  An **observation** is one captured entity or graph, not live state.
+- **Context** identifies one library client. **Generation** identifies its
+  trusted daemon continuity interval. A **witness** is the process/socket
+  evidence used to check that continuity.
+- A **guard** checks supported server/target facts before dispatch. A
+  **receipt** is command-specific output used to attribute execution. Neither
+  implies rollback or a transaction over all captured fields.
+
 ## Architectural decisions
 
 ### Own the engine and isolate implementation-specific process code
@@ -69,16 +83,28 @@ ASDF/UIOP. SBCL-specific modules contain descriptors, process supervision,
 synchronization and Linux process identity. The
 [source module map](../modules.md) identifies those responsibilities.
 
-Mise manages tool installation. ASDF defines and loads Lisp systems. Qlot locks
-external Lisp dependencies for development and optional systems. These tools
-have distinct roles; ASDF here is the Common Lisp build system.
+ASDF/UIOP and the supported backend are consumer requirements. Mise reproduces
+the contributor toolchain; Qlot locks development and optional dependencies.
+An existing ASDF application does not need either tool merely to load the core.
+ASDF here is the Common Lisp build system.
 
-The first backend requires SBCL on Linux x86-64, pidfds, eventfd, pidfd
-process-group signalling, the required libc wrappers and Bash. Runtime checks
-reject an unavailable capability. The cost is a narrow initial platform
-boundary; the benefit is an explicit owner for bounded cancellation, process
-identity and cleanup. Another implementation or OS needs its own process
-backend and qualification. Portable source alone is insufficient evidence.
+The first backend requires SBCL on Linux x86-64, pidfds, eventfd, Bash and the
+required libc wrappers. Its process-group pidfd flag requires the upstream
+[Linux 6.9 facility](https://github.com/torvalds/linux/blob/v6.9/include/uapi/linux/pidfd.h#L13-L16).
+Kernel, libc and executable requirements are separate; a distribution or WSL
+label does not establish them. Script shims are rejected by the native ELF
+executable policy. Supply the underlying binary explicitly.
+
+Current diagnostics are incomplete: executable validation precedes the platform
+probe, and non-SBCL loading has no replacement operational backend. A missing
+facility is not guaranteed to surface as `unsupported-platform` on every host.
+Early capability diagnostics are follow-up work. Calls use libc bindings through
+`sb-alien`; adding CFFI alone would not qualify ARM64 or replace Linux witness
+semantics. Other platforms need their own verified profile or backend.
+
+Domain/query source separation supports later portability work, but
+`libtmux/query` currently loads the core and its selected backend. There is no
+independently loadable pure-domain system or broader portability claim.
 
 ### Separate acquisition from captured traversal
 
@@ -109,7 +135,7 @@ One physical window can have several links, including several in one session.
 
 That distinction follows tmux's
 [`server_link_window`](https://github.com/tmux/tmux/blob/3.8/server-fn.c#L289-L342)
-and [`winlink` traversal in `cmd_list_panes_session`](https://github.com/tmux/tmux/blob/3.8/cmd-list-panes.c#L77-L104).
+and [`winlink` traversal in `cmd_list_panes_session`](https://github.com/tmux/tmux/blob/3.8/cmd-list-panes.c#L85-L93).
 Contextual pane listings can repeat a physical pane through different links.
 Acquisition normalizes physical entities while retaining every contextual link.
 Session traversal can therefore return a physical window more than once.
@@ -139,6 +165,13 @@ a mutation target. Live guards reduce stale-target mistakes but do not make
 selection and mutation transactional. Cross-client refusal and explicit
 `stale-target` conditions trade convenience for conservative targeting.
 
+Use one client for an operation's acquisition and mutation. Applications can
+serialize work through a client-owning worker and pass plain projections between
+workers. A pooled replacement client cannot accept an earlier client's handle.
+`same-entity-p` answers contextual identity, not universal cross-connection
+equivalence. A future adoption operation would need to establish authority under
+the receiving client; matching witness fields alone does not change this policy.
+
 ### Own mutable data at public boundaries
 
 Public strings, relation containers, projections, query operands and inspection
@@ -148,7 +181,11 @@ containers. Deliberate mutation of private slots is outside the supported API.
 
 [`entity-data`](../api.md#entity-data-function) returns finite ordinary data
 with relationship identifiers, rather than recursively expanding the graph or
-retaining hidden operational handles. Remote paths stay reported strings.
+retaining hidden operational handles. Retaining one entity retains its snapshot
+graph. Use projections for histories that need values without those references.
+Remote paths stay reported strings: tmux may transform their representation,
+and a decoder cannot recover information already lost upstream. They are not
+filesystem identity or automatically suitable local filesystem arguments.
 
 [`field-value`](../api.md#field-value-function) returns value and presence as
 two values. Present false is `nil, t`; absence is `nil, nil`. Empty vectors and
@@ -190,7 +227,38 @@ The optional eager QuerySet copies its input container and returns new values
 from filtering and ordering. Sorting works on a private copy. `items` provides
 portable sequence interoperability; custom SBCL sequence extensions are not
 required. Strict `one` and `one-or-none` establish uniqueness before returning
-a target. Ambiguity counts distinguish an exact count from a lower bound.
+a target. Current selectors validate the whole bounded input and report exact
+counts; no current selector emits a lower-bound count. `where-if` and `order-by`
+currently require function objects. Accepting ordinary symbol function
+designators is a contained ergonomics change, with lookup timing to document.
+
+Declarative filters target the closed registered capture schema. A downstream
+`field-value` method does not replace its private resolved accessor. Compose
+application models through ordinary functions. Public operator/model registration
+would require type, presence, ownership and serialization contracts together.
+
+Compiled filters retain resolved descriptors. Their reported registry version
+is descriptive; evaluation does not enforce a version compatibility check.
+Recompile filters after incompatible library or schema changes. Functions and
+inert data remain the public contract. An optional compiler macro could diagnose
+literal forms without replacing runtime validation or evaluating query data;
+compile-time checking is not implemented.
+
+### Present conditions without inventing recovery guarantees
+
+Conditions retain query diagnostics, causes, targets and command evidence.
+Current inheritance is coarse: `query-limit-exceeded` also covers execution of
+a valid filter, while `output-limit-exceeded` inherits `outcome-unknown` even
+when raised for captured row/entity limits. Inspect the operation and
+[`error-outcome`](../api.md#error-outcome-function); ancestry alone does not
+prove that a mutation was dispatched. Separating resource exhaustion from
+effect uncertainty is a follow-up API decision.
+
+No library-specific restarts are currently installed. Recovery additions must
+have a defined scope, such as replacing local query data, selecting an already
+captured candidate explicitly, or retrying owned cleanup. A restart must not
+turn failed acquisition into an empty graph, replace stale authority silently,
+or re-dispatch a mutation. Fresh acquisition is a separate visible action.
 
 ### Supervise subprocesses with explicit scopes and bounded outcomes
 
@@ -205,16 +273,42 @@ through nonblocking descriptors. One operation owns a client at a time;
 independent operations use independent clients. Deadlines, combined byte caps
 and cancellation govern supervised work. Public calls block their caller.
 
-A fixed launcher establishes process-group authority before dispatch and
-passes argv as positional arguments. It does not interpolate caller data into
-host shell source. The backend accepts trusted native ELF executables and
-normalizes its launch environment. Its process-group scope does not contain
+SBCL creates the process group for redirected stdin; see its
+[`setpgrp` launch path](https://github.com/sbcl/sbcl/blob/sbcl-2.6.10/src/runtime/run-program.c#L327-L346).
+The fixed Bash/FIFO launcher delays target exec until Lisp retains and verifies
+the pidfd/group and admits dispatch under cancellation and deadline checks.
+It passes argv as positional arguments without interpolating caller data into
+shell source. The backend accepts trusted native ELF executables and normalizes
+its launch environment. Its process-group scope does not contain
 descendants that deliberately escape or force an uninterruptible kernel call
 to return. See [transport limits](../transport.md#supported-process-boundary).
+
+Keep that gate until a replacement preserves dispatch admission and cleanup.
+glibc's `pidfd_spawn` can create a pidfd atomically, but its
+[`CLONE_VFORK` sequencing](https://github.com/bminor/glibc/blob/glibc-2.40/sysdeps/unix/sysv/linux/spawni.c#L31-L47)
+allows target exec before control returns to Lisp. It also needs explicit file
+actions, signal policy, reaping and partial-failure ownership. Symbol availability
+does not establish equivalent cancellation or dispatch attribution.
+
+The low-level timer starts after argument preparation and executable inspection.
+It charges synchronous setup/launch but cannot interrupt those calls. Poll and
+gate checks enforce admission and supervised execution. Within the 500 ms stop
+allowance, KILL is scheduled at 50 ms; final cleanup may wait another 500 ms for
+child exit. Client close has a 750 ms owner-join allowance; lock acquisition
+and retained cleanup are additional. These fixed intervals are not hard upper
+bounds on caller wall time. Named operations share their acquisition/dispatch/
+observation budget; workspace apply currently gives each core operation its own.
 
 Cleanup failure after normal completion signals a condition. During an existing
 error or nonlocal exit, the original exit is preserved and the secondary
 failure is retained. Incomplete cleanup remains owned and inspectable.
+
+Live clients are not saved-image resources. Close them before saving an image;
+restoration would require reopening and rechecking backend facilities. The
+[SBCL image contract](https://github.com/sbcl/sbcl/blob/sbcl-2.6.10/src/code/save.lisp#L197-L213)
+does not preserve open-stream state and requires other threads to stop before
+saving. Automatic cache reset, restored operational authority and retained
+filter/snapshot compatibility across image or library upgrades are unqualified.
 
 ### Preserve interpreter boundaries and uncertain mutation outcomes
 
@@ -233,11 +327,23 @@ does not promise rollback. An interrupted dispatched mutation can have an
 unknown outcome and must not be retried automatically.
 
 Raw [`run-command`](../api.md#run-command-function) is an explicit escape hatch.
-It does not provide named-operation target validation. Command aliases and
-hooks are ambient daemon behavior; a nominal read may activate configured
-effects. The [command-policy contract](../operations.md#command-aliases-and-daemon-configuration)
-states supported configuration and refusal behavior. A selected socket limits
-addressable objects; it is not a sandbox or exclusive daemon ownership.
+It does not provide named-operation target validation or imply that an
+unqualified control-mode route is supported.
+
+### Keep daemon bootstrap separate from client connection
+
+Named acquisition and creation use `-N` and require an existing daemon.
+Opening or closing a library client does not acquire ownership of that daemon.
+Raw commands remain caller-controlled and can explicitly start one; they do not
+constitute a managed bootstrap API.
+
+Managed bootstrap needs a separate environment, configuration and ownership
+contract. tmux
+[seeds its global environment from its starter](https://github.com/tmux/tmux/blob/3.8/tmux.c#L418-L423).
+Blindly reusing the transport's forced locale would change pane defaults.
+A bootstrap design must specify caller environment selection, clearing inherited
+tmux selectors, explicit configuration, partial-start cleanup and termination
+authority. That design remains open.
 
 ### Keep optional systems and consumer policy explicit
 
@@ -258,16 +364,21 @@ unknown or duplicate members. It does not serialize arbitrary closures or
 claim compatibility with another port's evaluator. See
 [interchange contracts](../query-interchange.md).
 
+These systems isolate dependencies within one coordinated release. They share
+private registry/compiler internals; they are not independently versioned
+plugins. The optional regex hook is private. A public extension protocol needs
+an external consumer and a deliberate compatibility contract.
+
 Workspaces consume core operations. Validation and planning are local; apply
 acquires fresh state and retains individual outcomes. Exact topology reuse can
 avoid mutations, but a batch is not a transaction or process supervisor.
 [tmuxp's `ClassicWorkspaceBuilder`](https://github.com/tmux-python/tmuxp/blob/v1.76.0/src/tmuxp/workspace/builder/classic.py#L115-L137)
 is a companion precedent for a workspace product over libtmux. The Lisp
 [workspace contract](../design/workspace-v1.md) defines its own narrower scope.
-
-MCP is excluded rather than represented by an empty package. A future change
-to that policy requires a maintained integration and its own lifecycle and
-protocol decision.
+Its native schema does not accept tmuxp documents. A displayed plan is a preview:
+apply captures and plans again. Topology reuse does not prove command, directory,
+layout or declaration provenance equality. Total-application deadlines, drift
+metadata and broader reconciliation remain separate unfinished work.
 
 ### Qualify control mode and source filtering before exposing them
 
@@ -277,7 +388,7 @@ timeout/end/loss/cancellation results and callbacks outside the reader.
 Acknowledgment and operation-specific completion must remain distinct. Reconnect
 requires a new generation and recapture; it cannot imply replay.
 
-tmux's [`control_write_guard`](https://github.com/tmux/tmux/blob/3.8/control.c#L523-L547)
+tmux's [`control_write_guard`](https://github.com/tmux/tmux/blob/3.8/control.c#L522-L548)
 defines reply guards. Older daemon initialization needs separate scrutiny:
 [`server_client_check_exit`](https://github.com/tmux/tmux/blob/3.3a/server-client.c#L2423-L2442)
 can enter control cleanup, while
@@ -293,12 +404,67 @@ fall back locally. tmux numeric and textual comparisons need their own exact
 semantics; matching operator spellings are insufficient. Local `matching`
 must never acquire, regardless of a future optimization.
 
+## Security boundary
+
+Trust the chosen executable and the supported daemon configuration. A selected
+socket limits addressing; it supplies neither a sandbox nor exclusive ownership.
+Process/socket witnesses are operating-system evidence, not cryptographic
+authentication. The library does not defend against a privileged hostile host
+or arbitrary interference with its private state.
+
+Aliases and hooks are ambient daemon behavior; a nominal read can activate
+configured effects. The
+[command-policy contract](../operations.md#command-aliases-and-daemon-configuration)
+defines refusals and the race after auditing aliases. Guards compare supported
+server/target facts, not every captured value; attached-client targets lack a
+dispatch-side target guard. Keep guarded dispatch distinct from general
+compare-and-swap or transaction claims. The transport's forced locale and
+sanitized startup environment are part of its contract, not transparent
+environment forwarding.
+
 ## Consequences
 
 Applications gain stable retained observations, explicit I/O and native Lisp
 composition. The cost is copying public mutable values, retaining snapshots
 and refreshing deliberately. Conservative client identity prevents convenient
 cross-client targeting. A complete graph costs more than a specialized listing.
+
+The successful no-retry paths have these tmux launch counts, excluding client
+open, the caller's earlier target capture and hook/payload subprocesses:
+
+| Operation | Launches |
+| --- | ---: |
+| Nonempty `fetch-snapshot` or convenience fetch | 7 |
+| Empty live-daemon snapshot | 4 |
+| `rename-window`, default observation | 15 |
+| `rename-window`, observation disabled | 8 |
+| `capture-pane` | 8 |
+| `new-session`, including observation | 10 |
+| `new-window` or `split-pane`, including observation | 15 |
+
+The nonempty capture performs one alias audit, an initial witness, four listings
+and a closing witness. Launch counts establish work, not latency. Bash execs
+the target in the same supervised child. Full preflight also makes a targeted
+mutation depend on obtaining a valid complete graph during unrelated churn.
+
+Batching non-waiting listings may reduce launches. tmux
+[`cmdq_next`](https://github.com/tmux/tmux/blob/3.8/cmd-queue.c#L706-L785)
+drains queued work, but hooks can intervene and captured values such as a pane's
+cwd involve an
+[external process lookup](https://github.com/tmux/tmux/blob/3.8/osdep-linux.c#L64-L85).
+Batching does not freeze every observed value. Any optimization must preserve
+audit ordering, framing, witness checks, empty-server handling, bounds and
+contradiction detection. Narrow preflight and deferred creation observation
+also require explicit return/outcome and target-validation contracts.
+
+The first batching change should keep the audit, fresh initial witness,
+separate session listing and fresh closing witness. Combine only the remaining
+window-link, pane and attached-client listings, retaining each connection
+witness prefix. This targets five launches for a nonempty capture and preserves
+the four-launch empty path. A two-launch prototype that reuses an earlier
+witness does not establish equivalent fresh acquisition. Implement the smaller
+change with failure, shared-budget and generation tests before reconsidering
+further reductions.
 
 The narrow process backend gives ownership and cleanup concrete semantics, but
 requires Linux capabilities and a trusted executable. Adding another backend
@@ -312,14 +478,14 @@ remain unavailable until their own behavioral gates pass.
 
 ## Rejected alternatives
 
-- A Java or ABCL façade would delegate the engine to another runtime and change
-  the native product boundary.
 - Mutable live getters would hide repeated acquisition inside ordinary graph
   traversal and make retained query inputs change unexpectedly.
 - One parent session per window or deduplication by numeric ID alone would lose
   window-link context and cross-server identity.
-- Query macros, `eval`, arbitrary accessors in persisted queries and a mandatory
-  custom sequence protocol would weaken validation or native interoperability.
+- Evaluating query data or persisting arbitrary accessors would bypass the
+  declared grammar. Convenience macros that construct that same inert data
+  remain possible; they are not needed for the ordinary function contract.
+- A mandatory custom sequence protocol would restrict native interoperability.
 - Implicit retries, process exit as sole mutation proof and automatic daemon
   teardown would erase uncertainty or exceed resource ownership.
 - An unqualified control relay or textual source-filter translation would turn
@@ -344,7 +510,10 @@ Linux matrix is 3.3a, 3.4, 3.5, 3.5a, 3.6, 3.6a, 3.6b, 3.7, 3.7a, 3.7b, 3.7c
 and 3.8. Endpoint CI or source catalogs do not substitute for full integrated
 acceptance. Timed test loops are verification costs, not performance results.
 Benchmarks must separately report workload, acquisition count, versions,
-distributions and allocations.
+distributions and allocations. Measure small and larger graphs, repeated local
+queries, mutations with and without observation, workspace sequences and graph
+retention after GC. Component timings are not library timings; one host does
+not qualify another platform or a tail-latency guarantee.
 
 ## When to reconsider
 
@@ -367,10 +536,10 @@ requires a successor ADR or an explicit amendment with migration consequences.
 The structure follows the Python project's
 [ADR 0001 at v0.1.0a22](https://github.com/tmux-python/libtmux-mcp/blob/v0.1.0a22/docs/dev/adr/0001-capability-model.md):
 context, decisions, consequences, rejected alternatives and reconsideration.
-Its MCP policy is independent of this port's excluded product.
 
-External source links use release tags where available: tmux 3.3a/3.8, Python
-libtmux v0.62.0, tmuxp v1.76.0 and the Python ADR v0.1.0a22. The OCaml repository
+External source links use release tags where available: tmux 3.3a/3.8, SBCL
+2.6.10, glibc 2.40, Linux 6.9, Python libtmux v0.62.0, tmuxp v1.76.0 and the
+Python ADR v0.1.0a22. The OCaml repository
 has no release tags; its links use the verified immutable core revision instead.
 These versions identify the compared sources, not inherited compatibility
 claims. Local contracts link to this repository's API and owning guides so they
