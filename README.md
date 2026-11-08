@@ -33,14 +33,33 @@ systems are unreleased.
 
 Use Linux x86-64 (including WSL), kernel 6.9+, Bash and a native tmux 3.3a+
 binary. Plain tmux 3.3 is rejected. The pinned toolchain is SBCL 2.6.10,
-ASDF/UIOP 3.3.7 and Qlot 1.8.4, managed by
-[mise 2026.11.3+](https://mise.jdx.dev/getting-started.html).
-ASDF is the Lisp build system; asdf-vm is not required.
+ASDF/UIOP 3.3.7 and Qlot 1.8.4. The
+[process requirements](docs/transport.md#supported-process-boundary) also apply
+to WSL; its distribution name alone does not establish kernel capabilities.
+
+Core and query loading require ASDF/UIOP only. Mise reproduces the contributor
+toolchain; Qlot installs development and optional dependencies. ASDF is the
+Common Lisp build system.
 
 ```console
 $ git clone https://github.com/libtmux/libtmux-lisp.git && cd libtmux-lisp
 ```
 
+In an existing SBCL application with ASDF loaded, register this checkout from
+its root:
+
+```lisp
+(asdf:load-asd (truename "libtmux.asd"))
+```
+
+Load core and its local query API:
+
+```lisp
+(asdf:load-system "libtmux/query")
+```
+
+To reproduce the pinned contributor environment and run all optional examples,
+use [mise 2026.11.3+](https://mise.jdx.dev/getting-started.html).
 Review [mise.toml](mise.toml), then trust the checkout:
 
 ```console
@@ -69,34 +88,6 @@ regex and JSON selection, declarative workspace, false/presence, ownership,
 refresh, bytes, capture, close, terminate`. Core and query loading need ASDF/UIOP only; optional
 regex/JSON use the locked CL-PPCRE/Jzon systems. The example runner also needs
 Python 3. No Java runtime is involved.
-
-## Declare and apply a workspace
-
-The optional `libtmux/workspace` ASDF system reads a closed, bounded JSON
-document, plans locally, and applies only through an explicit client. The
-shipped [`workspace.json`](examples/workspace.json) creates two windows and
-three panes from argv arrays. This tested function returns both the inspectable
-plan and retained application evidence:
-
-<!-- example:workspaceconfig -->
-```lisp
-(defun apply-workspace-document (client pathname)
-  "Plan and apply one bounded workspace document through explicit CLIENT.
-Return the local plan steps and retained application result as two values."
-  (let* ((workspace (ws:read-workspace pathname))
-         (snapshot (tm:fetch-snapshot client))
-         (plan (ws:plan-workspace workspace snapshot)))
-    (values (ws:plan-steps plan)
-            (ws:apply-workspace client workspace))))
-```
-<!-- /example -->
-
-An exact second apply returns an empty plan and no command outcomes. A conflict
-fails before dispatch. A partial failure retains the failed step and every core
-outcome; no mutation is retried or rolled back. The CLI's `validate` and `plan`
-modes need no daemon, while `apply` requires `--socket-path`. Read the
-[workspace guide](docs/workspaces.md) and
-[generated workspace API](docs/workspace-api.md).
 
 ## Inspect a workspace
 
@@ -149,6 +140,19 @@ Select a **window link** when session/index context matters. Rename the physical
 window to affect every link. Refresh returns a new observation; earlier captures
 retain their values. See [identity and ownership](docs/captures.md).
 
+Process the retained capture with ordinary Lisp. This function uses only local
+accessors and returns a list of owned pane data:
+
+<!-- example:selection -->
+```lisp
+(defun wide-active-panes (snapshot)
+  "Select captured active panes at least 40 cells wide; no tmux commands."
+  (loop for pane across (tm:panes snapshot)
+        when (and (tm:active-p pane) (>= (tm:width pane) 40))
+          collect (tm:entity-data pane)))
+```
+<!-- /example -->
+
 ## Compile a local query
 
 The tutorial's example package gives `libtmux` and `libtmux.query` the local
@@ -197,6 +201,34 @@ links to physical windows and panes, then uses the eager local QuerySet:
                  *active-session-filter*))))
 ```
 <!-- /example -->
+
+## Declare and apply a workspace
+
+The optional `libtmux/workspace` ASDF system reads a closed, bounded JSON
+document, plans locally, and applies only through an explicit client. The
+shipped [`workspace.json`](examples/workspace.json) creates two windows and
+three panes from argv arrays. This tested function returns both the inspectable
+plan and retained application evidence:
+
+<!-- example:workspaceconfig -->
+```lisp
+(defun apply-workspace-document (client pathname)
+  "Plan and apply one bounded workspace document through explicit CLIENT.
+Return the local plan steps and retained application result as two values."
+  (let* ((workspace (ws:read-workspace pathname))
+         (snapshot (tm:fetch-snapshot client))
+         (plan (ws:plan-workspace workspace snapshot)))
+    (values (ws:plan-steps plan)
+            (ws:apply-workspace client workspace))))
+```
+<!-- /example -->
+
+An exact second apply returns an empty plan and no command outcomes. A conflict
+fails before dispatch. A partial failure retains the failed step and every core
+outcome; no mutation is retried or rolled back. The CLI's `validate` and `plan`
+modes need no daemon, while `apply` requires `--socket-path`. Read the
+[workspace guide](docs/workspaces.md) and
+[generated workspace API](docs/workspace-api.md).
 
 ## Add regex and a versioned filter document
 
