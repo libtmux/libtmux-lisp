@@ -154,11 +154,19 @@ Lisp sequences. It owns a simple-vector container and remains eager:
   (q:items ordered))
 ```
 
-`from`, `where`, `where-if` and `order-by` return new objects. `items` returns a
-fresh simple vector. `order-by` uses `stable-sort` on a private copy, so equal
+[`from`](query-api.md#from-function), [`where`](query-api.md#where-function),
+[`where-if`](query-api.md#where-if-function) and
+[`order-by`](query-api.md#order-by-function) return new objects.
+[`items`](query-api.md#items-function) returns a fresh simple vector.
+`order-by` uses `stable-sort` on a private copy, so equal
 keys retain input order; its predicate and key follow Common Lisp's ordinary
-sorting callback contract. `where-if` calls its native function once per item
-in input order. A declared model is checked against every item; an empty
+sorting callback contract. Both operations accept function objects or symbols
+naming global functions. They resolve each designator once before traversal or
+sorting, so a redefinition during a call affects the next operation. Macros,
+special operators and unbound function names signal
+[`invalid-argument`](api.md#invalid-argument-type).
+`where-if` calls its native function once per item in input order on normal
+completion. A declared model is checked against every item; an empty
 QuerySet can carry its model explicitly, while `where` can take the model from
 its compiled filter. `one` and `one-or-none` accept QuerySets directly.
 

@@ -587,7 +587,7 @@
          (source (vector a x b))
          (ordered
            (libtmux.query:order-by
-            (libtmux.query:from source) #'< :key #'car)))
+            (libtmux.query:from source) '< :key 'car)))
     (is (equalp (vector x a b) (libtmux.query:items ordered)))
     (is (equalp (vector a x b) source)))
   (let* ((panes (libtmux:panes (synthetic-snapshot)))
@@ -599,3 +599,31 @@
     (signals libtmux:invalid-argument
       (libtmux.query:matching
        filter (libtmux.query:from #() :model :window)))))
+
+(test query-set-function-designators-resolve-once
+  (let ((source (libtmux.query:from #(3 1 2 1)))
+        (name (gensym "QUERY-PREDICATE"))
+        (calls 0))
+    (is (equalp #(3 1 1)
+                (libtmux.query:items (libtmux.query:where-if source 'oddp))))
+    (unwind-protect
+         (progn
+           (setf (symbol-function name)
+                 (lambda (value)
+                   (incf calls)
+                   (setf (symbol-function name) (constantly nil))
+                   (oddp value)))
+           (is (equalp #(3 1 1)
+                       (libtmux.query:items
+                        (libtmux.query:where-if source name))))
+           (is (= 4 calls))
+           (is (zerop (length (libtmux.query:items
+                              (libtmux.query:where-if source name))))))
+      (fmakunbound name))
+    (dolist (invalid (list name 'when 'if '(lambda (x) x)))
+      (signals libtmux:invalid-argument
+        (libtmux.query:where-if source invalid))
+      (signals libtmux:invalid-argument
+        (libtmux.query:order-by source invalid))
+      (signals libtmux:invalid-argument
+        (libtmux.query:order-by source '< :key invalid)))))

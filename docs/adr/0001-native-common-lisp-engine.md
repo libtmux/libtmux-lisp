@@ -229,8 +229,9 @@ portable sequence interoperability; custom SBCL sequence extensions are not
 required. Strict `one` and `one-or-none` establish uniqueness before returning
 a target. Current selectors validate the whole bounded input and report exact
 counts; no current selector emits a lower-bound count. `where-if` and `order-by`
-currently require function objects. Accepting ordinary symbol function
-designators is a contained ergonomics change, with lookup timing to document.
+accept function objects and symbols naming global functions. Each designator
+is resolved once before traversal or sorting; later redefinition affects a
+subsequent operation. Macros and special operators are not function designators.
 
 Declarative filters target the closed registered capture schema. A downstream
 `field-value` method does not replace its private resolved accessor. Compose

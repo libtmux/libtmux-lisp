@@ -194,7 +194,13 @@ container. A singleton containing NIL returns NIL,T.
 `(order-by set predicate &key (key (function identity)) (max-items +default-max-selection-items+))`
 
 Return a new query set stably ordered by native PREDICATE and KEY.
-Sorting mutates only a private simple-vector copy; SET remains unchanged.
+PREDICATE and KEY are function objects or symbols naming global functions,
+each resolved once before sorting. Invalid designators signal
+LIBTMUX:INVALID-ARGUMENT. Their calls follow the STABLE-SORT callback contract.
+Sorting is eager and local, mutating only a private simple-vector copy. SET
+remains unchanged; items are shared and equal keys retain input order.
+
+See also: [from](#from-function), [items](#items-function), [where-if](#where-if-function).
 
 [Source](../src/query.lisp)
 
@@ -258,8 +264,13 @@ declared model metadata signals INVALID-QUERY-TARGET before evaluation.
 `(where-if set function &key (max-items +default-max-selection-items+))`
 
 Return a new query set selected by native FUNCTION in input order.
-FUNCTION is called exactly once per item during this eager local traversal.
-Its effects and call order are never optimized as declarative query data.
+FUNCTION is a function object or a symbol naming a global function, resolved
+once before traversal. Invalid designators signal LIBTMUX:INVALID-ARGUMENT.
+On normal completion it has been called exactly once per item, eagerly and
+locally. Its effects and call order are never optimized as declarative data.
+The result owns its container and shares the selected items with SET.
+
+See also: [from](#from-function), [items](#items-function), [order-by](#order-by-function), [where](#where-function).
 
 [Source](../src/query.lisp)
 

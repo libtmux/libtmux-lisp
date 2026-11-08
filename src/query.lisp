@@ -754,15 +754,30 @@ declared model metadata signals INVALID-QUERY-TARGET before evaluation."
                          :max-items max-items
                          :max-execution-visits max-execution-visits))))
 
+(defun resolve-query-function (designator role)
+  (or (and (functionp designator) designator)
+      (and (symbolp designator)
+           (not (macro-function designator))
+           (not (special-operator-p designator))
+           (handler-case (symbol-function designator)
+             (undefined-function () nil)))
+      (error 'libtmux:invalid-argument
+             :message (format nil
+                              "~A must be a function or a symbol naming a global function"
+                              role))))
+
 (defun where-if
     (set function &key (max-items +default-max-selection-items+))
   "Return a new query set selected by native FUNCTION in input order.
-FUNCTION is called exactly once per item during this eager local traversal.
-Its effects and call order are never optimized as declarative query data."
+FUNCTION is a function object or a symbol naming a global function, resolved
+once before traversal. Invalid designators signal LIBTMUX:INVALID-ARGUMENT.
+On normal completion it has been called exactly once per item, eagerly and
+locally. Its effects and call order are never optimized as declarative data.
+The result owns its container and shares the selected items with SET.
+See also: FROM, ITEMS, WHERE, ORDER-BY."
   (check-type set query-set)
-  (unless (functionp function)
-    (error 'libtmux:invalid-argument :message "WHERE-IF requires a function"))
-  (let* ((input (finite-selection-vector set max-items))
+  (let* ((function (resolve-query-function function "WHERE-IF function"))
+         (input (finite-selection-vector set max-items))
          (result (make-array (min 16 (length input))
                              :adjustable t :fill-pointer 0)))
     (loop for value across input
@@ -775,12 +790,16 @@ Its effects and call order are never optimized as declarative query data."
     (set predicate &key (key #'identity)
                         (max-items +default-max-selection-items+))
   "Return a new query set stably ordered by native PREDICATE and KEY.
-Sorting mutates only a private simple-vector copy; SET remains unchanged."
+PREDICATE and KEY are function objects or symbols naming global functions,
+each resolved once before sorting. Invalid designators signal
+LIBTMUX:INVALID-ARGUMENT. Their calls follow the STABLE-SORT callback contract.
+Sorting is eager and local, mutating only a private simple-vector copy. SET
+remains unchanged; items are shared and equal keys retain input order.
+See also: FROM, ITEMS, WHERE-IF."
   (check-type set query-set)
-  (unless (and (functionp predicate) (functionp key))
-    (error 'libtmux:invalid-argument
-           :message "ORDER-BY requires predicate and key functions"))
-  (let ((copy (finite-selection-vector set max-items)))
+  (let ((predicate (resolve-query-function predicate "ORDER-BY predicate"))
+        (key (resolve-query-function key "ORDER-BY key"))
+        (copy (finite-selection-vector set max-items)))
     (make-instance 'query-set :model (slot-value set 'model)
                               :contents (stable-sort copy predicate :key key))))
 

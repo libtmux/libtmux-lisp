@@ -9,6 +9,8 @@
 
 ### Added
 
+- Accept function objects and global function names in QuerySet filtering,
+  ordering and key selection, resolving each once per operation.
 - Add the separately loadable `libtmux/query` system with typed scalar filters,
   bounded owned query data, local predicates, fresh-vector matching, defensive
   inspection and strict cardinality.
