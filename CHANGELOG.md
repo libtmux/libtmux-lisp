@@ -4,6 +4,9 @@
 
 ### Fixed
 
+- Preserve named and unnamed `break-pane` behavior on tmux 3.7 despite its
+  inverted naming branch. Retain partial outcomes when a rename hook fails.
+
 - Report unsupported runtime facilities before resolving the tmux executable.
   Probe failures retain their requirement and cause; script or shim errors
   identify the selected file and the underlying-binary option.

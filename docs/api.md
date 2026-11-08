@@ -193,6 +193,8 @@ Break PANE from SOURCE-LINK into SESSION's free INDEX; return an outcome.
 SOURCE-LINK fixes the session context when breaking the window's only pane;
 tmux moves that link instead of creating another physical window. NAME is
 literal. DETACHED defaults true. OBSERVE supplies the destination window link.
+On tmux 3.7, a new named window requires a following RENAME-WINDOW in the same
+guarded request; its configured hooks can run. Failure can leave the pane moved.
 The pane keeps its identity. Signals INVALID-ARGUMENT, STALE-TARGET or an
 operational condition. Occupied indexes are never overwritten.
 

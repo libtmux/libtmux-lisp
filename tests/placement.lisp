@@ -70,3 +70,46 @@
           (is (equal '(9 10) (sort (map 'list #'libtmux:index
                                       (libtmux:window-links (libtmux:window relocated))) #'<)))
           (signals libtmux:stale-target (libtmux:refresh client broken)))))))
+
+(test unnamed-break-preserves-default-naming-and-single-pane-window
+  (with-tmux-fixture (fixture)
+    (fixture-ok fixture "rename-window" "-t" "fixture:0" "retained-source")
+    (with-fixture-client (client fixture)
+      (let* ((session (aref (libtmux:fetch-sessions client) 0))
+             (link (aref (libtmux:window-links session) 0))
+             (first (aref (libtmux:panes (libtmux:window link)) 0))
+             (second (libtmux:outcome-value
+                      (libtmux:split-pane client first :command '("/bin/cat"))))
+             (broken (libtmux:outcome-value (libtmux:break-pane client second link session 8)))
+             (moved (libtmux:outcome-value (libtmux:break-pane client first link session 9))))
+        (is (libtmux:same-entity-p second (aref (libtmux:panes (libtmux:window broken)) 0)))
+        (is (string= "cat" (libtmux:name (libtmux:window broken))))
+        (is (string= (format nil "on~%")
+                     (fixture-ok fixture "show-options" "-wAv" "-t"
+                                 (libtmux:id (libtmux:window broken)) "automatic-rename")))
+        (is (libtmux:same-entity-p (libtmux:window link) (libtmux:window moved)))
+        (is (string= "retained-source" (libtmux:name (libtmux:window moved))))
+        (is (string= (format nil "off~%")
+                     (fixture-ok fixture "show-options" "-wAv" "-t"
+                                 (libtmux:id (libtmux:window moved)) "automatic-rename")))))))
+
+(test break-pane-repair-retains-partial-hook-failure
+  (with-tmux-fixture (fixture)
+    (with-fixture-client (client fixture)
+      (when (string= "3.7" (libtmux:tmux-version client))
+        (let* ((session (aref (libtmux:fetch-sessions client) 0))
+               (link (aref (libtmux:window-links session) 0))
+               (first (aref (libtmux:panes (libtmux:window link)) 0))
+               (second (libtmux:outcome-value
+                        (libtmux:split-pane client first :command '("/bin/cat")))))
+          (fixture-ok fixture "set-hook" "-g" "after-rename-window" "select-pane -t %999999")
+          (handler-case
+              (progn (libtmux:break-pane client second link session 8 :name "retained-name")
+                     (fail "The failing rename hook became a successful break request"))
+            (libtmux:command-failed (condition)
+              (is (eq :failed (libtmux:outcome-status (libtmux:error-outcome condition))))
+              (is (plusp (length (libtmux:outcome-stderr (libtmux:error-outcome condition)))))))
+          (is (string= (format nil "retained-name~%")
+                       (fixture-ok fixture "display-message" "-p" "-t" "fixture:8" "#{window_name}")))
+          (is (string= (format nil "~A~%" (libtmux:id second))
+                       (fixture-ok fixture "display-message" "-p" "-t" "fixture:8" "#{pane_id}"))))))))

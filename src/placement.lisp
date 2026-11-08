@@ -24,6 +24,19 @@
                  (split-flags direction size percent before full-size detached))
          :observe (when observe (observe-target client source)) options))
 
+(defun break-pane-command (witness arguments pane-id name)
+  ;; tmux 3.7 inverted its new-window naming branch (fixed in 3.7a).
+  ;; Decide from live pane count: the single-pane move has different semantics.
+  (if (string= "3.7" (server-witness-version witness))
+      (list "if-shell" "-F" "-t" pane-id "#{==:#{window_panes},1}"
+            (tmux-command-text arguments)
+            (tmux-command-list
+             (append (list (if name arguments
+                               (append arguments '("-n" "libtmux-break-pane"))))
+                     (when name
+                       (list (list "rename-window" "-t" pane-id (literal-format name)))))))
+      arguments))
+
 (in-package #:libtmux)
 
 (defun link-window (client source-link session index &key (detached t) (observe t)
@@ -113,23 +126,30 @@ operational condition; a failed follow-up is distinct from mutation failure."
 SOURCE-LINK fixes the session context when breaking the window's only pane;
 tmux moves that link instead of creating another physical window. NAME is
 literal. DETACHED defaults true. OBSERVE supplies the destination window link.
+On tmux 3.7, a new named window requires a following RENAME-WINDOW in the same
+guarded request; its configured hooks can run. Failure can leave the pane moved.
 The pane keeps its identity. Signals INVALID-ARGUMENT, STALE-TARGET or an
 operational condition. Occupied indexes are never overwritten."
   (let ((pane-id (libtmux.internal::physical-target pane :pane))
         (source (libtmux.internal::link-target source-link))
-        (destination (libtmux.internal::session-index-target session index)))
+        (destination (libtmux.internal::session-index-target session index))
+        (name (when name (libtmux.internal::text-argument name "Window name"))))
     (unless (same-entity-p (window pane) (window source-link))
       (libtmux.internal::invalid-argument "Pane and source link must refer to the same captured physical window"))
-    (libtmux.internal::perform-command
-     client (list pane source-link session)
-     (append (list "break-pane" "-s" (concatenate 'string source "." pane-id) "-t" destination)
-             (when detached '("-d")) (when name (list "-n" (libtmux.internal::text-argument name "Window name"))))
-     :observe (when observe
-                (lambda (outcome capture)
-                  (declare (ignore outcome))
-                  (let ((moved (libtmux.internal::resolve-observation client pane capture)))
-                    (values (libtmux.internal::observed-link capture (id session) index (id (window moved))) t))))
-     :cancel-token cancel-token :timeout timeout :output-limit output-limit)))
+    (let ((arguments
+            (append (list "break-pane" "-s" (concatenate 'string source "." pane-id) "-t" destination)
+                    (when detached '("-d")) (when name (list "-n" name)))))
+      (libtmux.internal::perform-command
+       client (list pane source-link session) arguments
+       :argument-builder (lambda (witness current)
+                           (declare (ignore current))
+                           (libtmux.internal::break-pane-command witness arguments pane-id name))
+       :observe (when observe
+                  (lambda (outcome capture)
+                    (declare (ignore outcome))
+                    (let ((moved (libtmux.internal::resolve-observation client pane capture)))
+                      (values (libtmux.internal::observed-link capture (id session) index (id (window moved))) t))))
+       :cancel-token cancel-token :timeout timeout :output-limit output-limit))))
 
 (defun swap-panes (client first-pane second-pane &key (detached t) preserve-zoom (observe t)
                                                      cancel-token timeout output-limit)

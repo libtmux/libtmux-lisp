@@ -165,6 +165,17 @@ and a free index. This source link matters when the pane is its window's only
 pane: tmux moves that link while preserving other links and the physical window.
 The outcome contains the destination link. Its optional `:name` is literal.
 
+Tmux 3.7 has an inverted new-window naming branch, corrected in 3.7a. The
+library selects the safe branch from the live pane count within the guarded
+request. For a new window with an explicit name, it follows the break with
+`rename-window` targeting the moved pane. This adds no subprocess or retry,
+but can run an `after-rename-window` hook and is not transactional: a failing
+hook can leave the pane moved and renamed. Inspect the retained command
+outcome before deciding what to do next. Unnamed single-pane moves keep their
+existing name and automatic-rename setting.
+See [`cmd_break_pane_exec` in 3.7](https://github.com/tmux/tmux/blob/3.7/cmd-break-pane.c#L116-L123)
+and [the corrected 3.7a branch](https://github.com/tmux/tmux/blob/3.7a/cmd-break-pane.c#L116-L123).
+
 `swap-panes` preserves physical IDs and returns replacements in argument order.
 `rotate-window` moves pane positions `:up` (default) or `:down` and advances
 the active pane. Both accept `:preserve-zoom t`. Placement operations preserve
