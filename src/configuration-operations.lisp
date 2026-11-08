@@ -197,7 +197,7 @@ language, not Lisp code; this function neither reads nor executes it locally.
 KEY selects one hook-array entry. APPEND applies to an unkeyed hook assignment;
 tmux does not append command source within a keyed hook entry. The ordinary
 install path never uses set-hook -R, but tmux may still run a registered native
-after-hook such as after-set-hook as a consequence of this set-hook command.
+after-hook such as `after-set-hook` as a consequence of this set-hook command.
 Dynamic @ event sources require a live catalog that supports them. SET-OPTION
 rejects registered hooks; use UNSET-HOOK to remove this state. Never retries.
 See also: SET-OPTION, UNSET-HOOK."
