@@ -175,7 +175,7 @@
 
 (defsystem "libtmux/tests/integration"
   :description "Owned tmux fixtures and external-operation tests"
-  :depends-on ("libtmux/tests" "libtmux/workspace/cli")
+  :depends-on ("libtmux/tests" "libtmux/workspace")
   :serial t
   :components ((:file "tests/fixture")
                (:file "tests/process")

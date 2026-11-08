@@ -86,6 +86,13 @@ status. Unknown names and entirely skipped selections can report no failures,
 so select a known test or suite and read the check and skip counts. The shipped
 runner selects declared suites and checks the result before exiting.
 
+The mid loop runs the five local suites in one image, loading each system just
+before its suite. Core and query tests therefore run before optional libraries
+load. A failure stops the remaining suites. Package-consumer checks still use
+isolated images to verify loading boundaries.
+Live CLI apply/reapply runs through the extracted package's entry point in
+`mise run package-examples`; core workspace behavior stays in integration.
+
 ## Run external tests
 
 Run all local checks without contacting tmux:

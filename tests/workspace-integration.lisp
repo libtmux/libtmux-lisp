@@ -2,14 +2,6 @@
 
 (in-suite integration)
 
-(defun call-workspace-cli-for-integration (arguments)
-  (let ((stdout (make-string-output-stream))
-        (stderr (make-string-output-stream)))
-    (values (uiop:symbol-call :libtmux.workspace.cli :main :arguments arguments
-                              :stdout stdout :stderr stderr)
-            (get-output-stream-string stdout)
-            (get-output-stream-string stderr))))
-
 (defun live-workspace-data (directory child)
   (list :schema "libtmux.lisp.workspace/1"
         :session
@@ -146,30 +138,3 @@
           (is (= 6 (length (libtmux:panes large-window))))
           (is (equal paths (map 'list #'libtmux:current-path
                                 (libtmux:panes large-window)))))))))
-
-(test workspace-cli-applies-only-to-the-explicit-owned-endpoint
-  (with-tmux-fixture (fixture)
-    (let ((path (merge-pathnames "cli-workspace.json" (fixture-directory fixture))))
-      (with-open-file (stream path :direction :output :if-exists :error
-                                  :external-format :utf-8)
-        (write-string
-         "{\"schema\":\"libtmux.lisp.workspace/1\",\"session\":{\"name\":\"cli-live\",\"windows\":[{\"name\":\"main\",\"panes\":[{\"command\":[\"/bin/cat\"]}]}]}}"
-         stream))
-      (let ((program (or (uiop:getenv "LIBTMUX_TEST_TMUX") "tmux")))
-        (multiple-value-bind (code stdout stderr)
-            (call-workspace-cli-for-integration
-             (list "apply" (namestring path)
-                   "--socket-path" (fixture-socket fixture)
-                   "--program" program))
-          (is (zerop code))
-          (is (search "\"status\":\"applied\"" stdout))
-          (is (search "\"created\":true" stdout))
-          (is (string= "" stderr)))
-        (multiple-value-bind (code stdout stderr)
-            (call-workspace-cli-for-integration
-             (list "apply" (namestring path)
-                   "--socket-path" (fixture-socket fixture)
-                   "--program" program))
-          (is (zerop code))
-          (is (search "\"created\":false" stdout))
-          (is (string= "" stderr)))))))
