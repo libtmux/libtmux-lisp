@@ -10,8 +10,8 @@ policy.
 Version 1 creates or reuses one named session on an explicitly supplied
 [`libtmux:client`](../api.md#client-type). It manages the declared window and
 pane topology. It does not terminate sessions, windows, or panes; replace
-processes; run hooks; evaluate Lisp; invoke a shell implicitly; or choose a
-default tmux endpoint.
+processes; run hooks; evaluate Lisp; or choose a
+default tmux endpoint. It does not evaluate command data as shell source.
 
 The public workflow is:
 
@@ -50,8 +50,10 @@ Names are nonempty strings that tmux preserves exactly. Session names exclude
 periods and colons; all names exclude NUL, control characters and backslash.
 Window names must be unique. A window has at least one pane. `:index`, when
 present, is a unique nonnegative integer.
-Commands are nonempty finite vectors or lists of NUL-free strings and cross no
-shell boundary. CWD values are nonempty NUL-free strings and remain strings;
+Commands are nonempty finite vectors or lists of NUL-free strings. Core passes
+multiple arguments directly to tmux; singleton argv uses its fixed `/bin/sh`
+exec adapter, with caller text passed as positional data. CWD values are
+nonempty NUL-free strings and remain strings;
 the library does not reinterpret remote paths through the local filesystem.
 
 Session CWD is the default for windows and panes. Window CWD overrides it for
