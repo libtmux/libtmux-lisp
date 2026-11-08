@@ -26,8 +26,21 @@
                (outcome (libtmux.internal::perform-command
                          client nil (list "set-environment" "-g" "LIBTMUX_ENCODING_TEST" text))))
           (is (eq :succeeded (libtmux:outcome-status outcome)))
-          (is (equal (format nil "LIBTMUX_ENCODING_TEST=~A~%" text)
-                     (fixture-ok fixture "show-environment" "-g" "LIBTMUX_ENCODING_TEST"))))))))
+          ;; show-environment's display escaping differs between releases.
+          ;; Read the bytes inherited by a pane, outside that printer.
+          (let ((path (merge-pathnames "environment.bin" (fixture-directory fixture)))
+                (program (or (uiop:getenv "LIBTMUX_TEST_TMUX") "tmux"))
+                (channel "environment-written"))
+            (fixture-ok fixture "set-environment" "-u" "-t" "fixture" "LIBTMUX_ENCODING_TEST")
+            (fixture-ok fixture "new-window" "-d" "-t" "fixture" "/bin/sh" "-c"
+                        "printf '%s' \"$LIBTMUX_ENCODING_TEST\" > \"$1\" && exec \"$2\" -N -S \"$3\" wait-for -S \"$4\""
+                        "environment-probe" (namestring path) program (fixture-socket fixture) channel)
+            (is (eq :succeeded
+                    (libtmux:outcome-status
+                     (libtmux.internal::run-process
+                      (list program "-N" "-S" (fixture-socket fixture) "wait-for" channel)
+                      :timeout 0.5))))
+            (is (equalp (libtmux.internal::encode-utf8 text) (read-file-octets path)))))))))
 
 (test successful-mutation-retains-failed-observation
   (with-tmux-fixture (fixture)
