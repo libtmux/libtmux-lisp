@@ -12,10 +12,19 @@
   (write-to-string value :base 10 :radix nil))
 
 (defun literal-format (text)
-  (with-output-to-string (stream)
-    (loop for character across (text-argument text)
-          do (when (char= character #\#) (write-char #\# stream))
-             (write-char character stream))))
+  (let* ((text (text-argument text)) (length (length text)) (index 0))
+    (with-output-to-string (stream)
+      (loop while (< index length)
+            do (if (char= (char text index) #\#)
+                   (let ((end (or (position-if-not (lambda (character) (char= character #\#))
+                                                   text :start index)
+                                  length)))
+                     ;; Tmux preserves hash runs before [ for its later style renderer.
+                     (write-string text stream :start index :end end)
+                     (unless (and (< end length) (char= (char text end) #\[))
+                       (write-string text stream :start index :end end))
+                     (setf index end))
+                   (progn (write-char (char text index) stream) (incf index)))))))
 
 (defun quote-tmux-token (text)
   ;; Literal newlines in tmux quotes strip following whitespace/comments.

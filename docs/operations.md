@@ -51,10 +51,12 @@ Creation defaults to detached mode. Selection uses explicit captured targets.
 
 ## Names and child commands
 
-Names and creation `:cwd` strings are literal. Rename's `:format-p t` explicitly
-requests tmux format expansion. Tmux can normalize or reject a name; inspect the
-replacement observation for the resulting name. Cwd text follows tmux's own
-relative-path rules.
+Names and creation `:cwd` strings are literal, including `#[...]` and `#{...}`
+text. Rename's `:format-p t` explicitly requests tmux format expansion. Tmux can
+normalize or reject a name; inspect the replacement observation for the
+resulting name. Cwd text follows tmux's own relative-path rules. Tmux can fall
+back from an inaccessible cwd; use child-side evidence when the exact directory
+matters.
 
 Creation accepts a nonempty `:command` list/vector of argv strings or a separate
 `:shell-command` string. Omission selects tmux's default shell. Supplying an

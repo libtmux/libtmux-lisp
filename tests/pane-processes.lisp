@@ -44,7 +44,7 @@
              (binary (or (uiop:getenv "LIBTMUX_TEST_TMUX") "tmux"))
              (path (namestring (merge-pathnames "%Y-#{pane_id} result" (fixture-directory fixture))))
              (payload "pane output λ")
-             (literal "%Y #{pane_id} λ;")
+             (literal "%Y #{pane_id} λ;#[one]##[#{pid}];")
              (window (libtmux:outcome-value
                       (libtmux:new-window
                        client session

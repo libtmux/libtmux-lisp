@@ -9,7 +9,7 @@
              (window (aref (libtmux:windows snapshot) 0))
              (pane (aref (libtmux:panes snapshot) 0))
              (old-name (libtmux:name window))
-             (name "literal-#{pid};'λ;")
+             (name "literal-#{pid};'λ;#[one]##[two]###[three]####[four]#[#{pid}];tail#")
              (outcome (libtmux:rename-window client window name)))
         (is (eq :succeeded (libtmux:outcome-status outcome)))
         (multiple-value-bind (replacement present-p) (libtmux:outcome-value outcome)

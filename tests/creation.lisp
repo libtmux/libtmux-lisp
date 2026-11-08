@@ -5,7 +5,8 @@
 (test native-creation-argv-and-owned-results
   (with-tmux-fixture (fixture)
     (with-fixture-client (client fixture)
-      (let* ((directory (namestring (fixture-directory fixture)))
+      (let* ((directory (concatenate 'string (namestring (fixture-directory fixture))
+                                    "cwd-#[one]##[#{pid}]/"))
              (script (concatenate 'string directory "one executable;$'λ.py"))
              (result (concatenate 'string directory "argv-result"))
              (program (or (uiop:getenv "LIBTMUX_TEST_TMUX") "tmux"))
@@ -14,7 +15,8 @@
                             ("LIBTMUX_SOCKET" . ,(fixture-socket fixture))
                             ("LIBTMUX_VALUE" . "λ$`'\\")))
              (payload '("" "space here" ";" "$HOME`x`" "\\" "λ")))
-        (with-open-file (stream script :direction :output :if-exists :error)
+        (sb-posix:mkdir (sb-ext:parse-native-namestring directory) #o700)
+        (with-open-file (stream (sb-ext:parse-native-namestring script) :direction :output :if-exists :error)
           (write-string "#!/usr/bin/python3
 import os, subprocess, sys
 parts = [os.getcwd(), os.environ['LIBTMUX_VALUE'], *sys.argv[1:]]
@@ -23,7 +25,7 @@ with open(os.environ['LIBTMUX_RESULT'], 'wb') as stream:
 subprocess.run([os.environ['LIBTMUX_PROGRAM'], '-N', '-S', os.environ['LIBTMUX_SOCKET'], 'wait-for', '-S', 'creation-ready'], check=True)
 sys.stdin.buffer.read(1)
 " stream))
-        (sb-posix:chmod script #o700)
+        (sb-posix:chmod (sb-ext:parse-native-namestring script) #o700)
         (let* ((outcome (libtmux:new-session client :name "created-#{pid}" :command (list script)
                                                     :cwd directory :environment environment))
                (session (libtmux:outcome-value outcome)))
@@ -33,7 +35,7 @@ sys.stdin.buffer.read(1)
           (libtmux:run-command client '("wait-for" "creation-ready") :effect :read :timeout 0.5)
           (is (equal (concatenate 'string (string-right-trim "/" directory)
                                   (string #\Null) (cdr (assoc "LIBTMUX_VALUE" environment :test #'equal)))
-                     (uiop:read-file-string result)))
+                     (uiop:read-file-string (sb-ext:parse-native-namestring result))))
           (let* ((outcome (libtmux:new-window client session :name "native-#{pid};" :index 4
                                              :cwd directory :environment environment
                                              :command (cons script payload)))
@@ -48,7 +50,7 @@ sys.stdin.buffer.read(1)
                                                   (cdr (assoc "LIBTMUX_VALUE" environment :test #'equal))) payload)
                          for first = t then nil
                          do (unless first (write-char #\Null stream)) (write-string part stream)))
-                 (uiop:read-file-string result)))
+                 (uiop:read-file-string (sb-ext:parse-native-namestring result))))
             (let ((pane (libtmux:outcome-value
                          (libtmux:split-pane client (aref (libtmux:panes window) 0)
                                             :direction :horizontal :percent 40 :command '("/bin/cat")))))
