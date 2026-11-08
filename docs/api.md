@@ -93,6 +93,7 @@ See docs/index.md for the tutorial, API reference and current capability limits.
 
 **Coordinate server requests**
 
+[display-message](#display-message-function)
 [lock-server](#lock-server-function)
 [lock-session](#lock-session-function)
 [wait-for](#wait-for-function)
@@ -398,6 +399,36 @@ retries, detaches other clients, kills a parent, or starts a shell command.
 See also: [fetch-clients](#fetch-clients-function), [outcome-status](#outcome-status-function), [switch-client](#switch-client-function).
 
 [Source](../src/client-operations.lisp)
+
+<a id="display-message-function"></a>
+
+### display-message
+
+`(display-message client message &key target format-p cancel-token timeout output-limit)`
+
+Print MESSAGE through tmux; return owned UTF-8 text and a COMMAND-OUTCOME.
+Always uses the ordinary -p printer, preserving whitespace and trailing lines.
+MESSAGE is literal by default. FORMAT-P enables tmux format and time expansion;
+#() may start shell jobs but does not wait for their output. Fresh requests can
+print empty or incomplete job results. The native command client owns those
+jobs; its disconnect cleans them up.
+
+TARGET may be a captured session, window, pane or window-link owned by CLIENT.
+Use a window-link for exact session/index context. With no target, tmux selects
+the context; physical windows and panes also leave their session context to
+tmux. Foreign, replaced or vanished targets signal STALE-TARGET.
+
+The result includes after-hook printer output; it is not a decoded scalar or
+configuration record. Hooks may also have effects. The call blocks under shared
+preflight/dispatch limits, acquires no replacement and never retries. Tmux 3.3a
+literal fallback limits the escaped intermediate text to 8,191 UTF-8 bytes;
+newer daemons use native literal printing. Encoded command limits also apply.
+Invalid UTF-8 signals DECODING-ERROR with its outcome; other failures retain
+their diagnostic outcome. Local validation signals INVALID-ARGUMENT.
+
+See also: [capture-pane](#capture-pane-function), [error-outcome](#error-outcome-function), [outcome-stdout](#outcome-stdout-function), [run-command](#run-command-function), [set-hook](#set-hook-function).
+
+[Source](../src/server-operations.lisp)
 
 <a id="entity-data-function"></a>
 

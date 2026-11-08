@@ -2,6 +2,49 @@
 
 (in-suite integration)
 
+(test display-message-preserves-literals-formats-and-link-context
+  (with-tmux-fixture (fixture)
+    (fixture-ok fixture "link-window" "-s" "@0" "-t" "fixture:3")
+    (with-fixture-client (client fixture)
+      (let* ((snapshot (libtmux:fetch-snapshot client))
+             (session (aref (libtmux:sessions snapshot) 0))
+             (window (aref (libtmux:windows snapshot) 0))
+             (pane (aref (libtmux:panes snapshot) 0))
+             (text (format nil "-λ'\";#{pid};#(false);#[one]##[#{pid}];%Y;%%;\\~%  ~Ctail~%" #\Tab)))
+        (multiple-value-bind (printed outcome) (libtmux:display-message client text)
+          (is (equal (format nil "~A~%" text) printed))
+          (is (eq :succeeded (libtmux:outcome-status outcome)))
+          (is (equalp (libtmux.internal::encode-utf8 printed) (libtmux:outcome-stdout outcome))))
+        (is (equal (string #\Newline) (libtmux:display-message client "")))
+        (loop for target in (list session window pane)
+              for field in '("session_id" "window_id" "pane_id")
+              do (is (equal (format nil "~A|%~%" (libtmux:id target))
+                            (libtmux:display-message client (format nil "#{~A}|%%" field)
+                                                     :target target :format-p t))))
+        (loop for link across (libtmux:window-links snapshot)
+              do (destructuring-bind (session-id index window-id) (libtmux:id link)
+                   (is (equal (format nil "~A:~D:~A~%" session-id index window-id)
+                              (libtmux:display-message
+                               client "#{session_id}:#{window_index}:#{window_id}"
+                               :target link :format-p t)))))
+        (with-fixture-client (other fixture)
+          (signals libtmux:stale-target
+            (libtmux:display-message other "text" :target pane)))
+        (let ((large (make-string 8192 :initial-element #\a)))
+          (if (libtmux.internal::version-at-least-p (libtmux:tmux-version client) "3.4")
+              (is (equal (format nil "~A~%" large) (libtmux:display-message client large)))
+              (handler-case
+                  (progn (libtmux:display-message client large)
+                         (fail "The floor literal fallback admitted an oversized intermediate"))
+                (libtmux:invalid-argument (condition)
+                  (is (eq :not-dispatched
+                          (libtmux:outcome-status (libtmux:error-outcome condition))))))))
+        ;; Hooks share the ordinary printer; preserve their output as text.
+        (fixture-ok fixture "set-hook" "-g" "after-display-message"
+                    "list-commands -F hook-output list-sessions")
+        (is (equal (format nil "text~%hook-output~%")
+                   (libtmux:display-message client "text" :target pane)))))))
+
 (defclass wait-readiness-transport (libtmux.internal::subprocess-transport)
   ((channel :initarg :channel)))
 

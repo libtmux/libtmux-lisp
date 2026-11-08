@@ -84,6 +84,17 @@
       (signals libtmux:invalid-argument (libtmux:wait-for nil "channel" :operation :unknown))
       (is (zerop calls)))))
 
+(test display-message-validation-precedes-io
+  (let ((calls 0))
+    (let ((libtmux.internal::*process-started-hook*
+            (lambda (process) (declare (ignore process)) (incf calls))))
+      (signals libtmux:invalid-argument (libtmux:display-message nil 7))
+      (signals libtmux:invalid-argument (libtmux:display-message nil (string #\Null)))
+      (signals libtmux:invalid-argument (libtmux:display-message nil "text" :target "@0"))
+      (signals libtmux:invalid-argument
+        (libtmux:display-message nil "text" :target (make-instance 'libtmux:attached-client)))
+      (is (zerop calls)))))
+
 (test lock-session-rejects-invalid-targets-and-command-overrides
   (let ((calls 0))
     (let ((libtmux.internal::*process-started-hook*

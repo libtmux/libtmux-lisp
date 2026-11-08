@@ -26,6 +26,15 @@
                      (setf index end))
                    (progn (write-char (char text index) stream) (incf index)))))))
 
+(defun literal-time-format (text)
+  (let ((literal (literal-format text)))
+    (when (> (length (encode-utf8 literal)) 8191)
+      (invalid-argument "Literal text exceeds the 8,191-byte time-format intermediate limit"))
+    (with-output-to-string (stream)
+      (loop for character across literal
+            do (when (char= character #\%) (write-char #\% stream))
+               (write-char character stream)))))
+
 (defun quote-tmux-token (text)
   ;; Literal newlines in tmux quotes strip following whitespace/comments.
   (with-output-to-string (stream)

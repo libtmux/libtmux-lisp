@@ -9,15 +9,6 @@
                  (creation-options cwd environment command shell-command command-p shell-command-p))
          :observe (when observe (observe-target client target)) options))
 
-(defun literal-time-format (text)
-  (let ((literal (literal-format text)))
-    (when (> (length (encode-utf8 literal)) 8191)
-      (invalid-argument "Literal pipe command exceeds tmux's 8,191-byte time-format capacity"))
-    (with-output-to-string (stream)
-      (loop for character across literal
-            do (when (char= character #\%) (write-char #\% stream))
-               (write-char character stream)))))
-
 (in-package #:libtmux)
 
 (defun respawn-pane (client pane &key kill cwd environment (observe t)

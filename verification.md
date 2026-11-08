@@ -65,6 +65,9 @@ Wait-channel tests prove a waiter is queued through native listing before
 cancellation, then inspect the daemon's remaining queue. Lost lock
 acknowledgements remain separate from queued-waiter disposal; neither closing
 nor cancellation automatically releases a granted lock.
+Message-printing tests distinguish literal and explicit format input, physical
+and link context, foreign authority, versioned intermediate limits and
+after-hook text in the ordinary printer stream.
 
 The integration runner is a dedicated child-process subreaper. It verifies
 that no test-owned worker or tmux daemon survives the test image, including an

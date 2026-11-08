@@ -53,7 +53,7 @@
                (:file "src/client-operations"
                       :description "Captured terminal-client targeting, switching and explicit frontend requests.")
                (:file "src/server-operations"
-                      :description "Explicit server wait channels, requests and daemon-owned state.")
+                      :description "Literal message printing, explicit server requests and wait-channel state.")
                (:file "src/creation"
                       :description "Detached session/window/pane creation from argv or explicit shell source.")
                (:file "src/process-operations"

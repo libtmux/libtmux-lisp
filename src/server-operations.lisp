@@ -1,5 +1,50 @@
 (in-package #:libtmux)
 
+(defun display-message (client message &key target format-p cancel-token timeout output-limit)
+  "Print MESSAGE through tmux; return owned UTF-8 text and a COMMAND-OUTCOME.
+Always uses the ordinary -p printer, preserving whitespace and trailing lines.
+MESSAGE is literal by default. FORMAT-P enables tmux format and time expansion;
+#() may start shell jobs but does not wait for their output. Fresh requests can
+print empty or incomplete job results. The native command client owns those
+jobs; its disconnect cleans them up.
+
+TARGET may be a captured session, window, pane or window-link owned by CLIENT.
+Use a window-link for exact session/index context. With no target, tmux selects
+the context; physical windows and panes also leave their session context to
+tmux. Foreign, replaced or vanished targets signal STALE-TARGET.
+
+The result includes after-hook printer output; it is not a decoded scalar or
+configuration record. Hooks may also have effects. The call blocks under shared
+preflight/dispatch limits, acquires no replacement and never retries. Tmux 3.3a
+literal fallback limits the escaped intermediate text to 8,191 UTF-8 bytes;
+newer daemons use native literal printing. Encoded command limits also apply.
+Invalid UTF-8 signals DECODING-ERROR with its outcome; other failures retain
+their diagnostic outcome. Local validation signals INVALID-ARGUMENT.
+See also: RUN-COMMAND, CAPTURE-PANE, SET-HOOK, OUTCOME-STDOUT, ERROR-OUTCOME."
+  (let* ((message (libtmux.internal::text-argument message "Message"))
+         (locator (when target
+                    (unless (typep target '(or session window pane window-link))
+                      (libtmux.internal::invalid-argument
+                       "Message target must be a captured session, window, pane or window-link"))
+                    (libtmux.internal::target-guard target)))
+         (prefix (append '("display-message" "-p") (when locator (list "-t" locator))))
+         (outcome
+           (libtmux.internal::perform-command
+            client (when target (list target)) (append prefix (list "--" message))
+            :argument-builder
+            (lambda (witness current)
+              (declare (ignore current))
+              (let ((literal-flag (and (not format-p)
+                                       (libtmux.internal::version-at-least-p
+                                        (libtmux.internal::server-witness-version witness) "3.4"))))
+                (append prefix (when literal-flag '("-l"))
+                        (list "--" (if (or format-p literal-flag)
+                                       message
+                                       (libtmux.internal::literal-time-format message))))))
+            :cancel-token cancel-token :timeout timeout :output-limit output-limit)))
+    (handler-bind ((decoding-error (lambda (condition) (setf (slot-value condition 'client) client))))
+      (values (libtmux.internal::outcome-text outcome) outcome))))
+
 (defun lock-session (client session &key cancel-token timeout output-limit)
   "Request locking of SESSION's attached frontends; return a COMMAND-OUTCOME.
 CLIENT must own the captured SESSION. The live session membership determines

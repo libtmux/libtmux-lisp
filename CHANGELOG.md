@@ -25,6 +25,9 @@
 
 ### Added
 
+- Add literal message printing with explicit tmux format expansion, captured
+  target context, preserved printer text and retained command outcomes.
+
 - Add session-wide and server-wide frontend lock requests with retained
   command outcomes and explicit request-versus-frontend completion semantics.
 

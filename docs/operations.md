@@ -157,6 +157,37 @@ the frontend programs running. Hooks can add effects or fail after requests
 have been sent, so a failed outcome does not undo a lock request. See tmux's
 [`server_lock`](https://github.com/tmux/tmux/blob/3.8/server-fn.c#L175-L218).
 
+## Message printing
+
+[`display-message`](api.md#display-message-function) returns two values: owned
+strict UTF-8 text and its diagnostic command outcome. It uses tmux's ordinary
+`-p` printer and preserves whitespace, including the final newline. Message text
+is literal by default, including `#{...}`, `#(...)`, `#[...]` and `%Y`.
+
+An optional `:target` accepts a captured session, physical window, pane or
+window link owned by the supplied client. Use a link when its session and index
+matter. Physical windows and panes let tmux choose their session context;
+omitting the target lets tmux choose the complete context. Authority and stale
+link checks apply before the request. The call acquires no replacement.
+
+`:format-p t` explicitly enables tmux format and time expansion. A `#()`
+expression may start a shell job, but expansion does not wait for its result.
+A fresh command client may print an empty or incomplete result. Those jobs
+belong to the native command client and are cleaned up on its disconnect;
+this API does not provide job completion or background process ownership.
+
+After-hooks can print additional text or have effects. The returned text retains
+that output; it does not establish a single field's value or presence. Use
+captured getters for local field reads. Decoded configuration acquisition
+remains a separate capability. Invalid UTF-8 raises
+[`decoding-error`](api.md#decoding-error-type) with the outcome's original bytes.
+
+Tmux 3.4 and newer provide native literal printing. The 3.3a fallback escapes
+format and time syntax and conservatively limits the intermediate after time
+expansion to 8,191 UTF-8 bytes. That limit is checked after live-version
+preflight and before payload dispatch. The encoded command limit also applies.
+See [`cmd_display_message_exec`](https://github.com/tmux/tmux/blob/3.8/cmd-display-message.c#L62-L176).
+
 ## Wait channels
 
 [`wait-for`](api.md#wait-for-function) accepts `:operation :wait` (the default),

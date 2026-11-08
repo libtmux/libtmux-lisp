@@ -31,7 +31,7 @@ See docs/index.md for the tutorial, API reference and current capability limits.
    #:send-text #:send-keys #:send-prefix #:clear-history #:copy-mode
    #:respawn-pane #:respawn-window #:pipe-pane
    #:switch-client #:detach-client #:refresh-client #:suspend-client #:lock-client
-   #:wait-for #:lock-session #:lock-server
+   #:wait-for #:lock-session #:lock-server #:display-message
    #:resize-pane #:resize-window #:select-layout #:next-layout #:previous-layout
    #:next-window #:previous-window #:last-window #:last-pane
    #:link-window #:unlink-window #:move-window #:swap-windows
