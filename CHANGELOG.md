@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+### Fixed
+
+- Preserve partial and uncertain command outcomes in workspace CLI JSON errors,
+  including nested causes, failed steps and raw diagnostic bytes.
+
 ### Added
 
 - Add the separately loadable `libtmux/query` system with typed scalar filters,

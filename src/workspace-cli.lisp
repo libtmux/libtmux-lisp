@@ -89,6 +89,107 @@ status without entering the debugger.")
         (com.inuoe.jzon:write-value writer panes))))
   (terpri stream))
 
+(defun write-condition-fields (writer condition &optional (depth 0))
+  (com.inuoe.jzon:write-key writer "condition")
+  (com.inuoe.jzon:write-value writer (string-downcase (symbol-name (type-of condition))))
+  (com.inuoe.jzon:write-key writer "message")
+  (com.inuoe.jzon:write-value
+   writer (if (typep condition 'libtmux:libtmux-error)
+              (libtmux:error-message condition)
+              (princ-to-string condition)))
+  (if (>= depth 8)
+      (progn
+        (com.inuoe.jzon:write-key writer "detailsTruncated")
+        (com.inuoe.jzon:write-value writer t))
+      (progn
+        (when (typep condition 'libtmux.workspace:workspace-error)
+          (com.inuoe.jzon:write-key writer "path")
+          (com.inuoe.jzon:write-value
+           writer (diagnostic-value (libtmux.workspace:workspace-path condition)))
+          (when (libtmux.workspace:workspace-limit condition)
+            (com.inuoe.jzon:write-key writer "limit")
+            (com.inuoe.jzon:write-value
+             writer (action-name (libtmux.workspace:workspace-limit condition)))))
+        (when (typep condition 'libtmux.workspace:workspace-apply-failed)
+          (let ((step (libtmux.workspace:failed-step condition)))
+            (when step
+              (com.inuoe.jzon:write-key writer "failedStep")
+              (com.inuoe.jzon:with-object writer
+                (com.inuoe.jzon:write-key writer "action")
+                (com.inuoe.jzon:write-value
+                 writer (action-name (libtmux.workspace:step-action step)))
+                (com.inuoe.jzon:write-key writer "data")
+                (com.inuoe.jzon:with-object writer
+                  (loop for (key value) on (libtmux.workspace:step-data step) by #'cddr
+                        do (com.inuoe.jzon:write-key writer (action-name key))
+                           (com.inuoe.jzon:write-value writer (diagnostic-value value)))))))
+          (com.inuoe.jzon:write-key writer "outcomes")
+          (com.inuoe.jzon:with-array writer
+            (loop for outcome across (libtmux.workspace:result-outcomes condition)
+                  do (write-outcome writer outcome (1+ depth)))))
+        (when (typep condition 'libtmux:libtmux-error)
+          (let ((outcome (libtmux:error-outcome condition))
+                (cause (libtmux:error-cause condition)))
+            (when outcome
+              (com.inuoe.jzon:write-key writer "outcome")
+              (write-outcome writer outcome (1+ depth)))
+            (when cause
+              (com.inuoe.jzon:write-key writer "cause")
+              (com.inuoe.jzon:with-object writer
+                (write-condition-fields writer cause (1+ depth)))))))))
+
+(defun write-outcome (writer outcome &optional (depth 0))
+  (com.inuoe.jzon:with-object writer
+    (loop for key in '("status" "phase")
+          for value in (list (libtmux:outcome-status outcome)
+                             (libtmux:outcome-phase outcome))
+          do (com.inuoe.jzon:write-key writer key)
+             (com.inuoe.jzon:write-value writer (action-name value)))
+    (com.inuoe.jzon:write-key writer "arguments")
+    (com.inuoe.jzon:write-value writer (libtmux:outcome-arguments outcome))
+    (com.inuoe.jzon:write-key writer "elapsedSeconds")
+    (com.inuoe.jzon:write-value writer (libtmux:outcome-elapsed outcome))
+    (loop for key in '("stdoutBytes" "stderrBytes")
+          for bytes in (list (libtmux:outcome-stdout outcome)
+                             (libtmux:outcome-stderr outcome))
+          do (com.inuoe.jzon:write-key writer key)
+             (com.inuoe.jzon:write-value writer bytes))
+    (let ((exit-code (libtmux:outcome-exit-code outcome))
+          (reason (libtmux:outcome-reason outcome))
+          (observation-error (libtmux:outcome-observation-error outcome))
+          (cleanup-failures (libtmux:outcome-cleanup-failures outcome)))
+      (when exit-code
+        (com.inuoe.jzon:write-key writer "exitCode")
+        (com.inuoe.jzon:write-value writer exit-code))
+      (when reason
+        (com.inuoe.jzon:write-key writer "reason")
+        (com.inuoe.jzon:write-value writer (action-name reason)))
+      (when observation-error
+        (com.inuoe.jzon:write-key writer "observationError")
+        (com.inuoe.jzon:with-object writer
+          (write-condition-fields writer observation-error (1+ depth))))
+      (when (plusp (length cleanup-failures))
+        (com.inuoe.jzon:write-key writer "cleanupFailures")
+        (com.inuoe.jzon:with-array writer
+          (loop for condition across cleanup-failures
+                do (com.inuoe.jzon:with-object writer
+                     (write-condition-fields writer condition (1+ depth)))))))))
+
+(defun diagnostic-value (value)
+  (typecase value
+    (keyword (action-name value))
+    (string value)
+    (vector (map 'simple-vector #'diagnostic-value value))
+    (t value)))
+
+(defun write-failure (stream condition)
+  (com.inuoe.jzon:with-writer (writer :stream stream :max-depth nil)
+    (com.inuoe.jzon:with-object writer
+      (com.inuoe.jzon:write-key writer "status")
+      (com.inuoe.jzon:write-value writer "error")
+      (write-condition-fields writer condition)))
+  (terpri stream))
+
 (defun apply-options (arguments)
   (unless arguments (usage-error "apply requires FILE and --socket-path PATH"))
   (let ((file (first arguments)) (rest (rest arguments))
@@ -139,10 +240,13 @@ status without entering the debugger.")
 VALIDATE and PLAN parse one bounded file without tmux I/O. APPLY requires
 --socket-path and optionally accepts --program; it scopes and closes its own
 client without terminating the server. STDOUT receives one JSON result or help.
-STDERR receives concise usage or condition diagnostics. MAIN does not call
+STDERR receives usage text or one JSON error retaining condition causes, failed
+step data, and command outcomes, including byte arrays and unknown dispatch
+status. An unavailable exit code or failed step is omitted. MAIN does not call
 UIOP:QUIT, close caller streams, or enter the debugger.
+Nested diagnostic details stop after eight levels and mark detailsTruncated.
 
-See also: READ-WORKSPACE, PLAN-WORKSPACE, APPLY-WORKSPACE."
+See also: APPLY-WORKSPACE, OUTCOME-STATUS, OUTCOME-PHASE."
   (handler-case
       (run-command arguments stdout)
     (cli-usage-error (condition)
@@ -150,8 +254,8 @@ See also: READ-WORKSPACE, PLAN-WORKSPACE, APPLY-WORKSPACE."
       (usage stderr)
       2)
     (libtmux:libtmux-error (condition)
-      (format stderr "libtmux-workspace: ~A~%" (libtmux:error-message condition))
+      (write-failure stderr condition)
       1)
     (error (condition)
-      (format stderr "libtmux-workspace: ~A~%" condition)
+      (write-failure stderr condition)
       1)))

@@ -12,7 +12,7 @@ workspace bootstrap. Persistent control/events remain future work.
 | Operations | Creation, rename, selection, geometry, placement, input, buffers, respawn, shell pipes, typed option/hook/environment mutations, explicit entity/server termination | Decoded configuration readers, daemon bootstrap and attached-client operations |
 | Concurrency | Synchronous calls; cancellation; one operation per client | Public asynchronous API and persistent control transport |
 | Streaming/events | Complete bounded captures and byte buffers; daemon-owned `pipe-pane` | Native event/output subscriptions, bounded delivery, loss and backpressure |
-| Workspace | Separate bounded JSON/native system, pure plans, explicit apply, no-op reuse and explicit-endpoint CLI | Deletion, process supervision and richer convergence are intentionally absent from v1 |
+| Workspace | Separate bounded JSON/native system, pure plans, explicit apply, topology reuse and explicit-endpoint CLI | Owned declaration/ID metadata, drift inspection, richer configuration and explicit reconciliation; deletion and process supervision remain outside v1 |
 | MCP | Intentionally excluded by project policy | Use a separately maintained external integration if one becomes suitable |
 | Optional integrations | Separate CL-PPCRE regex, bounded query JSON and workspace/CLI systems | Control ASDF system |
 | Performance | No benchmark claims | Reproducible acquisition/filter/stream workloads and latency/allocation results |

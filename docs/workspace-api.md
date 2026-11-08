@@ -352,10 +352,13 @@ Run the workspace CLI for ARGUMENTS and return process status 0, 1, or 2.
 VALIDATE and PLAN parse one bounded file without tmux I/O. APPLY requires
 --socket-path and optionally accepts --program; it scopes and closes its own
 client without terminating the server. STDOUT receives one JSON result or help.
-STDERR receives concise usage or condition diagnostics. MAIN does not call
+STDERR receives usage text or one JSON error retaining condition causes, failed
+step data, and command outcomes, including byte arrays and unknown dispatch
+status. An unavailable exit code or failed step is omitted. MAIN does not call
 UIOP:QUIT, close caller streams, or enter the debugger.
+Nested diagnostic details stop after eight levels and mark detailsTruncated.
 
 
-See also: [apply-workspace](#apply-workspace-function), [plan-workspace](#plan-workspace-function), [read-workspace](#read-workspace-function).
+See also: [apply-workspace](#apply-workspace-function).
 
 [Source](../src/workspace-cli.lisp)

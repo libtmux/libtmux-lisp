@@ -138,6 +138,19 @@ core outcomes were retained. The tested
 status 0, 1, or 2 and accepts caller-owned output streams; it does not quit the
 image or enter the debugger.
 
+Library failures return status 1, leave stdout empty, and write one JSON error
+to stderr. It retains condition names, messages, causes, workspace paths and
+limits, failed-step data, and every retained command outcome. Outcomes include
+status, dispatch phase, argv, elapsed seconds and output bytes; an unknown exit
+code is omitted. `stdoutBytes` and `stderrBytes` are integer arrays, preserving
+invalid UTF-8. Observation and cleanup failures retain their own diagnostics.
+Nested details stop after eight levels and set `detailsTruncated` to true.
+Usage errors return status 2 with usage text on stderr.
+
+Inspect retained statuses and phases before recovering from a failed apply.
+An `unknown` outcome can follow a mutation that already happened. Successful
+outcomes remain successful when a later step or observation fails.
+
 ## Handle conflicts and partial application
 
 [`plan-workspace`](workspace-api.md#plan-workspace-function) matches an existing
@@ -173,6 +186,11 @@ completed. It still retains all outcomes. The workspace layer never retries or
 rolls back a mutation.
 
 ## Current boundary
+
+Reuse checks topology by name, index and pane count, including sessions created
+outside this library. Version 1 does not retain a canonical declaration or
+owned entity mapping. Ownership checks, declaration-versus-drift planning,
+environment settings and explicit reconciliation remain unfinished.
 
 Version 1 deliberately omits YAML, plugins, lifecycle scripts, environment
 expansion, shell command strings, deletion, process supervision, daemon startup,
