@@ -119,6 +119,28 @@ for symbol in symbols:
         )
     if symbol["kind"] == "function":
         require(symbol.get("signature"), f"missing native signature for {symbol.get('id')}")
+        if symbol.get("generic"):
+            require(symbol.get("methods"), f"missing CLOS methods for {symbol['id']}")
+            for method in symbol["methods"]:
+                require(method.get("signature"), f"missing method signature for {symbol['id']}")
+                require(isinstance(method.get("qualifiers"), list),
+                        f"missing method qualifiers for {symbol['id']}")
+                require(all(target == "common-lisp:t" or target in ids
+                            for target in method.get("specializers", [])),
+                        f"non-public method specializer for {symbol['id']}")
+
+panes = symbols[ids.index("libtmux:panes")]
+require(
+    {tuple(method["specializers"]) for method in panes.get("methods", [])}
+    == {("libtmux:snapshot",), ("libtmux:window/type",)},
+    "pane traversal lost snapshot/window method applicability",
+)
+field_value = symbols[ids.index("libtmux:field-value")]
+require(
+    [method["specializers"] for method in field_value.get("methods", [])]
+    == [["libtmux:entity", "common-lisp:t"]],
+    "field lookup lost its unspecialized second required argument",
+)
 
 apply_workspace = symbols[ids.index("libtmux.workspace:apply-workspace")]
 require(

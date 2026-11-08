@@ -319,6 +319,46 @@
       (com.inuoe.jzon:write-key writer "line")
       (com.inuoe.jzon:write-value writer (source-line symbol kind source)))))
 
+(defun method-specializer-identity (class)
+  (let ((name (class-name class)))
+    (if (eq name t)
+        "common-lisp:t"
+        (let* ((package (symbol-package name))
+               (public-p (eq :external (nth-value 1 (find-symbol (symbol-name name) package)))))
+          (unless (and public-p
+                       (member package *artifact-packages*
+                               :key (lambda (spec) (find-package (second spec)))))
+            (error "Non-public CLOS method specializer: ~A" name))
+          (native-identity name :type)))))
+
+(defun method-signature-text (symbol method)
+  (let ((specializers (copy-list (sb-mop:method-specializers method))))
+    (with-output-to-string (out)
+      (format out "(~A" (spelling symbol))
+      (dolist (qualifier (sb-mop:method-qualifiers method))
+        (format out " ~A" (signature-text qualifier)))
+      (dolist (argument (sb-mop:method-lambda-list method))
+        (if specializers
+            (let* ((class (pop specializers)) (name (class-name class)))
+              (method-specializer-identity class)
+              (format out " (~A ~(~A~):~A)" (spelling argument)
+                      (package-name (symbol-package name)) (spelling name)))
+            (format out " ~A" (signature-text argument))))
+      (write-char #\) out))))
+
+(defun write-artifact-methods (writer symbol)
+  (com.inuoe.jzon:with-array writer
+    (dolist (method (sort (copy-list (sb-mop:generic-function-methods (fdefinition symbol)))
+                         #'string< :key (lambda (method) (method-signature-text symbol method))))
+      (com.inuoe.jzon:with-object writer
+        (com.inuoe.jzon:write-key writer "signature")
+        (com.inuoe.jzon:write-value writer (method-signature-text symbol method))
+        (com.inuoe.jzon:write-key writer "qualifiers")
+        (write-string-array writer (mapcar #'signature-text (sb-mop:method-qualifiers method)))
+        (com.inuoe.jzon:write-key writer "specializers")
+        (write-string-array writer (mapcar #'method-specializer-identity
+                                          (sb-mop:method-specializers method)))))))
+
 (defun write-function-artifact (writer symbol package)
   (let ((kind (function-kind symbol)))
     (com.inuoe.jzon:with-object writer
@@ -336,6 +376,9 @@
       (com.inuoe.jzon:write-key writer "generic")
       (com.inuoe.jzon:write-value writer
                                   (typep (fdefinition symbol) 'generic-function))
+      (when (typep (fdefinition symbol) 'generic-function)
+        (com.inuoe.jzon:write-key writer "methods")
+        (write-artifact-methods writer symbol))
       (com.inuoe.jzon:write-key writer "documentation")
       (write-artifact-documentation writer symbol 'function package)
       (com.inuoe.jzon:write-key writer "source")
