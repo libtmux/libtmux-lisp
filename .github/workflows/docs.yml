@@ -56,7 +56,7 @@ jobs:
   # The shared identity uses github.sha, the tested pull-request merge commit.
   # Fork pull requests build without publishing.
   build:
-    uses: libtmux/docs/.github/workflows/port-docs.yml@8112546feae35f2982d13d041583791bb7672ace
+    uses: libtmux/docs/.github/workflows/port-docs.yml@bf6139423636e7297ed263a05c1b084b44b30700
     with:
       port: lisp
       tag-prefix: ''
@@ -77,7 +77,7 @@ jobs:
     permissions:
       contents: read
       id-token: write
-    uses: libtmux/docs/.github/workflows/reusable-deploy.yml@8112546feae35f2982d13d041583791bb7672ace
+    uses: libtmux/docs/.github/workflows/reusable-deploy.yml@bf6139423636e7297ed263a05c1b084b44b30700
     with:
       path-prefix: lisp/${{ matrix.version }}
       artifact: docs-lisp-${{ matrix.version }}
