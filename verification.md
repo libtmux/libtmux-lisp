@@ -53,7 +53,11 @@ $ LIBTMUX_TEST_TMUX=/path/to/tmux mise run integration
 The fixture uses a unique `libtmux-lisp-` temporary directory, an explicit socket
 path and `/dev/null` configuration. Child environments omit `TMUX` and
 `TMUX_PANE`. A pidfd verifies termination before owned files are removed.
-Tests never address the default server.
+Tests never address the default server. Attached-client tests launch ordinary
+PTY clients through SBCL's fork path, without control mode. They join captured
+PIDs to retained child pidfds, observe native SIGTSTP stops, and use an owned
+bounded FIFO lock command. Request acknowledgements and frontend effects have
+separate assertions. Partial acquisition and nonlocal exits check cleanup.
 
 The integration runner is a dedicated child-process subreaper. It verifies
 that no test-owned worker or tmux daemon survives the test image, including an

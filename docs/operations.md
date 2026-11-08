@@ -24,6 +24,8 @@ daemon bootstrap is a separate unfinished part of the implementation.
 | `send-text`, `send-keys`, `send-prefix` | Pane; command outcome for the send request |
 | `respawn-pane`, `respawn-window` | Physical target; explicit process replacement and optional captured result |
 | `pipe-pane` | Pane; explicit shell source, direction and daemon-owned pipe |
+| [`switch-client`](api.md#switch-client-function) | Captured terminal client and destination session; outcome with optional replacement |
+| [`detach-client`](api.md#detach-client-function), [`refresh-client`](api.md#refresh-client-function), [`suspend-client`](api.md#suspend-client-function), [`lock-client`](api.md#lock-client-function) | Captured terminal client; outcome acknowledging the request |
 | `clear-history`, `copy-mode` | Pane; command outcome |
 | `resize-pane`, `resize-window` | Physical target; outcome with optional replacement |
 | `select-layout`, `next-layout`, `previous-layout` | Physical window; outcome with optional replacement |
@@ -103,6 +105,39 @@ Next and previous accept `:activity t` to restrict selection to alerting windows
 `last-pane` takes a physical window and returns its observed active pane.
 Tmux signals when no last selection exists. These operations and geometry
 accept `:observe nil` to omit follow-up acquisition.
+
+## Attached terminal clients
+
+[Fetch-clients](api.md#fetch-clients-function) returns attached-client observations;
+they are distinct from the library connection passed as the first argument.
+The five client operations above require an ordinary terminal client captured
+through that connection. They reject control-mode observations. Preflight
+requires one matching name and the same PID, creation time and tty. It also
+rejects a name that matches another client's full or abbreviated tty. A missing,
+replaced or foreign observation signals [stale-target](api.md#stale-target-type).
+Tmux has no dispatch-side client fingerprint guard across the supported floor,
+so replacement between preflight and dispatch remains possible.
+
+`switch-client` takes an explicit destination session. It preserves that
+session's environment by default; `:update-environment t` applies tmux's
+`update-environment` option using the attached client's environment. Its default
+`:observe t` acquires a replacement client observation; `:observe nil` omits
+that read. The earlier observation still points to its captured session.
+
+`refresh-client` schedules a full redraw; `:status-only t` schedules only the
+status line. [Refresh](api.md#refresh-function) instead acquires a replacement
+observation. `detach-client` requests detachment of the selected client.
+`suspend-client` requests native SIGTSTP suspension; the controlling application
+owns resumption. `lock-client` asks the frontend to execute its configured
+`lock-command` through a shell. An already suspended client can make suspend
+or lock a no-op; an empty or oversized lock command is also ignored by tmux.
+These four calls return no replacement observation.
+
+Success acknowledges the server's request. It does not prove frontend exit,
+terminal restoration, completed redraw, process suspension, lock startup or
+authentication. Coordinate dependent work through the frontend's own completion
+signal. Missing dispatch/completion evidence remains an unknown outcome; the
+library never retries these requests automatically.
 
 ## Links and pane placement
 

@@ -331,6 +331,15 @@ replacement observation fails; these remain separate results. A nonzero exit
 does not promise rollback. An interrupted dispatched mutation can have an
 unknown outcome and must not be retried automatically.
 
+Attached terminal-client operations preserve the distinction between a server
+request and frontend completion. Switching can acquire a replacement observation;
+redraw, detach, suspend and lock acknowledge requests. A detach receipt is not
+process-exit proof, and a lock receipt is not authentication. Tests use ordinary
+owned PTY clients with separate process/FIFO evidence. Switching preserves the
+destination environment by default: tmux's
+[`cmd_switch_client_exec`](https://github.com/tmux/tmux/blob/3.8/cmd-switch-client.c#L157-L165)
+updates it unless `-E` is supplied. Environment update is an explicit option.
+
 Raw [`run-command`](../api.md#run-command-function) is an explicit escape hatch.
 It does not provide named-operation target validation or imply that an
 unqualified control-mode route is supported.

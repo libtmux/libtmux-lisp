@@ -232,15 +232,18 @@
   (with-tmux-fixture (fixture)
     (with-fixture-client (client fixture)
       (let ((observation nil))
-        (call-with-attached-control-client
+        (call-with-attached-terminal-client
          fixture
-         (lambda (process)
-           (declare (ignore process))
+         (lambda (terminal)
            (let ((clients (libtmux:fetch-clients client)))
              (is (= 1 (length clients)))
              (setf observation (aref clients 0))
-             (is (equal '(t t) (multiple-value-list (libtmux:field-value observation :client/control-mode))))
-             (is (equal '(nil nil) (multiple-value-list (libtmux:field-value observation :client/tty))))
+             (is (= (sb-ext:process-pid (terminal-client-process terminal))
+                    (libtmux:field-value observation :client/pid)))
+             (is (equal '(nil t) (multiple-value-list (libtmux:field-value observation :client/control-mode))))
+             (multiple-value-bind (tty present-p) (libtmux:field-value observation :client/tty)
+               (is (eq t present-p))
+               (is (uiop:string-prefix-p "/dev/pts/" tty)))
              (is (equal "fixture" (libtmux:name (libtmux:session observation))))
              (is (not (libtmux:same-entity-p observation (libtmux:refresh client observation)))))))
         (is (zerop (length (libtmux:fetch-clients client))))

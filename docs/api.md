@@ -83,6 +83,14 @@ See docs/index.md for the tutorial, API reference and current capability limits.
 [new-window](#new-window-function)
 [split-pane](#split-pane-function)
 
+**Operate on attached terminal clients**
+
+[detach-client](#detach-client-function)
+[lock-client](#lock-client-function)
+[refresh-client](#refresh-client-function)
+[suspend-client](#suspend-client-function)
+[switch-client](#switch-client-function)
+
 **Select, arrange and link targets**
 
 [break-pane](#break-pane-function)
@@ -364,6 +372,24 @@ buffer. A name identifies the buffer at dispatch, not an earlier incarnation.
 Signals an operational condition on failure; never retries an unknown deletion.
 
 [Source](../src/buffers.lisp)
+
+<a id="detach-client-function"></a>
+
+### detach-client
+
+`(detach-client client target &key cancel-token timeout output-limit)`
+
+Request detachment of captured terminal TARGET; return a COMMAND-OUTCOME.
+CLIENT must own the observation. Success acknowledges the server's request,
+not frontend process exit or terminal restoration. Returns no replacement.
+Blocks under the supplied limits. The unique name/PID/creation/tty preflight
+cannot exclude replacement between validation and dispatch. Missing or foreign
+targets signal STALE-TARGET; external failures retain their outcome. Never
+retries, detaches other clients, kills a parent, or starts a shell command.
+
+See also: [fetch-clients](#fetch-clients-function), [outcome-status](#outcome-status-function), [switch-client](#switch-client-function).
+
+[Source](../src/client-operations.lisp)
 
 <a id="entity-data-function"></a>
 
@@ -793,6 +819,25 @@ condition; a failure after dispatch may have an uncertain outcome.
 
 [Source](../src/buffers.lisp)
 
+<a id="lock-client-function"></a>
+
+### lock-client
+
+`(lock-client client target &key cancel-token timeout output-limit)`
+
+Request locking of captured terminal TARGET; return a COMMAND-OUTCOME.
+The frontend runs the session's configured lock-command through its shell.
+Success acknowledges the request, not lock startup, completion or authentication.
+An already suspended frontend or an empty/oversized lock command can be a no-op.
+CLIENT must own TARGET.
+Blocks under shared preflight/dispatch limits; returns no replacement. Stale or
+foreign targets signal STALE-TARGET; other failures retain their outcome.
+Preflight cannot exclude client replacement before dispatch. Never retries.
+
+See also: [fetch-clients](#fetch-clients-function), [outcome-status](#outcome-status-function), [set-option](#set-option-function), [suspend-client](#suspend-client-function).
+
+[Source](../src/client-operations.lisp)
+
 <a id="make-cancellation-token-function"></a>
 
 ### make-cancellation-token
@@ -1161,6 +1206,25 @@ signal STALE-TARGET. Attached-client refresh requires one unique live target
 name with the same PID/creation/tty fingerprint; its observation identity changes.
 
 [Source](../src/capture.lisp)
+
+<a id="refresh-client-function"></a>
+
+### refresh-client
+
+`(refresh-client client target &key status-only cancel-token timeout output-limit)`
+
+Request a redraw of captured terminal TARGET; return a COMMAND-OUTCOME.
+STATUS-ONLY requests only the status line; NIL requests the whole display.
+Success acknowledges scheduling, not completed terminal rendering. This is an
+external operation; REFRESH instead acquires a replacement observation.
+CLIENT must own TARGET. Blocks under shared preflight/dispatch limits. A stale
+or foreign target signals STALE-TARGET; other failures retain their outcome.
+The client fingerprint is checked before dispatch, with a remaining replacement
+race. Returns no replacement and never retries the request.
+
+See also: [fetch-clients](#fetch-clients-function), [outcome-status](#outcome-status-function), [refresh](#refresh-function).
+
+[Source](../src/client-operations.lisp)
 
 <a id="remove-environment-function"></a>
 
@@ -1535,6 +1599,24 @@ Signals STALE-TARGET or an operational condition; never retries the mutation.
 
 [Source](../src/creation.lisp)
 
+<a id="suspend-client-function"></a>
+
+### suspend-client
+
+`(suspend-client client target &key cancel-token timeout output-limit)`
+
+Request suspension of captured terminal TARGET; return a COMMAND-OUTCOME.
+Tmux asks the frontend to stop with SIGTSTP. Success acknowledges the request;
+it does not prove process suspension. An already suspended frontend can be a
+no-op. Its controlling application owns resumption. CLIENT must own TARGET.
+Blocks under shared preflight/dispatch limits; returns no replacement. Stale or
+foreign targets signal STALE-TARGET; other failures retain their outcome.
+Preflight cannot exclude client replacement before dispatch. Never retries.
+
+See also: [detach-client](#detach-client-function), [fetch-clients](#fetch-clients-function), [lock-client](#lock-client-function), [outcome-status](#outcome-status-function).
+
+[Source](../src/client-operations.lisp)
+
 <a id="swap-panes-function"></a>
 
 ### swap-panes
@@ -1562,6 +1644,28 @@ Tmux group restrictions apply. Signals STALE-TARGET or an operational condition;
 old links retain their original expected window IDs.
 
 [Source](../src/placement.lisp)
+
+<a id="switch-client-function"></a>
+
+### switch-client
+
+`(switch-client client target session &key update-environment (observe t) cancel-token timeout output-limit)`
+
+Switch captured terminal TARGET to SESSION and return a COMMAND-OUTCOME.
+CLIENT is the connection owning both observations. UPDATE-ENVIRONMENT defaults
+NIL, preserving the destination session environment; true applies tmux's
+update-environment option using TARGET's environment. OBSERVE defaults true and
+supplies a replacement attached-client through OUTCOME-VALUE. Earlier captures
+stay unchanged; failed follow-up acquisition stays in OUTCOME-OBSERVATION-ERROR.
+Blocks for preflight, dispatch and optional observation under shared limits.
+Preflight checks the unique client name and PID/creation/tty fingerprint; tmux
+does not atomically guard that fingerprint at dispatch. A changed or foreign
+target signals STALE-TARGET. Operational failures retain their outcome; no
+mutation is retried. Control clients are not supported by this operation.
+
+See also: [detach-client](#detach-client-function), [fetch-clients](#fetch-clients-function), [outcome-value](#outcome-value-function), [refresh](#refresh-function).
+
+[Source](../src/client-operations.lisp)
 
 <a id="title-function"></a>
 

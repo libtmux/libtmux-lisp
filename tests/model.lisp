@@ -7,7 +7,10 @@
    model (apply #'concatenate '(simple-array (unsigned-byte 8) (*))
                 (mapcar #'record-bytes rows))))
 
-(defun synthetic-snapshot (&key (context (gensym "SERVER-")) (generation 1) conflict)
+(defun synthetic-snapshot (&key (context (gensym "SERVER-")) (generation 1) conflict
+                                (client-rows
+                                  '(("client/1" "pipe" "50" "1" "" "$1" "1" "0")
+                                    ("client/1" "pipe" "50" "1" "" "$1" "1" "0"))))
   (libtmux.internal::build-snapshot
    context generation '(:server/socket-path "owned.sock" :server/version "3.8")
    (synthetic-rows :session '(("session/1" "$1" "a" "1" "0" "2")
@@ -23,9 +26,21 @@
                               "/srv/λ" "editor" "100" "0" "nvim")
                         (list "pane/1" session index "@3" "%256" "1" "0" "120" "15"
                               "sh" "" "" "0" "0" ""))))
-   (synthetic-rows :client
-                   '(("client/1" "pipe" "50" "1" "" "$1" "1" "0")
-                     ("client/1" "pipe" "50" "1" "" "$1" "1" "0")))))
+   (synthetic-rows :client client-rows)))
+
+(test terminal-selector-preserves-native-name-and-alias-semantics
+  (let* ((snapshot (synthetic-snapshot
+                    :client-rows '(("client/1" "terminal:" "51" "1" "/dev/pts/7" "$1" "0" "0"))))
+         (target (aref (libtmux:clients snapshot) 0)))
+    (is (equal "terminal::" (libtmux.internal::terminal-client-target target))))
+  (let* ((snapshot (synthetic-snapshot
+                    :client-rows '(("client/1" "pts/7" "51" "1" "/dev/pts/8" "$1" "0" "0")
+                                   ("client/1" "other" "52" "1" "/dev/pts/7" "$1" "0" "0"))))
+         (target (aref (libtmux:clients snapshot) 0)))
+    (signals libtmux:stale-target
+      (libtmux.internal::check-terminal-client-selector target)))
+  (signals libtmux:invalid-argument
+    (libtmux.internal::terminal-client-target (aref (libtmux:clients (synthetic-snapshot)) 0))))
 
 (test captured-graph-links-and-owned-data
   (let* ((libtmux.internal::*process-launched-hook*

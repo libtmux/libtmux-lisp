@@ -30,6 +30,7 @@ See docs/index.md for the tutorial, API reference and current capability limits.
    #:new-session #:new-window #:split-pane
    #:send-text #:send-keys #:send-prefix #:clear-history #:copy-mode
    #:respawn-pane #:respawn-window #:pipe-pane
+   #:switch-client #:detach-client #:refresh-client #:suspend-client #:lock-client
    #:resize-pane #:resize-window #:select-layout #:next-layout #:previous-layout
    #:next-window #:previous-window #:last-window #:last-pane
    #:link-window #:unlink-window #:move-window #:swap-windows

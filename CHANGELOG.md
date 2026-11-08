@@ -18,6 +18,9 @@
 
 ### Added
 
+- Add captured terminal-client switching, redraw, detach, suspend and lock
+  requests with explicit authority, environment policy and retained outcomes.
+
 - Accept function objects and global function names in QuerySet filtering,
   ordering and key selection, resolving each once per operation.
 - Add the separately loadable `libtmux/query` system with typed scalar filters,
