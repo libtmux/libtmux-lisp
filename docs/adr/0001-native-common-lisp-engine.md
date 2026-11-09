@@ -491,8 +491,13 @@ metadata acquisition rather than hiding reads in captured getters. Native
 mechanism probes do not qualify that consumer's implementation. Its private
 declaration/record codec now validates bounded IDs, canonical declarations,
 mapping consistency and complete UTF-8 chunks. These checks establish inert
-data, not live ownership. Public workspace/2 acquisition and application remain
-unavailable until the complete path is qualified.
+data, not live ownership. Its private state reader separately acquires complete
+metadata, a graph and session-group facts under one owner and shared budgets.
+Stable control reads and closing inventory checks establish the captured owned
+mapping; a changed control permits one read restart. Missing mapped identities
+remain failures, while property drift remains input to the future planner.
+Public workspace/2 acquisition and application remain unavailable until the
+complete path is qualified.
 
 The optional [`:total-timeout` application budget](../workspaces.md#bound-application-time)
 is shared within one application and checked after planning. Each core call

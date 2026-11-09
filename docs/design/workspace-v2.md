@@ -112,6 +112,19 @@ JSON null, false and container distinctions. These pure data checks do not prove
 that a graph exists or that a client may operate on its IDs. The current public
 constructor and CLI still refuse workspace/2.
 
+The private state reader now acquires the namespace, referenced bundles, graph
+and session-group facts explicitly. One operation owner, deadline, raw-byte
+allowance and metadata record ledger cover both attempts. A changed control can
+restart the read once; busy or invalid state stays a failure. Closing inventory
+and control checks also apply to vacancy. Missing physical identities and changed
+links fail; names, layouts and unmanaged entities remain observations for the
+future drift planner. Outcome retention includes failed reads. Inspection is
+local and returns owned data. This is an interval observation, not a transaction.
+Failure conditions retain already acquired metadata, graph, group facts, original
+context and interval. A later read failure does not replace the primary metadata
+error. Early busy refusal can have no acquired graph or decoded bundle; richer
+explicit busy inspection remains part of the complete consumer contract.
+
 The complete contract has independent source review. Owned stock endpoint
 probes establish claim contention, wrong-token refusal, actual payload-hook
 changes, pane-loop order and namespace discovery. An instrumented pinned
@@ -119,8 +132,8 @@ formatter establishes the scalar expiry case and final-literal refusal.
 These are mechanism checks; they do not qualify a workspace/2 implementation.
 
 The core now has a private dispatch-precondition adapter; workspace guard
-composition remains required. Other gates are metadata acquisition, pure drift
-planning, creation/publication/reconciliation,
+composition remains required. Other gates are pure drift planning,
+creation/publication/reconciliation, complete busy inspection,
 installed CLI/examples and complete native compatibility. The main
 [architecture decision](../adr/0001-native-common-lisp-engine.md#keep-optional-systems-and-consumer-policy-explicit)
 keeps this consumer separate from core and preserves unfinished acceptance.

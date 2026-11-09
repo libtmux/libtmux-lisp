@@ -2,6 +2,22 @@
 
 (in-suite workspace)
 
+(test owned-state-inventory-is-complete-and-namespace-exact
+  (let* ((key "@libtmux.workspace.61.control")
+         (text (format nil "exit-empty off~%user-keys~%~A \"idle\"~%@libtmux.workspace.612E6368696C64.control \"other\"~%" key))
+         (keys (workspace-call :parse-owned-inventory "a" text)))
+    (is (equalp #("@libtmux.workspace.61.control") keys))
+    (setf (char (aref keys 0) 0) #\X)
+    (is (equalp #("@libtmux.workspace.61.control")
+                (workspace-call :parse-owned-inventory "a" text)))
+    (dolist (bad (list "" (string #\Newline) (format nil " ~C~%" #\Tab)
+                      (format nil "~A \"incomplete\"" key)
+                      (format nil "~A \"one\"~%~A \"two\"~%" key key)
+                      (format nil "@libtmux.workspace.61.unknown \"value\"~%")
+                      (format nil "@libtmux.workspace.61.pending.AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA.chunk.00 \"AA\"~%")))
+      (signals libtmux.workspace:invalid-workspace
+        (workspace-call :parse-owned-inventory "a" bad)))))
+
 (defun owned-description ()
   (list :schema "libtmux.lisp.workspace/2" :id (copy-seq "a.child")
         :session

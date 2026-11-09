@@ -37,6 +37,10 @@
 
 ### Added
 
+- Prepare private owned-workspace state acquisition with bounded metadata,
+  captured mappings, shared retry budgets and retained read outcomes. Public
+  workspace/2 planning and application remain unavailable.
+
 - Prepare the private bounded workspace/2 declaration and record codec, with
   canonical JSON, owned data and complete UTF-8 chunk validation. Public
   workspace/2 acquisition and application remain unavailable.

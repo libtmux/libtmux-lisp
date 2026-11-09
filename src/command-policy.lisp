@@ -32,12 +32,13 @@
              :message (format nil "command-alias overrides reserved built-ins: ~{~A~^, ~}; remove those overrides before using named APIs"
                               conflicts)))))
 
-(defun audit-command-aliases (client token timeout output-limit)
+(defun audit-command-aliases (client token timeout output-limit &optional on-outcome)
   ;; SHOW-OPTIONS is the trusted bootstrap spelling; this cannot audit its own
   ;; arbitrary override or atomically exclude later configuration changes.
-  (let ((outcome (check-outcome
-                  (execute-tmux client '("-N" "show-options" "-s" "-v" "command-alias")
-                                token timeout output-limit nil))))
+  (let ((outcome (execute-tmux client '("-N" "show-options" "-s" "-v" "command-alias")
+                               token timeout output-limit nil)))
+    (when on-outcome (funcall on-outcome outcome))
+    (check-outcome outcome)
     (handler-bind ((libtmux:libtmux-error
                      (lambda (condition) (setf (slot-value condition 'libtmux::outcome) outcome))))
       (check-command-aliases (strict-text (libtmux:outcome-stdout outcome)) outcome))

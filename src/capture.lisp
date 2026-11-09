@@ -1,6 +1,15 @@
 (in-package #:libtmux.internal)
 
-(defstruct capture-budget start deadline remaining row-limit field-limit)
+(defstruct capture-budget start deadline remaining row-limit field-limit retain-outcomes (outcomes nil))
+
+(defun charge-capture-outcome (budget outcome)
+  "Debit each completed native read before validation; optionally retain its evidence."
+  (decf (capture-budget-remaining budget)
+        (+ (length (slot-value outcome 'libtmux::stdout))
+           (length (slot-value outcome 'libtmux::stderr))))
+  (when (capture-budget-retain-outcomes budget)
+    (push outcome (capture-budget-outcomes budget)))
+  outcome)
 
 (defun check-capture-budget (budget token)
   (when (libtmux:cancelled-p token)
@@ -26,13 +35,10 @@
       (error 'libtmux:deadline-exceeded :message "Snapshot acquisition exceeded its total deadline"))
     (unless (plusp (capture-budget-remaining budget))
       (error 'libtmux:output-limit-exceeded :message "Snapshot acquisition exceeded its total byte limit"))
-    (let ((outcome (check-outcome
-                    (execute-tmux client arguments token remaining-time
-                                  (capture-budget-remaining budget) nil))))
-      (decf (capture-budget-remaining budget)
-            (+ (length (slot-value outcome 'libtmux::stdout))
-               (length (slot-value outcome 'libtmux::stderr))))
-      outcome)))
+    (check-outcome
+     (charge-capture-outcome
+      budget (execute-tmux client arguments token remaining-time
+                           (capture-budget-remaining budget) nil)))))
 
 (defun capture-command (client name token budget &optional witness)
   (let ((outcome (execute-capture-command
@@ -83,12 +89,9 @@
   (check-capture-budget budget token)
   (unless (plusp (capture-budget-remaining budget))
     (error 'libtmux:output-limit-exceeded :message "Operation exhausted its byte budget before configuration audit"))
-  (let ((outcome (audit-command-aliases
-                  client token (max 0 (- (capture-budget-deadline budget) (monotonic-seconds)))
-                  (capture-budget-remaining budget))))
-    (decf (capture-budget-remaining budget)
-          (+ (length (slot-value outcome 'libtmux::stdout))
-             (length (slot-value outcome 'libtmux::stderr))))))
+  (audit-command-aliases
+   client token (max 0 (- (capture-budget-deadline budget) (monotonic-seconds)))
+   (capture-budget-remaining budget) (lambda (outcome) (charge-capture-outcome budget outcome))))
 
 (defun acquire-snapshot (client token budget entity-limit)
   (audit-with-budget client token budget)

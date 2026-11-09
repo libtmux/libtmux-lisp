@@ -95,10 +95,11 @@
              (outcome (progn
                         (unless (plusp remaining)
                           (error 'libtmux:output-limit-exceeded :message "Configuration acquisition exhausted its byte budget"))
-                        (execute-tmux (configuration-reader-client reader) encoded
-                        (configuration-reader-token reader)
-                        (max 0 (- (capture-budget-deadline budget) (monotonic-seconds)))
-                        remaining nil)))
+                        (charge-capture-outcome
+                         budget (execute-tmux (configuration-reader-client reader) encoded
+                                  (configuration-reader-token reader)
+                                  (max 0 (- (capture-budget-deadline budget) (monotonic-seconds)))
+                                  remaining nil))))
              (stdout (slot-value outcome 'libtmux::stdout))
              (stderr (slot-value outcome 'libtmux::stderr))
              (finished (and (eq (libtmux:outcome-phase outcome) :exited)
@@ -112,7 +113,6 @@
                                                                   "unknown variable: " "invalid option: ") name))))))
         (push outcome (configuration-reader-outcomes reader))
         (setf (configuration-reader-current-outcome reader) outcome)
-        (decf (capture-budget-remaining budget) (+ (length stdout) (length stderr)))
         (unless (and finished (or missing (plusp (length stdout))
                                  (and (eq (libtmux:outcome-status outcome) :succeeded) (zerop (length stderr)))))
           (check-outcome outcome)

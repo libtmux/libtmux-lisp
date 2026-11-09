@@ -154,7 +154,9 @@
   :components ((:file "src/workspace"
                       :description "Closed workspace data, bounded JSON, pure topology plans and explicit apply.")
                (:file "src/workspace-owned"
-                      :description "Private bounded workspace/2 declarations and canonical ownership records.")))
+                      :description "Private bounded workspace/2 declarations and canonical ownership records.")
+               (:file "src/workspace-state"
+                      :description "Private explicit owned metadata acquisition and captured mapping validation.")))
 
 (defsystem "libtmux/workspace/cli"
   :description "Explicit-endpoint workspace command-line interface"
@@ -199,6 +201,7 @@
   :serial t
   :components ((:file "tests/workspace")
                (:file "tests/workspace-owned")
+               (:file "tests/workspace-state")
                (:file "tests/workspace-cli"))
   :perform (test-op (operation component)
              (declare (ignore operation component))
@@ -225,7 +228,8 @@
                (:file "tests/placement")
                (:file "tests/buffers")
                (:file "tests/pane-processes")
-               (:file "tests/workspace-integration"))
+               (:file "tests/workspace-integration")
+               (:file "tests/workspace-state-integration"))
   :perform (test-op (operation component)
              (declare (ignore operation component))
              (dolist (suite '(:transport-integration :integration :control-integration :configuration-integration :workspace-integration))
