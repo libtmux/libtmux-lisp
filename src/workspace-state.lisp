@@ -19,7 +19,7 @@
         (fail-workspace "Noncanonical descriptor or chunk key in workspace inventory")))
     key))
 
-(defun parse-owned-inventory (id text &key check-row)
+(defun parse-owned-inventory (id text &key check-row invalid-key)
   "Read keys from already byte-bounded native printer output, without decoding values."
   (unless (and (stringp text) (plusp (length text)) (not (find #\Null text))
                (char= #\Newline (char text (1- (length text)))))
@@ -39,7 +39,11 @@
                                          text :start start :end end))
                       (key (and split (subseq text start split))))
                  (unless key (fail-workspace "Workspace inventory row has no value boundary"))
-                 (check-owned-inventory-key namespace key)
+                 (handler-case (check-owned-inventory-key namespace key)
+                   (invalid-workspace (cause)
+                     (if (and invalid-key (not (workspace-limit cause)))
+                         (funcall invalid-key (copy-seq key) cause)
+                         (error cause))))
                  (when (gethash key seen) (fail-workspace "Duplicate key in workspace inventory"))
                  (when (= (hash-table-count seen) 2048)
                    (fail-workspace "Workspace inventory exceeds 2048 keys" :limit :inventory-keys))
@@ -193,17 +197,18 @@
     (owned-reader-check reader)
     (libtmux.internal::strict-text (libtmux:outcome-stdout outcome))))
 
-(defun owned-read-inventory (reader)
+(defun owned-read-inventory (reader &key invalid-key)
   (setf (owned-reader-inventory reader)
         (parse-owned-inventory
          (getf (slot-value (owned-reader-declaration reader) 'data) :id)
          (owned-read-text reader '("show-options" "-s" "-H"))
-         :check-row (lambda () (owned-reader-charge-row reader)))))
+         :check-row (lambda () (owned-reader-charge-row reader)) :invalid-key invalid-key)))
 
-(defun owned-read-bundle (reader kind revision &optional reference)
+(defun owned-read-bundle-parts (reader kind revision &optional reference on-header)
+  "Return record, header and completeness; native failures still signal immediately."
   (let* ((id (getf (slot-value (owned-reader-declaration reader) 'data) :id))
          (descriptor (owned-read-leaf reader (owned-record-key id kind revision) 4096)))
-    (unless descriptor (fail-workspace "A referenced workspace descriptor is missing"))
+    (unless descriptor (return-from owned-read-bundle-parts (values nil nil :absent)))
     (let* ((header (normalize-owned-descriptor (parse-owned-tree descriptor) (make-owned-context :json)))
            (count (getf header :chunks))
            (chunks (make-array count)))
@@ -213,11 +218,20 @@
                        (every (lambda (key) (equal (getf reference key) (getf header key)))
                               '(:revision :bytes :chunks))))
         (fail-workspace "Workspace descriptor disagrees with its selected reference"))
+      (when on-header (funcall on-header header))
       (loop for index below count
             for value = (owned-read-leaf reader (owned-record-key id kind revision index) 4096)
-            do (unless value (fail-workspace "A referenced workspace chunk is missing"))
+            do (unless value (return-from owned-read-bundle-parts (values nil header :incomplete)))
                (setf (aref chunks index) value))
-      (values (decode-owned-record id kind revision descriptor chunks) header))))
+      (values (decode-owned-record id kind revision descriptor chunks) header :complete))))
+
+(defun owned-read-bundle (reader kind revision &optional reference)
+  (multiple-value-bind (record header status)
+      (owned-read-bundle-parts reader kind revision reference)
+    (ecase status
+      (:absent (fail-workspace "A referenced workspace descriptor is missing"))
+      (:incomplete (fail-workspace "A referenced workspace chunk is missing"))
+      (:complete (values record header)))))
 
 (defun check-owned-inventory (reader bundles)
   (let* ((id (getf (slot-value (owned-reader-declaration reader) 'data) :id))
@@ -343,11 +357,8 @@
                      :data (owned-reader-data reader
                                               (libtmux.internal::configuration-reader-client core) start)))))))))
 
-(defun fetch-owned-state (client declaration &key cancel-token
-                                             (timeout (slot-value client 'libtmux::timeout))
-                                             (output-limit (slot-value client 'libtmux::output-limit))
-                                             (record-limit 100000))
-  "Acquire private metadata and one graph under shared bounds; never adopt or mutate."
+(defun call-with-owned-reader (client declaration cancel-token timeout output-limit record-limit procedure
+                              &optional on-failure)
   (check-type client libtmux:client)
   (check-type declaration owned-declaration)
   (libtmux.internal::check-limits timeout output-limit)
@@ -378,7 +389,7 @@
                              :generation (slot-value client 'libtmux::generation)
                              :row-counter (libtmux.internal::make-configuration-input
                                            (libtmux.internal::octet-vector nil) 0 0 decode)))
-               (owned-read-attempts reader start)))
+               (funcall procedure reader start)))
          (error (cause)
            (let ((outcome (and (typep cause 'libtmux:libtmux-error) (libtmux:error-outcome cause))))
              (when (and outcome (not (member outcome (libtmux.internal::capture-budget-outcomes budget))))
@@ -386,11 +397,20 @@
              (let* ((primary (or (and reader (owned-reader-failure reader)) cause))
                     (causes (if reader (reverse (owned-reader-diagnostics reader)) nil)))
                (unless (member cause causes) (setf causes (append causes (list cause))))
-               (error 'owned-state-error :client client :cause primary :outcome outcome
+               (if on-failure
+                   (funcall on-failure reader primary cause causes budget start)
+                   (error 'owned-state-error :client client :cause primary :outcome outcome
                       :control (and reader (copy-seq (owned-reader-control reader)))
                       :inventory (if reader (deep-copy (owned-reader-inventory reader)) #())
                       :data (owned-reader-data reader client start declaration)
                       :snapshot (and reader (owned-reader-snapshot reader))
                       :causes (coerce causes 'simple-vector)
                       :outcomes (coerce (reverse (libtmux.internal::capture-budget-outcomes budget)) 'simple-vector)
-                      :message (format nil "Workspace state acquisition failed: ~A" primary))))))))))
+                      :message (format nil "Workspace state acquisition failed: ~A" primary)))))))))))
+
+(defun fetch-owned-state (client declaration &key cancel-token
+                                             (timeout (slot-value client 'libtmux::timeout))
+                                             (output-limit (slot-value client 'libtmux::output-limit))
+                                             (record-limit 100000))
+  "Acquire private metadata and one graph under shared bounds; never adopt or mutate."
+  (call-with-owned-reader client declaration cancel-token timeout output-limit record-limit #'owned-read-attempts))

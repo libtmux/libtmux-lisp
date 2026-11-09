@@ -159,6 +159,8 @@
                       :description "Private source-qualified and complete workspace geometry observations.")
                (:file "src/workspace-state"
                       :description "Private explicit owned metadata acquisition and captured mapping validation.")
+               (:file "src/workspace-inspection"
+                      :description "Private explicit incomplete-workspace inspection with retained read evidence.")
                (:file "src/workspace-plan"
                       :description "Private local owned declaration and observed-drift planning.")))
 
@@ -236,9 +238,10 @@
                (:file "tests/pane-processes")
                (:file "tests/workspace-integration")
                (:file "tests/workspace-state-integration")
-               (:file "tests/workspace-geometry-integration"))
+               (:file "tests/workspace-geometry-integration")
+               (:file "tests/workspace-inspection-integration"))
   :perform (test-op (operation component)
              (declare (ignore operation component))
-             (dolist (suite '(:transport-integration :integration :control-integration :configuration-integration :workspace-integration))
+             (dolist (suite '(:transport-integration :integration :control-integration :configuration-integration :workspace-integration :workspace-inspection-integration))
                (unless (uiop:symbol-call :libtmux.tests :run-suite suite)
                  (error "libtmux ~A tests failed" suite)))))

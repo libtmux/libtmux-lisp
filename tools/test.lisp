@@ -8,6 +8,7 @@
                                             ("control" . :control)
                                             ("transport-integration" . :transport-integration)
                                             ("workspace-integration" . :workspace-integration)
+                                            ("workspace-inspection-integration" . :workspace-inspection-integration)
                                             ("control-integration" . :control-integration)
                                             ("configuration-integration" . :configuration-integration)
                                             ("workspace" . :workspace)
@@ -15,7 +16,7 @@
                       (error "Unknown test suite: ~A" argument)))
                 arguments)))
   (unless suites
-    (error "Expected unit, query, regex, json, control, transport-integration, control-integration, configuration-integration, workspace-integration, workspace or integration"))
+    (error "Expected unit, query, regex, json, control, transport-integration, control-integration, configuration-integration, workspace-integration, workspace-inspection-integration, workspace or integration"))
   (dolist (suite suites)
     (asdf:load-system (ecase suite
                         (:unit "libtmux/tests")
@@ -25,7 +26,7 @@
                         (:control "libtmux/tests/control")
                         (:workspace "libtmux/tests/workspace")
                         ((:transport-integration :integration :control-integration
-                          :configuration-integration :workspace-integration) "libtmux/tests/integration")))
+                          :configuration-integration :workspace-integration :workspace-inspection-integration) "libtmux/tests/integration")))
     (format t "~&SBCL ~A; ASDF ~A; UIOP ~A~%"
             (lisp-implementation-version) (asdf:asdf-version)
             (asdf:component-version (asdf:find-system "uiop")))

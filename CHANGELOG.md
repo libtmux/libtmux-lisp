@@ -37,6 +37,10 @@
 
 ### Added
 
+- Inspect private incomplete workspace metadata explicitly, retaining separate
+  read attempts, partial records, captured graphs, causes and native outcomes.
+  Inspection does not admit a workspace for planning or retry its mutations.
+
 - Prepare private local owned-workspace plans with separate declaration and
   captured drift reports, logical pane insertion and explicit reconciliation
   refusals. Public workspace/2 application remains unavailable.

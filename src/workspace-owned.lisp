@@ -262,7 +262,8 @@
                        :json (owned-json (owned-wire-object data *owned-declaration-fields*))))
     (invalid-workspace-document (condition) (error condition))
     (invalid-workspace (condition)
-      (fail-document "Owned declaration violates its schema" :cause condition))))
+      (fail-document "Owned declaration violates its schema" :cause condition
+                     :path (workspace-path condition) :limit (workspace-limit condition)))))
 
 (defun owned-token (value path context)
   (unless (and (stringp value) (= 32 (length value))
@@ -564,7 +565,9 @@
         (make-instance 'owned-record :kind kind :data data
                        :json (owned-json (owned-wire-object data (owned-record-fields kind)))))
     (invalid-workspace-document (condition) (error condition))
-    (invalid-workspace (condition) (fail-document "Owned record violates its schema" :cause condition))))
+    (invalid-workspace (condition)
+      (fail-document "Owned record violates its schema" :cause condition
+                     :path (workspace-path condition) :limit (workspace-limit condition)))))
 
 (defun encode-owned-record (record)
   (let* ((kind (slot-value record 'kind)) (data (slot-value record 'data))

@@ -61,3 +61,83 @@
       (signals-workspace :workspace-conflict
         (workspace-call :validate-owned-graph
                         (workspace-call :make-owned-record :committed data) snapshot)))))
+
+(test owned-inspection-inventory-retains-unknown-names-without-relaxing-framing
+  (let* ((key "@libtmux.workspace.61.unrecognized")
+         (text (format nil "exit-empty off~%~A \"opaque\"~%" key))
+         (diagnostics nil)
+         (keys (workspace-call :parse-owned-inventory "a" text
+                              :invalid-key (lambda (name cause) (push (cons name cause) diagnostics)))))
+    (is (equalp (vector key) keys))
+    (is (= 1 (length diagnostics)))
+    (is (typep (cdar diagnostics) 'libtmux.workspace:invalid-workspace))
+    (signals libtmux.workspace:invalid-workspace (workspace-call :parse-owned-inventory "a" text))
+    (dolist (bad (list "" (string #\Newline) (concatenate 'string text text)))
+      (signals libtmux.workspace:invalid-workspace
+        (workspace-call :parse-owned-inventory "a" bad :invalid-key (lambda (&rest values) (declare (ignore values))))))))
+
+(test owned-inspection-bundle-parts-distinguish-absence-and-incomplete-data
+  (let* ((revision (make-string 32 :initial-element #\A))
+         (record (workspace-call :make-owned-record :pending (owned-pending-data)))
+         (reader (libtmux.workspace::make-owned-reader
+                  :declaration (workspace-call :make-owned-declaration (owned-description))))
+         (original (symbol-function 'libtmux.workspace::owned-read-leaf)))
+    (multiple-value-bind (descriptor chunks) (workspace-call :encode-owned-record record)
+      (unwind-protect
+           (dolist (scenario '(:complete :absent :incomplete))
+             (let ((values (case scenario
+                             (:complete (cons descriptor (coerce chunks 'list)))
+                             (:absent (list nil))
+                             (:incomplete (list descriptor nil)))))
+               (setf (symbol-function 'libtmux.workspace::owned-read-leaf)
+                     (lambda (&rest arguments) (declare (ignore arguments)) (pop values)))
+               (multiple-value-bind (value header status)
+                   (workspace-call :owned-read-bundle-parts reader :pending revision)
+                 (is (eq scenario status))
+                 (is (eq (eq scenario :complete) (not (null value))))
+                 (is (eq (not (eq scenario :absent)) (not (null header)))))))
+        (setf (symbol-function 'libtmux.workspace::owned-read-leaf) original)))))
+
+(test owned-inspection-bundle-does-not-demote-a-normalization-limit
+  (multiple-value-bind (source declaration revision) (oversized-owned-pending-source)
+    (declare (ignore declaration))
+    (multiple-value-bind (descriptor chunks) (workspace-call :encode-owned-envelope :pending revision source)
+      (let* ((run (libtmux.workspace::make-inspection-run))
+             (reader (libtmux.workspace::make-owned-reader
+                      :declaration (workspace-call :make-owned-declaration (owned-description))))
+             (attempt (libtmux.workspace::make-inspection-attempt :reader reader))
+             (values (cons descriptor (coerce chunks 'list)))
+             (original (symbol-function 'libtmux.workspace::owned-read-leaf)))
+        (unwind-protect
+             (progn
+               (setf (symbol-function 'libtmux.workspace::owned-read-leaf)
+                     (lambda (&rest arguments) (declare (ignore arguments)) (pop values)))
+               (signals libtmux.workspace:workspace-limit-exceeded
+                 (workspace-call :inspection-bundle run attempt :writer-pending :pending revision))
+               (is (null (libtmux.workspace::inspection-run-causes run))))
+          (setf (symbol-function 'libtmux.workspace::owned-read-leaf) original))))))
+
+(test owned-inspection-retains-descriptors-when-record-bodies-are-invalid
+  (let* ((revision (make-string 32 :initial-element #\A))
+         (run (libtmux.workspace::make-inspection-run))
+         (reader (libtmux.workspace::make-owned-reader
+                  :declaration (workspace-call :make-owned-declaration (owned-description))))
+         (attempt (libtmux.workspace::make-inspection-attempt :reader reader))
+         (original (symbol-function 'libtmux.workspace::owned-read-leaf)))
+    (multiple-value-bind (descriptor chunks) (workspace-call :encode-owned-envelope :pending revision "{}")
+      (let ((values (cons descriptor (coerce chunks 'list))))
+        (unwind-protect
+             (progn
+               (setf (symbol-function 'libtmux.workspace::owned-read-leaf)
+                     (lambda (&rest arguments) (declare (ignore arguments)) (pop values)))
+               (workspace-call :inspection-bundle run attempt :writer-pending :pending revision))
+          (setf (symbol-function 'libtmux.workspace::owned-read-leaf) original))))
+    (let* ((role (first (libtmux.workspace::inspection-attempt-roles attempt)))
+           (data (owned-committed-data)))
+      (is (eq :invalid (getf role :status)))
+      (is (not (null (getf role :header))))
+      (when (getf role :header) (is (= 2 (getf (getf role :header) :bytes))))
+      (setf (getf (getf data :pending) :bytes) 3)
+      (signals libtmux.workspace:invalid-workspace
+        (workspace-call :inspection-candidate-binding attempt
+                        (workspace-call :make-owned-record :committed data) "0")))))

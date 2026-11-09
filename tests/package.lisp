@@ -13,6 +13,7 @@
 (def-suite integration)
 (def-suite transport-integration)
 (def-suite workspace-integration)
+(def-suite workspace-inspection-integration :description "Live incomplete metadata and control-change races require owned tmux fixtures.")
 (def-suite control-integration)
 (def-suite configuration-integration)
 
@@ -25,6 +26,7 @@
           (:control 'control)
           (:transport-integration 'transport-integration)
           (:workspace-integration 'workspace-integration)
+          (:workspace-inspection-integration 'workspace-inspection-integration)
           (:control-integration 'control-integration)
           (:configuration-integration 'configuration-integration)
           (:workspace 'workspace)

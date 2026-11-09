@@ -512,6 +512,11 @@ index moves and pane reorders remain refusals. Metadata-only edits still need
 publication. Fresh plans reserve explicit indexes before automatic windows;
 existing windows retain their mapped positions. These previews do not perform
 I/O or replace the required fresh acquisition and live checks at application.
+Incomplete work has a separate private explicit inspection path. It retains
+per-attempt evidence and distinguishes the last committed revision, current
+writer's intent and unpublished candidate. Missing data is not fabricated;
+terminal read failures retain their causes and outcomes. Its result cannot be
+passed to the ready-state planner, and inspection never replays mutations.
 Public workspace/2 acquisition and application remain unavailable until the
 complete path is qualified.
 

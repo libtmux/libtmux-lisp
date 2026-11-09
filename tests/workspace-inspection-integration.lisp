@@ -1,0 +1,247 @@
+(in-package #:libtmux.tests)
+
+(in-suite workspace-inspection-integration)
+
+(defun inspection-last-attempt (inspection)
+  (let ((attempts (getf (state-call :owned-inspection-data inspection) :attempts)))
+    (aref attempts (1- (length attempts)))))
+
+(defun inspection-role (inspection role)
+  (find role (getf (inspection-last-attempt inspection) :roles)
+        :key (lambda (entry) (getf entry :role))))
+
+(test owned-inspection-genesis-keeps-busy-evidence-separate-from-ready-state
+  (with-tmux-fixture (fixture)
+    (with-fixture-client (client fixture)
+      (let* ((declaration (state-fixture-declaration))
+             (writer (make-string 32 :initial-element #\B))
+             (key (concatenate 'string (state-call :owned-namespace "acquisition") "control"))
+             (control (state-call :make-owned-control :busy "0" writer)))
+        (fixture-ok fixture "set-option" "-s" "--" key control)
+        (let* ((inspection (state-call :inspect-owned-state client declaration))
+               (attempt (inspection-last-attempt inspection))
+               (snapshots (state-call :owned-inspection-snapshots inspection)))
+          (is (eq :busy (getf attempt :status)))
+          (is-true (getf (state-call :owned-inspection-data inspection) :complete-p))
+          (is-true (getf attempt :complete-p))
+          (is (eq :absent (getf (inspection-role inspection :writer-pending) :status)))
+          (is (eq :absent (getf (inspection-role inspection :unpublished) :status)))
+          (is (null (inspection-role inspection :base)))
+          (is (= 1 (length (libtmux:panes (aref snapshots 0)))))
+          (is-true (getf attempt :geometry))
+          (is (plusp (length (state-call :owned-inspection-outcomes inspection))))
+          (signals type-error (state-call :plan-owned-workspace declaration inspection))
+          (is (string= control (string-right-trim '(#\Newline)
+                                                 (fixture-ok fixture "show-options" "-s" "-v" key))))
+          (let ((libtmux.internal::*process-launched-hook*
+                  (lambda (job) (declare (ignore job)) (error "Local inspection launched I/O"))))
+            (setf (char (getf attempt :opening-control) 0) #\X)
+            (is (string= control (getf (inspection-last-attempt inspection) :opening-control)))))))))
+
+(test owned-inspection-keeps-base-intent-and-current-writer-intent-distinct
+  (with-tmux-fixture (fixture)
+    (with-fixture-client (client fixture)
+      (multiple-value-bind (declaration committed old-intent) (install-state-fixture fixture client)
+        (declare (ignore committed old-intent))
+        (let* ((head (make-string 32 :initial-element #\A))
+               (writer (make-string 32 :initial-element #\B))
+               (pending (state-call :make-owned-record :pending
+                                    (list :schema "libtmux.lisp.workspace.pending/1" :workspace "acquisition"
+                                          :base head :writer writer :declaration (state-call :owned-declaration-data declaration))))
+               (key (concatenate 'string (state-call :owned-namespace "acquisition") "control")))
+          (install-state-bundle fixture :pending pending writer)
+          (fixture-ok fixture "set-option" "-s" "--" key (state-call :make-owned-control :busy head writer))
+          (let ((inspection (state-call :inspect-owned-state client declaration)))
+            (is (eq :complete (getf (inspection-role inspection :base) :status)))
+            (is (eq :complete (getf (inspection-role inspection :writer-pending) :status)))
+            (is (eq :complete (getf (inspection-role inspection :base-pending) :status)))
+            (is (string= writer (getf (getf (inspection-role inspection :writer-pending) :record) :writer)))
+            (is (string= head (getf (getf (inspection-role inspection :base-pending) :record) :writer)))
+            (is (eq :absent (getf (inspection-role inspection :unpublished) :status)))))))))
+
+(test owned-inspection-does-not-read-unselected-inventory-revisions
+  (with-tmux-fixture (fixture)
+    (with-fixture-client (client fixture)
+      (let* ((declaration (state-fixture-declaration)) (writer (make-string 32 :initial-element #\B))
+             (orphan (state-call :owned-record-key "acquisition" :pending (make-string 32 :initial-element #\C)))
+             (read-orphan nil))
+        (fixture-ok fixture "set-option" "-s" "--"
+                    (concatenate 'string (state-call :owned-namespace "acquisition") "control")
+                    (state-call :make-owned-control :busy "0" writer))
+        (fixture-ok fixture "set-option" "-s" "--" orphan "not a record")
+        (let* ((libtmux.internal::*process-launched-hook*
+                 (lambda (job)
+                   (when (some (lambda (argument) (search orphan argument)) (libtmux.internal::process-job-argv job))
+                     (setf read-orphan t))))
+               (inspection (state-call :inspect-owned-state client declaration)))
+          (is (not read-orphan))
+          (is (plusp (length (state-call :owned-inspection-causes inspection)))))))))
+
+(defun inspection-control-race (fixture client declaration &key twice record-limit)
+  (let ((reads 0) (caps nil)
+        (key (concatenate 'string (state-call :owned-namespace "acquisition") "control")))
+    (let ((libtmux.internal::*process-launched-hook*
+            (lambda (job)
+              (push (libtmux.internal::process-job-cap job) caps)
+              (when (some (lambda (argument) (search key argument)) (libtmux.internal::process-job-argv job))
+                (when (member (incf reads) (if twice '(2 4) '(2)))
+                  (fixture-ok fixture "set-option" "-s" "--" key
+                              (if (= reads 2)
+                                  (state-call :make-owned-control :busy "0" (make-string 32 :initial-element #\B))
+                                  (state-call :make-owned-control :idle (make-string 32 :initial-element #\A)))))))))
+      (values (apply #'state-call :inspect-owned-state client declaration
+                     (when record-limit (list :record-limit record-limit)))
+              reads (nreverse caps)))))
+
+(test owned-inspection-restart-keeps-attempts-and-budgets-separate
+  (with-tmux-fixture (fixture)
+    (with-fixture-client (client fixture)
+      (let* ((declaration (install-state-fixture fixture client))
+             (rows (count #\Newline (fixture-ok fixture "show-options" "-s" "-H"))))
+        (multiple-value-bind (inspection reads caps) (inspection-control-race fixture client declaration)
+          (let* ((attempts (getf (state-call :owned-inspection-data inspection) :attempts))
+                 (snapshots (state-call :owned-inspection-snapshots inspection)))
+            (is (= 4 reads))
+            (is (every #'>= caps (rest caps)))
+            (is (= 2 (length attempts)))
+            (is (getf (aref attempts 0) :committed))
+            (is (null (getf (aref attempts 1) :committed)))
+            (is (= 1 (getf (aref attempts 1) :read-restarts)))
+            (is (not (eq (aref snapshots 0) (aref snapshots 1))))))
+        (fixture-ok fixture "set-option" "-s" "--"
+                    (concatenate 'string (state-call :owned-namespace "acquisition") "control")
+                    (state-call :make-owned-control :idle (make-string 32 :initial-element #\A)))
+        (handler-case
+            (progn (inspection-control-race fixture client declaration :record-limit (+ (* 2 rows) 8))
+                   (fail "Original record budget was reset"))
+          (libtmux.workspace::owned-inspection-error (condition)
+            (is (typep (state-call :owned-inspection-error-terminal condition) 'libtmux:output-limit-exceeded))
+            (is (= 2 (length (getf (state-call :owned-inspection-data
+                                             (state-call :owned-inspection-error-evidence condition)) :attempts))))))
+        (fixture-ok fixture "set-option" "-s" "--"
+                    (concatenate 'string (state-call :owned-namespace "acquisition") "control")
+                    (state-call :make-owned-control :idle (make-string 32 :initial-element #\A)))
+        (handler-case
+            (progn (inspection-control-race fixture client declaration :twice t) (fail "Two control changes were accepted"))
+          (libtmux.workspace::owned-inspection-error (condition)
+            (let* ((evidence (state-call :owned-inspection-error-evidence condition))
+                   (attempts (getf (state-call :owned-inspection-data evidence) :attempts)))
+              (is (= 2 (length attempts)))
+              (is (every (lambda (attempt) (eq :changed (getf attempt :status))) attempts)))))))))
+
+(test owned-inspection-terminal-failure-preserves-earlier-metadata-cause
+  (with-tmux-fixture (fixture)
+    (with-fixture-client (client fixture)
+      (let* ((declaration (state-fixture-declaration)) (writer (make-string 32 :initial-element #\B))
+             (injected nil))
+        (fixture-ok fixture "set-option" "-s" "--"
+                    (concatenate 'string (state-call :owned-namespace "acquisition") "control")
+                    (state-call :make-owned-control :busy "0" writer))
+        (fixture-ok fixture "set-option" "-s" "--"
+                    (state-call :owned-record-key "acquisition" :pending writer) "invalid descriptor")
+        (let ((libtmux.internal::*process-launched-hook*
+                (lambda (job)
+                  (when (some (lambda (argument) (search "workspace-geometry/1" argument))
+                              (libtmux.internal::process-job-argv job))
+                    (setf injected t) (error "Injected terminal geometry-read failure")))))
+          (handler-case
+              (progn (state-call :inspect-owned-state client declaration) (fail "Terminal native failure was swallowed"))
+            (libtmux.workspace::owned-inspection-error (condition)
+              (let* ((inspection (state-call :owned-inspection-error-evidence condition))
+                     (causes (state-call :owned-inspection-causes inspection)))
+                (is-true injected)
+                (is (typep (libtmux:error-cause condition) 'libtmux.workspace:invalid-workspace))
+                (is (not (eq (libtmux:error-cause condition) (state-call :owned-inspection-error-terminal condition))))
+                (is (>= (length causes) 2))
+                (is (null (getf (state-call :owned-inspection-data inspection) :complete-p :missing)))
+                (is (null (getf (inspection-last-attempt inspection) :complete-p :missing)))
+                (is (= 1 (length (libtmux:panes (aref (state-call :owned-inspection-snapshots inspection) 0)))))))))))))
+
+(test owned-inspection-validates-unpublished-candidate-bindings
+  (with-tmux-fixture (fixture)
+    (with-fixture-client (client fixture)
+      (multiple-value-bind (declaration committed old-intent) (install-state-fixture fixture client)
+        (declare (ignore old-intent))
+        (let* ((head (make-string 32 :initial-element #\A)) (writer (make-string 32 :initial-element #\B))
+               (base-reference (install-state-bundle fixture :committed committed head))
+               (pending (state-call :make-owned-record :pending
+                                    (list :schema "libtmux.lisp.workspace.pending/1" :workspace "acquisition"
+                                          :base head :writer writer :declaration (state-call :owned-declaration-data declaration))))
+               (pending-reference (install-state-bundle fixture :pending pending writer))
+               (candidate (state-call :owned-record-data committed)))
+          (setf (getf candidate :revision) writer (getf candidate :previous) base-reference
+                (getf candidate :pending) pending-reference)
+          (install-state-bundle fixture :committed (state-call :make-owned-record :committed candidate) writer)
+          (fixture-ok fixture "set-option" "-s" "--"
+                      (concatenate 'string (state-call :owned-namespace "acquisition") "control")
+                      (state-call :make-owned-control :busy head writer))
+          (is (eq :complete (getf (inspection-role (state-call :inspect-owned-state client declaration) :unpublished) :status)))
+          (setf (getf (getf candidate :previous) :revision) (make-string 32 :initial-element #\C))
+          (install-state-bundle fixture :committed (state-call :make-owned-record :committed candidate) writer)
+          (let ((inspection (state-call :inspect-owned-state client declaration)))
+            (is (eq :invalid (getf (inspection-role inspection :unpublished) :status)))
+            (is (plusp (length (state-call :owned-inspection-causes inspection))))))))))
+
+(test owned-inspection-vacancy-check-includes-the-closing-inventory
+  (with-tmux-fixture (fixture)
+    (with-fixture-client (client fixture)
+      (let* ((declaration (state-fixture-declaration "free-name")) (inventories 0)
+             (key (state-call :owned-record-key "acquisition" :pending (make-string 32 :initial-element #\C))))
+        (is (eq :vacant (getf (inspection-last-attempt (state-call :inspect-owned-state client declaration)) :status)))
+        (let* ((libtmux.internal::*process-launched-hook*
+                 (lambda (job)
+                   (let ((arguments (libtmux.internal::process-job-argv job)))
+                     (when (and (some (lambda (argument) (search "show-options" argument)) arguments)
+                                (some (lambda (argument) (search "-H" argument)) arguments)
+                                (= 2 (incf inventories)))
+                       (fixture-ok fixture "set-option" "-s" "--" key "opaque")))))
+               (inspection (state-call :inspect-owned-state client declaration)))
+          (is (= 2 inventories))
+          (is (eq :unclaimed (getf (inspection-last-attempt inspection) :status))))))))
+
+(test owned-inspection-retains-incomplete-intent-and-absent-gc-records
+  (with-tmux-fixture (fixture)
+    (with-fixture-client (client fixture)
+      (multiple-value-bind (declaration committed old-intent) (install-state-fixture fixture client)
+        (let* ((head (make-string 32 :initial-element #\A)) (writer (make-string 32 :initial-element #\B))
+               (data (state-call :owned-record-data committed))
+               (pending (state-call :make-owned-record :pending
+                                    (list :schema "libtmux.lisp.workspace.pending/1" :workspace "acquisition"
+                                          :base head :writer writer :declaration (state-call :owned-declaration-data declaration))))
+               (descriptor-key (state-call :owned-record-key "acquisition" :pending writer)))
+          (setf (getf data :previous) (list :revision (make-string 32 :initial-element #\C) :bytes 1 :chunks 1))
+          (install-state-bundle fixture :committed (state-call :make-owned-record :committed data) head)
+          (multiple-value-bind (descriptor chunks) (state-call :encode-owned-record pending)
+            (declare (ignore chunks))
+            (fixture-ok fixture "set-option" "-s" "--" descriptor-key descriptor))
+          (multiple-value-bind (descriptor chunks) (state-call :encode-owned-record old-intent)
+            (declare (ignore descriptor))
+            (fixture-ok fixture "set-option" "-s" "-u" "--" (state-call :owned-record-key "acquisition" :pending head))
+            (dotimes (index (length chunks))
+              (fixture-ok fixture "set-option" "-s" "-u" "--" (state-call :owned-record-key "acquisition" :pending head index))))
+          (fixture-ok fixture "set-option" "-s" "--"
+                      (concatenate 'string (state-call :owned-namespace "acquisition") "control")
+                      (state-call :make-owned-control :busy head writer))
+          (let ((inspection (state-call :inspect-owned-state client declaration)))
+            (is (eq :busy (getf (inspection-last-attempt inspection) :status)))
+            (is (eq :incomplete (getf (inspection-role inspection :writer-pending) :status)))
+            (is (eq :absent (getf (inspection-role inspection :previous) :status)))
+            (is (eq :absent (getf (inspection-role inspection :base-pending) :status)))
+            (is (getf (inspection-last-attempt inspection) :geometry)))
+          (fixture-ok fixture "set-option" "-s" "--" descriptor-key "invalid descriptor")
+          (let ((inspection (state-call :inspect-owned-state client declaration)))
+            (is (eq :invalid (getf (inspection-role inspection :writer-pending) :status)))
+            (is (= 1 (length (libtmux:panes (aref (state-call :owned-inspection-snapshots inspection) 0)))))))))))
+
+(test owned-inspection-preflight-failure-retains-its-native-outcome
+  (with-tmux-fixture (fixture)
+    (with-fixture-client (client fixture)
+      (handler-case
+          (progn (state-call :inspect-owned-state client (state-fixture-declaration) :output-limit 1)
+                 (fail "Preflight byte limit was swallowed"))
+        (libtmux.workspace::owned-inspection-error (condition)
+          (let ((inspection (state-call :owned-inspection-error-evidence condition)))
+            (is (typep (state-call :owned-inspection-error-terminal condition) 'libtmux:output-limit-exceeded))
+            (is (null (getf (state-call :owned-inspection-data inspection) :complete-p :missing)))
+            (is (zerop (length (state-call :owned-inspection-snapshots inspection))))
+            (is (plusp (length (state-call :owned-inspection-outcomes inspection))))))))))

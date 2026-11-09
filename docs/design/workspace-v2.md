@@ -156,8 +156,25 @@ local drift planner. Outcome retention includes failed reads. Inspection is
 local and returns owned data. This is an interval observation, not a transaction.
 Failure conditions retain already acquired metadata, graph, group facts, original
 context and interval. A later read failure does not replace the primary metadata
-error. Early busy refusal can have no acquired graph or decoded bundle; richer
-explicit busy inspection remains part of the complete consumer contract.
+error. Early busy refusal can have no acquired graph or decoded bundle. It does
+not perform extra reads to enrich a failure.
+
+A separate private inspection operation can acquire more evidence explicitly.
+Its result is an inspection, never the ready-state type accepted by planning.
+Each attempt retains its own control reads, inventories, record roles, graph,
+group and geometry facts, interval and diagnostics. One control-change restart
+shares the original owner, witness and budgets. Inspection completion describes
+the read, not valid ownership, completed application or published metadata.
+
+For a busy base revision H and writer T, inspection distinguishes committed H,
+pending T and an unpublished candidate T. It may also inspect the base's immediate
+previous record and old pending intent, without following their ancestry.
+Genesis has no base record. Missing or incomplete records remain labelled;
+inspection does not infer whether creation or garbage collection completed.
+Unknown keys are retained as diagnostics rather than followed as references.
+Malformed native framing, failed commands, cancellation, limits and witness
+failures stop the read with all available evidence. An earlier metadata cause
+and the terminal native failure remain separately inspectable.
 
 The complete contract has independent source review. Owned stock endpoint
 probes establish claim contention, wrong-token refusal, actual payload-hook
@@ -174,7 +191,6 @@ that the planned effects occurred.
 
 The core now has a private dispatch-precondition adapter; workspace guard
 composition remains required. Other gates are creation/publication/reconciliation,
-complete busy inspection,
 installed CLI/examples and complete native compatibility. The main
 [architecture decision](../adr/0001-native-common-lisp-engine.md#keep-optional-systems-and-consumer-policy-explicit)
 keeps this consumer separate from core and preserves unfinished acceptance.

@@ -106,6 +106,28 @@
         :base "0" :writer (make-string 32 :initial-element #\A)
         :declaration (owned-description)))
 
+(defun oversized-owned-pending-source ()
+  (let* ((data (owned-pending-data)) (declaration (getf data :declaration)))
+    (setf (getf (getf declaration :session) :windows)
+          (vector (list :id "one" :name "one"
+                        :panes (map 'vector (lambda (number) (list :id (format nil "p~D" number)))
+                                    (loop for number below 1000 collect number)))
+                  (list :id "two" :name "two" :panes #((:id "p1000")))))
+    (values (workspace-call :owned-json
+                            (workspace-call :owned-wire-object data (workspace-call :owned-record-fields :pending)))
+            (workspace-call :owned-json (workspace-call :encode-owned-declaration declaration))
+            (getf data :writer))))
+
+(test owned-json-parsers-preserve-aggregate-normalization-limits
+  (multiple-value-bind (pending declaration revision) (oversized-owned-pending-source)
+    (declare (ignore revision))
+    (dolist (parse (list (lambda () (workspace-call :parse-owned-record :pending pending))
+                        (lambda () (workspace-call :parse-owned-declaration declaration))))
+      (handler-case
+          (progn (funcall parse) (fail "Aggregate pane limit was accepted"))
+        (libtmux.workspace:workspace-error (condition)
+          (is (eq :max-panes (libtmux.workspace:workspace-limit condition))))))))
+
 (defun owned-committed-data ()
   (let ((revision (make-string 32 :initial-element #\A)))
     (list :schema "libtmux.lisp.workspace.owned/1" :workspace "a.child"
