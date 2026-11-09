@@ -37,6 +37,10 @@
 
 ### Added
 
+- Acquire private workspace geometry facts explicitly, distinguishing zoomed,
+  floating and modal panes before future insertion or layout plans. Retain
+  complete captured facts and shared read budgets; workspace/2 remains private.
+
 - Prepare private owned-workspace state acquisition with bounded metadata,
   captured mappings, shared retry budgets and retained read outcomes. Public
   workspace/2 planning and application remain unavailable.

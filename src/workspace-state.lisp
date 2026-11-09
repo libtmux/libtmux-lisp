@@ -122,7 +122,7 @@
 (defun owned-state-error-causes (condition) (copy-seq (slot-value condition 'causes)))
 
 (defstruct owned-reader core declaration context generation witness row-counter
-  snapshot control committed previous pending groups failure (diagnostics nil)
+  snapshot control committed previous pending groups geometry failure (diagnostics nil)
   (headers nil) (status :incomplete) (attempt 0) (inventory #()))
 
 (defun owned-reader-data (reader client start &optional declaration)
@@ -143,6 +143,7 @@
          :headers (if reader (coerce (reverse (owned-reader-headers reader)) 'simple-vector) #())
          :inventory (if reader (owned-reader-inventory reader) #())
          :groups (when reader (owned-reader-groups reader))
+         :geometry (when reader (owned-reader-geometry reader))
          :read-restarts (if reader (owned-reader-attempt reader) 0)
          :acquired-start start :acquired-end (libtmux.internal::monotonic-seconds))))
 
@@ -238,7 +239,9 @@
                     (libtmux.internal::configuration-reader-client core)
                     (libtmux.internal::configuration-reader-token core)
                     (libtmux.internal::configuration-reader-budget core) 100000)))
-    (setf (owned-reader-snapshot reader) snapshot)
+    (setf (owned-reader-snapshot reader) snapshot
+          (owned-reader-groups reader) nil
+          (owned-reader-geometry reader) nil)
     (owned-reader-check reader)
     snapshot))
 
@@ -250,6 +253,16 @@
                         (list "list-sessions" "-F"
                               (format nil "workspace-group/1~C#{session_id}~C#{session_grouped}" #\Tab #\Tab))))
    snapshot :check-row (lambda () (owned-reader-charge-row reader)))))
+
+(defun owned-read-geometry (reader snapshot)
+  (setf (owned-reader-geometry reader) nil)
+  (let* ((version (libtmux.internal::server-witness-version (owned-reader-witness reader)))
+         (format (owned-geometry-format version)))
+    (setf (owned-reader-geometry reader)
+          (parse-owned-geometry
+           (if (zerop (length (libtmux:panes snapshot))) ""
+               (owned-read-text reader (list "list-panes" "-a" "-F" format)))
+           snapshot version :check-row (lambda () (owned-reader-charge-row reader))))))
 
 (defun owned-read-attempts (reader start)
   (let* ((declaration (slot-value (owned-reader-declaration reader) 'data))
@@ -294,6 +307,7 @@
                          (fail-workspace "Unclaimed workspace namespace contains orphan metadata")))
                    (setf snapshot (owned-read-graph reader))
                    (owned-read-groups reader snapshot)
+                   (owned-read-geometry reader snapshot)
                    (if committed
                        (validate-owned-graph committed snapshot)
                        (when (find (getf (getf declaration :session) :name) (libtmux:sessions snapshot)

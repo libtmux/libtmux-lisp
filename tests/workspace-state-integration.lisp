@@ -158,9 +158,9 @@
         (fixture-ok fixture "set-option" "-s" "--"
                     (concatenate 'string (state-call :owned-namespace "acquisition") "control")
                     (state-call :make-owned-control :idle (make-string 32 :initial-element #\A)))
-        ;; Two inventories, two controls, four scalar bundle leaves and one group row.
+        ;; Two inventories/controls, four bundle leaves, one group and one geometry row.
         (multiple-value-bind (failure reads caps)
-            (state-control-race fixture client declaration (+ (* 2 rows) 7))
+            (state-control-race fixture client declaration (+ (* 2 rows) 8))
           (declare (ignore caps))
           (is (= 3 reads))
           (is (typep (libtmux:error-cause failure) 'libtmux:output-limit-exceeded)))))))
@@ -231,6 +231,7 @@
           (is (= 1 (length (libtmux:sessions snapshot))))
           (is (= 99 (getf (getf (getf data :committed) :daemon) :pid)))
           (is (equalp #(("$0")) (getf data :groups)))
+          (is (eq t (getf (aref (getf (getf data :geometry) :windows) 0) :regular-p)))
           (is (stringp (getf data :context)))
           (is (integerp (getf data :generation)))
           (is (<= (getf data :acquired-start) (getf data :acquired-end)))

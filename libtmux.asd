@@ -155,6 +155,8 @@
                       :description "Closed workspace data, bounded JSON, pure topology plans and explicit apply.")
                (:file "src/workspace-owned"
                       :description "Private bounded workspace/2 declarations and canonical ownership records.")
+               (:file "src/workspace-geometry"
+                      :description "Private source-qualified and complete workspace geometry observations.")
                (:file "src/workspace-state"
                       :description "Private explicit owned metadata acquisition and captured mapping validation.")))
 
@@ -202,6 +204,7 @@
   :components ((:file "tests/workspace")
                (:file "tests/workspace-owned")
                (:file "tests/workspace-state")
+               (:file "tests/workspace-geometry")
                (:file "tests/workspace-cli"))
   :perform (test-op (operation component)
              (declare (ignore operation component))
@@ -229,7 +232,8 @@
                (:file "tests/buffers")
                (:file "tests/pane-processes")
                (:file "tests/workspace-integration")
-               (:file "tests/workspace-state-integration"))
+               (:file "tests/workspace-state-integration")
+               (:file "tests/workspace-geometry-integration"))
   :perform (test-op (operation component)
              (declare (ignore operation component))
              (dolist (suite '(:transport-integration :integration :control-integration :configuration-integration :workspace-integration))

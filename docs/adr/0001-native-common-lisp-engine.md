@@ -492,7 +492,16 @@ mechanism probes do not qualify that consumer's implementation. Its private
 declaration/record codec now validates bounded IDs, canonical declarations,
 mapping consistency and complete UTF-8 chunks. These checks establish inert
 data, not live ownership. Its private state reader separately acquires complete
-metadata, a graph and session-group facts under one owner and shared budgets.
+metadata, a graph, session-group facts and complete geometry facts under one
+owner and shared budgets. Geometry changes require an unzoomed window with
+nonfloating, nonmodal panes. Regular splits preserve insertion relative to an
+anchor, while [floating panes can append instead](https://github.com/tmux/tmux/blob/3.8/window.c#L1148-L1171).
+The versioned facts preserve that distinction; false floating flags in a zoomed
+window do not establish permission because [unzoom restores hidden layout
+cells](https://github.com/tmux/tmux/blob/3.8/window.c#L1022-L1052).
+Missing flags, incomplete coverage or contradictory linked rows cause refusal.
+Future geometry payloads must repeat the live checks; captured facts alone
+cannot authorize them.
 Stable control reads and closing inventory checks establish the captured owned
 mapping; a changed control permits one read restart. Missing mapped identities
 remain failures, while property drift remains input to the future planner.

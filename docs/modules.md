@@ -56,5 +56,6 @@ These files implement the core `libtmux` system; their internal package is priva
 | `libtmux/control` | [src/control](../src/control.lisp) | Public CLOS control resources, cancellation, conditions and lexical cleanup scopes. |
 | `libtmux/workspace` | [src/workspace](../src/workspace.lisp) | Closed workspace data, bounded JSON, pure topology plans and explicit apply. |
 | `libtmux/workspace` | [src/workspace-owned](../src/workspace-owned.lisp) | Private bounded workspace/2 declarations and canonical ownership records. |
+| `libtmux/workspace` | [src/workspace-geometry](../src/workspace-geometry.lisp) | Private source-qualified and complete workspace geometry observations. |
 | `libtmux/workspace` | [src/workspace-state](../src/workspace-state.lisp) | Private explicit owned metadata acquisition and captured mapping validation. |
 | `libtmux/workspace/cli` | [src/workspace-cli](../src/workspace-cli.lisp) | Validate, plan and apply workspace documents with bounded JSON summaries. |

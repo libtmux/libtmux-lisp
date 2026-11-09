@@ -61,10 +61,10 @@ performs no hidden maintenance.
 
 ## Acquisition and local planning
 
-An explicit acquisition returns the captured graph, decoded records, group facts,
-read outcomes and observation interval. Matching idle control reads bracket the
-work; one changed-read restart shares the original budgets. This remains an
-observation over time, not an atomic snapshot.
+An explicit acquisition returns the captured graph, decoded records, group and
+geometry facts, read outcomes and observation interval. Matching idle control
+reads bracket the work; one changed-read restart shares the original budgets.
+This remains an observation over time, not an atomic snapshot.
 
 Planning consumes that acquired observation locally. A snapshot alone does not
 prove ownership. Plans distinguish declaration changes from observed drift and
@@ -77,11 +77,33 @@ links. Removal, process replacement, forced adoption, index swaps and missing
 or rebound owned IDs are refused. Unmanaged panes prevent splits and layout
 changes in their containing window.
 
+Pane additions can precede, interleave or follow existing panes while preserving
+their relative order. This requires regular, non-full-size splits: tmux inserts
+them [before or after the selected pane](https://github.com/tmux/tmux/blob/3.3a/window.c#L719-L742).
+Floating splits have a [different insertion rule](https://github.com/tmux/tmux/blob/3.8/window.c#L1148-L1171).
+Geometry plans therefore require an unzoomed window and complete nonfloating,
+nonmodal pane facts, alongside the unmanaged-pane and sharing checks. Rename
+and no-op inspection do not require geometry changes.
+
+The private reader acquires these facts in one additional guarded listing.
+Exact source profiles use floating flags from tmux 3.7 and modal flags from
+3.8; earlier profiles use literal false only for source-proven absent features.
+Empty flags never mean false. Zoomed windows remain ineligible even when all
+reported floating flags are false: tmux can [restore hidden layout cells while
+unzooming](https://github.com/tmux/tmux/blob/3.8/window.c#L1022-L1052).
+Rows must cover every captured physical pane and agree across linked-window
+contexts. Their raw bytes and decoded rows consume the original read budgets.
+Installing a replacement graph clears the previous graph's group and geometry
+facts before acquiring new ones. Failed replacement capture retains the earlier
+graph and its facts together.
+These facts describe an observation; dispatch must check the live state again.
+
 ## Live guards and incomplete work
 
 Every mutation needs a final live control-token check, exact session identity,
 ungrouped context and appropriate exclusive-window checks. Splits and layouts
-also compare the fresh physical pane sequence and count. Grouped sessions can
+also compare the fresh physical pane sequence and count, require an unzoomed
+window and reject floating or modal panes. Grouped sessions can
 propagate window creation; a prior snapshot check alone cannot prevent that.
 These [tmux group fields](https://github.com/tmux/tmux/blob/3.8/format.c#L2989-L2996)
 are checked again at dispatch.
@@ -112,9 +134,10 @@ JSON null, false and container distinctions. These pure data checks do not prove
 that a graph exists or that a client may operate on its IDs. The current public
 constructor and CLI still refuse workspace/2.
 
-The private state reader now acquires the namespace, referenced bundles, graph
-and session-group facts explicitly. One operation owner, deadline, raw-byte
-allowance and metadata record ledger cover both attempts. A changed control can
+The private state reader now acquires the namespace, referenced bundles, graph,
+session-group facts and complete geometry facts explicitly. One operation owner,
+deadline, raw-byte allowance and metadata record ledger cover both attempts.
+A changed control can
 restart the read once; busy or invalid state stays a failure. Closing inventory
 and control checks also apply to vacancy. Missing physical identities and changed
 links fail; names, layouts and unmanaged entities remain observations for the
