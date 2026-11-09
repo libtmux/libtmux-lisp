@@ -310,6 +310,44 @@
           (libtmux:set-environment client "X" "x"
                                     :scope :session :target pane))))))
 
+(test conditional-option-writes-preserve-local-state
+  "Outer: absent-only writes require an owned tmux option table."
+  (with-tmux-fixture (fixture)
+    (with-fixture-client (client fixture)
+      (let* ((session (aref (libtmux:sessions (libtmux:fetch-snapshot client)) 0))
+             (setter (symbol-function 'libtmux:set-option)))
+        (flet ((value (name)
+                 (fixture-ok fixture "show-options" "-v" "-t" "fixture" name))
+               (refused (name replacement &rest options)
+                 (let ((condition (handler-case
+                                      (apply setter client name replacement
+                                             :scope :session :target session
+                                             :only-if-unset t options)
+                                    (libtmux:libtmux-error (caught) caught))))
+                   (is (typep condition 'libtmux:libtmux-error))
+                   (when (typep condition 'libtmux:libtmux-error)
+                     (is (typep (libtmux:error-outcome condition) 'libtmux:command-outcome))))))
+          (fixture-ok fixture "set-option" "-g" "@local_claim" "inherited")
+          (is (eq :succeeded
+                  (libtmux:outcome-status
+                   (funcall setter client "@local_claim" "first"
+                            :scope :session :target session :only-if-unset t))))
+          (is (string= (format nil "first~%") (value "@local_claim")))
+          (refused "@local_claim" "replacement")
+          (is (string= (format nil "first~%") (value "@local_claim")))
+          (fixture-ok fixture "set-option" "-t" "fixture" "@empty_claim" "")
+          (refused "@empty_claim" "replacement")
+          (is (string= (format nil "~%") (value "@empty_claim")))
+          (fixture-ok fixture "set-option" "-t" "fixture" "status-format[8]" "other")
+          (funcall setter client "status-format" "first"
+                   :scope :session :target session :key 9 :only-if-unset t)
+          (refused "status-format" "replacement" :key 9)
+          (is (string= (format nil "first~%") (value "status-format[9]")))
+          (is (string= (format nil "other~%") (value "status-format[8]")))
+          (libtmux:set-option client "@local_claim" "replacement"
+                               :scope :session :target session)
+          (is (string= (format nil "replacement~%") (value "@local_claim"))))))))
+
 (test configuration-printers-preserve-native-text-and-outcomes
   "Live printer output is inspection data; endpoint execution belongs in the outer loop."
   (with-tmux-fixture (fixture)

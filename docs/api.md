@@ -1880,7 +1880,7 @@ See also: [set-option](#set-option-function), [unset-hook](#unset-hook-function)
 
 ### set-option
 
-`(set-option client name value &key scope target (key nil key-p) format-p append cancel-token timeout output-limit)`
+`(set-option client name value &key scope target (key nil key-p) format-p append only-if-unset cancel-token timeout output-limit)`
 
 Set one typed tmux option and return its COMMAND-OUTCOME.
 SCOPE is required and names one explicit table: :SERVER, :GLOBAL-SESSION,
@@ -1892,10 +1892,15 @@ strings. KEY addresses a registered array element. FORMAT-P treats VALUE as an
 explicit tmux format; otherwise VALUE is literal and typed. APPEND is supported
 for strings, keyed string-array elements and unkeyed array assignment. An
 unkeyed array VALUE uses that option's native tmux list grammar; use KEY when
-VALUE must remain one literal element. Use UNSET-OPTION to remove state and
-SET-HOOK for registered hooks. Never retries or acquires a replacement capture.
+VALUE must remain one literal element. ONLY-IF-UNSET requests tmux -o: write
+only when the option, or the selected array key, is absent from the local table.
+Inherited values permit a local write; present false and empty values refuse
+replacement. Refusal retains normal condition/outcome evidence through
+ERROR-OUTCOME. The condition applies to this command; later commands and hooks
+remain independent. Use UNSET-OPTION to remove state and SET-HOOK for registered
+hooks. Never retries or acquires a replacement capture.
 
-See also: [set-hook](#set-hook-function), [unset-option](#unset-option-function).
+See also: [error-outcome](#error-outcome-function), [set-hook](#set-hook-function), [unset-option](#unset-option-function).
 
 [Source](../src/configuration-operations.lisp)
 

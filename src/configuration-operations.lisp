@@ -96,7 +96,8 @@
       (literal-format name)))
 
 (defun configuration-mutation-builder (command scope scope-flags name value value-p
-                                       key key-p format-p append hooks-only unset-p)
+                                       key key-p format-p append hooks-only unset-p
+                                       &key only-if-unset)
   "Build one mutation from the exact live daemon catalog selected by preflight."
   (lambda (witness current)
     (declare (ignore current))
@@ -114,6 +115,7 @@
          name))
       (append (list command)
               scope-flags
+              (when only-if-unset '("-o"))
               (when append '("-a"))
               (when format-p '("-F"))
               (when unset-p '("-u"))
@@ -124,14 +126,15 @@
                           (configuration-value-text spec value format-p))))))))
 
 (defun mutate-configuration (client command name value value-p scope target key key-p
-                            format-p append hooks-only unset-p options)
+                            format-p append hooks-only unset-p options &key only-if-unset)
   "Validate local authority, then defer schema selection to the live witness."
   (let ((name (checked-option-name name)))
     (multiple-value-bind (targets flags) (configuration-scope-data scope target)
       (apply #'perform-command client targets (list command name)
              :argument-builder
              (configuration-mutation-builder command scope flags name value value-p
-                                             key key-p format-p append hooks-only unset-p)
+                                             key key-p format-p append hooks-only unset-p
+                                             :only-if-unset only-if-unset)
              options))))
 
 (defun environment-mutation-builder (flags name value value-p format-p hidden mode)
@@ -158,7 +161,7 @@
 
 (in-package #:libtmux)
 
-(defun set-option (client name value &key scope target (key nil key-p) format-p append
+(defun set-option (client name value &key scope target (key nil key-p) format-p append only-if-unset
                                           cancel-token timeout output-limit)
   "Set one typed tmux option and return its COMMAND-OUTCOME.
 SCOPE is required and names one explicit table: :SERVER, :GLOBAL-SESSION,
@@ -170,12 +173,18 @@ strings. KEY addresses a registered array element. FORMAT-P treats VALUE as an
 explicit tmux format; otherwise VALUE is literal and typed. APPEND is supported
 for strings, keyed string-array elements and unkeyed array assignment. An
 unkeyed array VALUE uses that option's native tmux list grammar; use KEY when
-VALUE must remain one literal element. Use UNSET-OPTION to remove state and
-SET-HOOK for registered hooks. Never retries or acquires a replacement capture.
-See also: SET-HOOK, UNSET-OPTION."
+VALUE must remain one literal element. ONLY-IF-UNSET requests tmux -o: write
+only when the option, or the selected array key, is absent from the local table.
+Inherited values permit a local write; present false and empty values refuse
+replacement. Refusal retains normal condition/outcome evidence through
+ERROR-OUTCOME. The condition applies to this command; later commands and hooks
+remain independent. Use UNSET-OPTION to remove state and SET-HOOK for registered
+hooks. Never retries or acquires a replacement capture.
+See also: ERROR-OUTCOME, SET-HOOK, UNSET-OPTION."
   (libtmux.internal::mutate-configuration
    client "set-option" name value t scope target key key-p format-p append nil nil
-   (list :cancel-token cancel-token :timeout timeout :output-limit output-limit)))
+   (list :cancel-token cancel-token :timeout timeout :output-limit output-limit)
+   :only-if-unset only-if-unset))
 
 (defun unset-option (client name &key scope target (key nil key-p)
                                     cancel-token timeout output-limit)

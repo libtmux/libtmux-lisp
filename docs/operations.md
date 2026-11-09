@@ -513,6 +513,14 @@ only where tmux implements it: strings, keyed string-array values and unkeyed
 array assignment. Public user-option writes accept the reversible
 `@[A-Za-z0-9_.-]+` name grammar.
 
+`:only-if-unset t` requests a local absent-only write. An inherited value permits
+a local override. An existing local value, including false or empty text,
+refuses replacement and retains the normal condition/outcome evidence. With
+`:key`, tmux tests that array element; other local keys may already exist.
+Without a key, it tests the local option entry. This condition applies once to
+the selected command; hooks and later operations remain independent. The
+default keeps ordinary replacement behavior.
+
 [`set-hook`](api.md#set-hook-function) accepts explicit tmux command source; it
 does not parse the source as Lisp or execute it locally. Ordinary installation
 never uses tmux's immediate-run flag. Tmux can still run a registered native
