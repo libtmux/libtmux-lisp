@@ -5,6 +5,10 @@
 Co-released consumers generate bounded formats from registered fields and owned
 IDs. Persisted text is never accepted as executable format source.")
 
+(defvar *dispatch-context-check* nil
+  "Private NIL/function checker called with client, witness and targets after preflight.
+Co-released consumers retain their original context across targetless operations.")
+
 (define-condition dispatch-precondition-failed (libtmux:stale-target) ()
   (:documentation "An additional live guard refused the payload before dispatch."))
 
@@ -217,7 +221,10 @@ IDs. Persisted text is never accepted as executable format source.")
 (defun perform-command (client targets arguments &key input cancel-token timeout output-limit observe
                                                     minimum-version feature version-flags raw-read
                                                     argument-builder
-                       &aux (preconditions (owned-dispatch-preconditions *dispatch-preconditions*)))
+                       &aux (preconditions (owned-dispatch-preconditions *dispatch-preconditions*))
+                         (context-check *dispatch-context-check*))
+  (unless (or (null context-check) (functionp context-check))
+    (invalid-argument "Dispatch context check must be NIL or a function"))
   (setf timeout (or timeout (slot-value client 'libtmux::timeout))
         output-limit (or output-limit (slot-value client 'libtmux::output-limit))
         arguments (coerce (argument-vector arguments) 'list)
@@ -248,10 +255,12 @@ IDs. Persisted text is never accepted as executable format source.")
               (nonce (format nil "libtmux-~32,'0X" (random (ash 1 128) (make-random-state t)))))
          (let* ((prepared
                   (handler-case
-                      (let ((value (if argument-builder
-                                       (funcall argument-builder witness current)
-                                       arguments)))
-                        (coerce (argument-vector value) 'list))
+                      (progn
+                        (when context-check (funcall context-check client witness current))
+                        (let ((value (if argument-builder
+                                         (funcall argument-builder witness current)
+                                         arguments)))
+                          (coerce (argument-vector value) 'list)))
                     (libtmux:libtmux-error (condition)
                       (preflight-failure client requested-arguments start condition))))
                 (encoded (handler-case

@@ -243,3 +243,42 @@
          (fail-workspace "Pending record readback differs from the prepared immutable intent"))
        (setf (slot-value writer 'stage) :pending)
        record))))
+
+(defun perform-owned-domain-command (writer preconditions command &key required-type)
+  "Invoke one trusted core-operation function with clamped options and retain its outcome.
+PRECONDITIONS are fixed generated step predicates. This private boundary adds
+the BUSY token and original context; full domain predicates belong to the executor."
+  (owned-writer-call
+   writer :pending
+   (lambda ()
+     (unless (and (functionp command)
+                  (member required-type '(nil libtmux:session libtmux:window libtmux:pane libtmux:window-link)))
+       (fail-workspace "Domain command requires a function and a registered result class"))
+     (let* ((outer libtmux.internal::*dispatch-context-check*)
+            (libtmux.internal::*dispatch-preconditions*
+              (libtmux.internal::owned-dispatch-preconditions
+               (append (libtmux.internal::owned-dispatch-preconditions libtmux.internal::*dispatch-preconditions*)
+                       (owned-writer-preconditions writer)
+                       (libtmux.internal::owned-dispatch-preconditions preconditions))))
+            (libtmux.internal::*dispatch-context-check*
+              (lambda (client witness current)
+                (when outer (funcall outer client witness current))
+                (unless (eq client (slot-value writer 'client))
+                  (error 'libtmux:stale-target :client client
+                         :message "Workspace domain command used another client"))
+                (owned-writer-check writer))))
+       (unless (or (null outer) (functionp outer))
+         (fail-workspace "Outer dispatch context check must be NIL or a function"))
+       (let ((outcome (funcall command (owned-writer-options writer))))
+         (unless (typep outcome 'libtmux:command-outcome)
+           (error 'libtmux:incomplete-snapshot :message "Domain operation did not return a command outcome"))
+         (owned-writer-retain writer (vector outcome))
+         (libtmux.internal::check-outcome outcome)
+         (when (libtmux:outcome-observation-error outcome)
+           (error 'libtmux:incomplete-snapshot :outcome outcome
+                  :cause (libtmux:outcome-observation-error outcome)
+                  :message "Domain command succeeded but its observation failed"))
+         (let ((value (when required-type (required-outcome-value outcome required-type "Domain command"))))
+           (owned-writer-check writer)
+           (setf (slot-value writer 'stage) :pending)
+           (values outcome value)))))))

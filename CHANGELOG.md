@@ -41,6 +41,8 @@
   records and absent-only pending bundles. Exact readback and retained outcomes
   distinguish successful writes from failed observation. Interrupted writers
   cannot resume. Domain application and workspace/2 publication remain pending.
+  Private domain calls reuse native core operations while preserving the original
+  client context, busy token, step guards and required creation observations.
 
 - Inspect private incomplete workspace metadata explicitly, retaining separate
   read attempts, partial records, captured graphs, causes and native outcomes.

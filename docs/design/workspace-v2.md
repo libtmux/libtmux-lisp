@@ -14,6 +14,11 @@ refuses reuse after an admitted primitive fails or exits nonlocally. Domain
 execution, final publication and the public workspace/2 constructor, loader and
 CLI remain unfinished.
 
+A private domain-call boundary reuses existing core operations with the busy
+token, generated step guards and original client context. It returns retained
+creation observations for physical-ID resolution and stops after failed or
+missing required observations. It does not generate or execute a complete plan.
+
 ## Identity and declarations
 
 Workspace/2 requires a bounded ASCII ID for the workspace, session, every window

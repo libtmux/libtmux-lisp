@@ -13,6 +13,128 @@
   (handler-case (progn (funcall function) (error "Invalid writer progress was accepted"))
     (libtmux.workspace::owned-writer-error (condition) condition)))
 
+(defun pending-fixture-writer (client)
+  (let ((writer (prepare-fixture-writer client)))
+    (state-call :claim-owned-writer writer)
+    (state-call :retire-owned-writer-records writer)
+    (state-call :write-owned-writer-pending writer)
+    writer))
+
+(test owned-domain-command-retains-the-core-created-identity-and-outer-checker
+  (with-tmux-fixture (fixture)
+    (with-fixture-client (client fixture)
+      (let* ((writer (pending-fixture-writer client)) (checked 0)
+             (libtmux.internal::*dispatch-context-check*
+               (lambda (actual witness current)
+                 (declare (ignore witness current)) (assert (eq actual client)) (incf checked))))
+        (declare (special libtmux.internal::*dispatch-context-check*))
+        (multiple-value-bind (outcome session)
+            (state-call :perform-owned-domain-command writer nil
+                        (lambda (options)
+                          (apply #'libtmux:new-session client :name "new-owned" :command #("/bin/cat") options))
+                        :required-type 'libtmux:session)
+          (is (= 1 checked))
+          (is (typep session 'libtmux:session))
+          (is (eq session (libtmux:outcome-value outcome)))
+          (is (eq outcome (car (last (coerce (state-call :owned-writer-outcomes writer) 'list)))))
+          (is (eq :pending (getf (state-call :owned-writer-data writer) :stage)))
+          (multiple-value-bind (renamed ignored)
+              (state-call :perform-owned-domain-command writer nil
+                          (lambda (options)
+                            (apply #'libtmux:rename-session client session "new-owned" :observe nil options)))
+            (is (eq :succeeded (libtmux:outcome-status renamed)))
+            (is (null ignored))
+            (is (not (nth-value 1 (libtmux:outcome-value renamed))))
+            (is (= 2 checked))))))))
+
+(test owned-domain-command-keeps-busy-and-extra-conditions-adjacent-to-effects
+  (dolist (changed-token '(nil t))
+    (with-tmux-fixture (fixture)
+      (with-fixture-client (client fixture)
+        (let* ((writer (pending-fixture-writer client))
+               (control (getf (state-call :owned-writer-data writer) :control-key)))
+          (when changed-token
+            (fixture-ok fixture "set-option" "-s" "--" control
+                        (state-call :make-owned-control :busy "0" (writer-token #\C))))
+          (let ((failure
+                  (writer-failure
+                   (lambda ()
+                     (state-call :perform-owned-domain-command writer (unless changed-token '((nil "0")))
+                                 (lambda (options)
+                                   (apply #'libtmux:new-session client :name "must-not-create"
+                                          :command #("/bin/cat") options)))))))
+            (is (typep (libtmux:error-cause failure) 'libtmux.internal::dispatch-precondition-failed))
+            (is (eq :failed (getf (state-call :owned-writer-data writer) :stage)))
+            (is (not (search "must-not-create" (fixture-ok fixture "list-sessions" "-F" "#{session_name}"))))))))))
+
+(test owned-domain-command-rejects-a-different-client-before-targetless-dispatch
+  (with-tmux-fixture (fixture)
+    (with-fixture-client (client fixture)
+      (let ((writer (pending-fixture-writer client)))
+        (with-fixture-client (other fixture)
+          (let ((failure
+                  (writer-failure
+                   (lambda ()
+                     (state-call :perform-owned-domain-command writer nil
+                                 (lambda (options)
+                                   (apply #'libtmux:new-session other :name "must-not-create"
+                                          :command #("/bin/cat") options)))))))
+            (is (typep (libtmux:error-cause failure) 'libtmux:stale-target))
+            (is (eq :not-dispatched (libtmux:outcome-status (libtmux:error-outcome failure))))
+            (is (not (search "must-not-create" (fixture-ok fixture "list-sessions" "-F" "#{session_name}"))))))))))
+
+(test owned-domain-command-stops-after-successful-effect-with-unusable-observation
+  (dolist (observation-error '(nil t))
+    (with-tmux-fixture (fixture)
+      (with-fixture-client (client fixture)
+        (let ((writer (pending-fixture-writer client)) (completed nil))
+          (let ((failure
+                  (writer-failure
+                   (lambda ()
+                     (state-call
+                      :perform-owned-domain-command writer nil
+                      (lambda (options)
+                        (setf completed (apply #'libtmux:new-session client :name "effect-succeeded"
+                                               :command #("/bin/cat") options)
+                              (slot-value completed 'libtmux::present-p) nil
+                              (slot-value completed 'libtmux::value) nil)
+                        (when observation-error
+                          (setf (slot-value completed 'libtmux::observation-error)
+                                (make-condition 'libtmux:incomplete-snapshot :message "Injected failed observation")))
+                        completed)
+                      :required-type (unless observation-error 'libtmux:session))))))
+            (is (typep (libtmux:error-cause failure) 'libtmux:incomplete-snapshot))
+            (is (eq :succeeded (libtmux:outcome-status completed)))
+            (is (= 1 (count completed (state-call :owned-writer-outcomes writer))))
+            (is (search "effect-succeeded" (fixture-ok fixture "list-sessions" "-F" "#{session_name}")))))))))
+
+(test owned-domain-command-rejects-unsupported-result-types-and-nonlocal-resume
+  (dolist (scenario '(:type :nonlocal))
+    (with-tmux-fixture (fixture)
+      (with-fixture-client (client fixture)
+        (let ((writer (pending-fixture-writer client)) (called nil))
+          (if (eq scenario :type)
+              (let ((failure
+                      (writer-failure
+                       (lambda ()
+                         (state-call :perform-owned-domain-command writer nil
+                                     (lambda (options) (declare (ignore options)) (setf called t))
+                                     :required-type 'string)))))
+                (is (typep (libtmux:error-cause failure) 'libtmux.workspace:invalid-workspace))
+                (is (not called)))
+              (is (eq :interrupted
+                      (catch 'domain-exit
+                        (let ((libtmux.internal::*dispatch-context-check*
+                                (lambda (actual witness current)
+                                  (declare (ignore actual witness current)) (throw 'domain-exit :interrupted))))
+                          (declare (special libtmux.internal::*dispatch-context-check*))
+                          (state-call :perform-owned-domain-command writer nil
+                                      (lambda (options)
+                                        (apply #'libtmux:new-session client :name "must-not-create"
+                                               :command #("/bin/cat") options))))))))
+          (is (eq :failed (getf (state-call :owned-writer-data writer) :stage)))
+          (is (not (search "must-not-create" (fixture-ok fixture "list-sessions" "-F" "#{session_name}")))))))))
+
 (test owned-writer-genesis-claims-and-writes-immutable-pending-without-domain-effects
   (with-tmux-fixture (fixture)
     (with-fixture-client (client fixture)

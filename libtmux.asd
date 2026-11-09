@@ -164,7 +164,7 @@
                (:file "src/workspace-plan"
                       :description "Private local owned declaration and observed-drift planning.")
                (:file "src/workspace-writer"
-                      :description "Private guarded writer claims, known-record retirement and immutable pending metadata.")))
+                      :description "Private writer metadata, guarded core operations and retained outcomes.")))
 
 (defsystem "libtmux/workspace/cli"
   :description "Explicit-endpoint workspace command-line interface"

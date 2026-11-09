@@ -2,6 +2,49 @@
 
 (in-suite integration)
 
+(test original-consumer-context-is-checked-after-targetless-preflight
+  (with-tmux-fixture (fixture)
+    (with-fixture-client (client fixture)
+      (let* ((generation (slot-value client 'libtmux::generation))
+             (replaced nil) (checked 0)
+             (libtmux.internal::*dispatch-context-check*
+               (lambda (actual witness current)
+                 (declare (ignore witness current))
+                 (assert (eq actual client))
+                 (incf checked)
+                 (unless (= generation (slot-value client 'libtmux::generation))
+                   (error 'libtmux:stale-target :message "Original consumer generation changed"))))
+             (libtmux.internal::*process-launched-hook*
+               (lambda (job)
+                 (declare (ignore job))
+                 (unless replaced
+                   (setf replaced t)
+                   (fixture-ok fixture "kill-server")
+                   (fixture-ok fixture "new-session" "-d" "-s" "replacement" "/bin/cat")))))
+        (declare (special libtmux.internal::*dispatch-context-check*))
+        (signals libtmux:stale-target
+          (libtmux:new-session client :name "must-not-create" :command #("/bin/cat")))
+        (is-true replaced)
+        (is (= 1 checked))
+        (is (not (search "must-not-create" (fixture-ok fixture "list-sessions" "-F" "#{session_name}"))))))))
+
+(test consumer-context-check-precedes-the-existing-argument-builder
+  (with-tmux-fixture (fixture)
+    (with-fixture-client (client fixture)
+      (let* ((events nil)
+             (libtmux.internal::*dispatch-context-check*
+               (lambda (actual witness current) (declare (ignore actual witness current)) (push :context events)))
+             (outcome
+               (locally (declare (special libtmux.internal::*dispatch-context-check*))
+                 (libtmux.internal::perform-command
+                  client nil '("display-message" "-p" "prepared")
+                  :argument-builder (lambda (witness current)
+                                      (declare (ignore witness current))
+                                      (push :builder events) '("display-message" "-p" "prepared"))))))
+        (declare (special libtmux.internal::*dispatch-context-check*))
+        (is (eq :succeeded (libtmux:outcome-status outcome)))
+        (is (equal '(:context :builder) (nreverse events)))))))
+
 (test guarded-literals-and-replacement-observations
   (with-tmux-fixture (fixture)
     (with-fixture-client (client fixture)

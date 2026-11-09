@@ -525,6 +525,9 @@ after preflight; exact readback distinguishes successful writes from failed
 observation. Failure or a nonlocal exit during an admitted primitive makes the
 writer unusable. These primitives neither execute the domain plan nor publish
 a committed revision.
+The private domain boundary reuses core operations and rechecks the original
+client after preflight, including targetless creation. It retains successful
+effects separately from failed observations and composes busy and step guards.
 Public workspace/2 acquisition and application remain unavailable until the
 complete path is qualified.
 
