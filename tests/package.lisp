@@ -11,7 +11,7 @@
 (def-suite control)
 (def-suite workspace)
 (def-suite integration)
-(def-suite control-integration :in integration)
+(def-suite control-integration)
 (def-suite configuration-integration)
 
 (defun run-suite (name)

@@ -225,6 +225,6 @@
                (:file "tests/workspace-integration"))
   :perform (test-op (operation component)
              (declare (ignore operation component))
-             (dolist (suite '(:integration :configuration-integration))
+             (dolist (suite '(:integration :control-integration :configuration-integration))
                (unless (uiop:symbol-call :libtmux.tests :run-suite suite)
                  (error "libtmux ~A tests failed" suite)))))
