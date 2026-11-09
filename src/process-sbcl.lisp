@@ -24,7 +24,7 @@
     (replace buffer source :start1 start :end2 count)))
 
 (defstruct process-job
-  argv input keep-input-open environment working-directory token cap start deadline
+  argv input keep-input-open environment working-directory token cap start deadline poll-deadline
   process pidfd authority wake registered
   directory gate-path status-path gate status dummy
   input-stream input-fd (offset 0)
@@ -295,7 +295,8 @@ size guarantee. This validates data, not executable trust."
 (defun supervise-job (job &key before-step)
   "Service one owned job. BEFORE-STEP runs on this supervisor, never another reader.
 Only an admitted persistent owner may retire the startup deadline to NIL; its
-close wake remains registered, and stop/drain/kill bounds remain finite."
+close wake remains registered, and stop/drain/kill bounds remain finite.
+POLL-DEADLINE wakes the owner without treating that soft timer as process failure."
   (loop
     do (when before-step (funcall before-step job))
        (let ((now (monotonic-seconds)))
@@ -332,7 +333,8 @@ close wake remains registered, and stop/drain/kill bounds remain finite."
                                 (if (process-job-reason job)
                                     (list (and (not (process-job-killed job)) (process-job-kill-at job))
                                           (or (process-job-final-at job) (process-job-deadline job)))
-                                    (list (process-job-deadline job) (process-job-drain-at job)))))
+                                    (list (process-job-deadline job) (process-job-poll-deadline job)
+                                          (process-job-drain-at job)))))
                 (wait (and bounds (max 0 (- (apply #'min bounds) (monotonic-seconds))))))
            (dolist (ready (poll-owned entries wait))
              (case ready

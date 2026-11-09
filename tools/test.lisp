@@ -6,12 +6,13 @@
                   (or (cdr (assoc argument '(("unit" . :unit) ("query" . :query)
                                             ("regex" . :regex) ("json" . :json)
                                             ("control" . :control)
+                                            ("control-integration" . :control-integration)
                                             ("workspace" . :workspace)
                                             ("integration" . :integration)) :test #'string=))
                       (error "Unknown test suite: ~A" argument)))
                 arguments)))
   (unless suites
-    (error "Expected one or more of unit, query, regex, json, control, workspace or integration"))
+    (error "Expected unit, query, regex, json, control, control-integration, workspace or integration"))
   (dolist (suite suites)
     (asdf:load-system (ecase suite
                         (:unit "libtmux/tests")
@@ -19,6 +20,7 @@
                         (:regex "libtmux/tests/regex")
                         (:json "libtmux/tests/json")
                         (:control "libtmux/tests/control")
+                        (:control-integration "libtmux/tests/integration")
                         (:workspace "libtmux/tests/workspace")
                         (:integration "libtmux/tests/integration")))
     (format t "~&SBCL ~A; ASDF ~A; UIOP ~A~%"

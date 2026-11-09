@@ -120,11 +120,28 @@ reported as incomplete cleanup.
 See the [architecture decision](adr/0001-native-common-lisp-engine.md#supervise-subprocesses-with-explicit-scopes-and-bounded-outcomes)
 for launcher alternatives and saved-image limitations.
 
-## Private control byte codecs
+## Private control implementation
 
-The optional `libtmux/control` system supplies private byte codecs only.
-It opens no connection and exposes no public control or subscription API.
-Its LF assembler accepts split octet chunks, preserves all bytes except the
+The optional `libtmux/control` system contains a private persistent connection
+engine and byte codecs. A public connection/subscription API remains in
+development. The engine uses the existing process supervisor, one reader and
+serialized request writes. Requests queue without waiting; awaiting a result
+and receiving an event have separate timeout results. Closing cancels pending
+work, joins the owned worker and leaves the daemon running.
+
+The live daemon must be at least 3.7 because older control initialization can
+crash during connection setup or cancellation. The version comes from the
+daemon witness. Core operations still support 3.3a through 3.8. Current live
+control tests exercise 3.8; the 3.3a test proves rejection before a control launch.
+
+Reply bytes, pending requests and event delivery have separate finite limits.
+An expired queued request is never dispatched. An in-flight deadline closes
+the connection and retains partial replies and dispatch state. Awaiting with
+a shorter timeout leaves the request live. Event overflow drops the oldest
+events and reports a gap with event and byte counts. Completion means the
+native command queue progressed; application readiness needs its own evidence.
+
+The LF assembler accepts split octet chunks, preserves all bytes except the
 terminating LF, and returns owned line vectors. Separate limits bound each
 line, each feed's bytes and each returned batch's line count. Truncated EOF
 signals a decoding error. A resource failure, cancellation or escaping exit
@@ -132,13 +149,12 @@ retires the decoder; it cannot resume after losing consumed input.
 
 The pane-output leaf decoder preserves NUL, invalid UTF-8 and all other bytes.
 It understands tmux's three-digit octal escapes and extended-output age and
-reserved fields. Encoded and decoded byte limits are separate. Neither codec
-owns request queues, workers, a persistent deadline or event backpressure.
+reserved fields. Encoded and decoded byte limits are separate. Codecs themselves
+do not own queues or workers; the persistent owner supplies those resources.
 
-Command output can reproduce `%begin`, `%end`, `%error` or `%output` lines
-verbatim. Recognizing their syntax establishes no reply or notification
-authority. A future reply owner must validate each command's output schema
-before accepting completion. The private leaf decoder requires an established
-notification context; successful decoding does not establish that context.
-The [architecture record](adr/0001-native-common-lisp-engine.md#qualify-control-mode-and-source-filtering-before-exposing-them)
-retains initialization and live-transport qualification gates.
+The engine follows tmux's ordinary reply guards and notification conventions.
+It sends a separate completion command after each request so a failed command
+does not strand the next request. It performs no automatic mutation retry or
+reconnection. See the
+[architecture record](adr/0001-native-common-lisp-engine.md#qualify-control-mode-and-source-filtering-before-exposing-them)
+for the remaining public-interface and compatibility work.

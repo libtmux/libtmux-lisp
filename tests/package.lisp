@@ -11,6 +11,7 @@
 (def-suite control)
 (def-suite workspace)
 (def-suite integration)
+(def-suite control-integration :in integration)
 
 (defun run-suite (name)
   (run! (ecase name
@@ -19,5 +20,6 @@
           (:regex 'regex)
           (:json 'json)
           (:control 'control)
+          (:control-integration 'control-integration)
           (:workspace 'workspace)
           (:integration 'integration))))

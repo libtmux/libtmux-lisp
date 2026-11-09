@@ -460,25 +460,28 @@ drift metadata and broader reconciliation remain separate unfinished work.
 
 ### Qualify control mode and source filtering before exposing them
 
-Persistent control is a separate intended system. It needs one transport
+Persistent control uses a separate optional system. It needs one transport
 reader, serialized writes, bounded queues, byte-preserving output, distinct
 timeout/end/loss/cancellation results and callbacks outside the reader.
 Acknowledgment and operation-specific completion must remain distinct. Reconnect
 requires a new generation and recapture; it cannot imply replay.
 
-The optional `libtmux/control` system starts with private, bounded LF assembly
-and pane-output byte decoding. These pure codecs open no connection and do not
-attribute replies or events. tmux writes
-[command output](https://github.com/tmux/tmux/blob/3.8/server-client.c#L3216-L3256)
-and [error text](https://github.com/tmux/tmux/blob/3.8/cmd-queue.c#L839-L878)
-without escaping marker-looking lines. The
+The private engine reuses the existing process supervisor for one persistent
+worker, serialized queued requests, bounded reply/event storage and explicit
+close. It follows ordinary tmux control framing. A separate completion command
+after each input line allows command-error recovery without stranding queued
+requests. Event overflow reports dropped event/byte counts; wait timeouts,
+request deadlines and connection end remain distinct. The public adapter and
+complete event/reconnect acceptance remain unfinished. The engine assumes a
+trusted tmux daemon and follows its ordinary framing conventions.
+
+The private codecs provide bounded LF assembly and pane-output byte decoding.
+The
 [pane-output writer](https://github.com/tmux/tmux/blob/3.8/control.c#L801-L842)
 uses three-digit octal escapes for C0 bytes and backslash, leaving DEL and high
-bytes unchanged. The decoder therefore preserves octets and requires the
-caller to establish notification context. A later typed reply owner must prove
-its output schema; lexical guard recognition alone cannot prove completion.
-Per-feed limits do not bound future queues or retained replies. See the
-[codec boundary](../transport.md#private-control-byte-codecs).
+bytes unchanged. The decoder preserves octets. Per-feed bounds and retained
+queue/reply bounds are separate. See the
+[connection contract](../transport.md#private-control-implementation).
 
 tmux's [`control_write_guard`](https://github.com/tmux/tmux/blob/3.8/control.c#L522-L548)
 defines reply guards. Older daemon initialization needs separate scrutiny:
@@ -486,7 +489,9 @@ defines reply guards. Older daemon initialization needs separate scrutiny:
 can enter control cleanup, while
 [`server_client_dispatch_identify`](https://github.com/tmux/tmux/blob/3.3a/server-client.c#L2969-L2987)
 starts control state only after identification completes. The proposed one-shot
-control acquisition route remains disabled. Harmless parser/relay experiments
+control acquisition route remains disabled. The separate private persistent
+engine checks the live daemon's 3.7 minimum before starting
+control mode. Harmless parser/relay experiments
 cannot qualify a live daemon path, kernel premise or portable transport.
 
 Source filtering is also pending. It belongs at an explicit acquisition

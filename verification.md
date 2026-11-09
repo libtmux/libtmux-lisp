@@ -10,6 +10,7 @@ Provisioning uses the network; verification does not install dependencies.
 | `mise run regex` | Inner | Optional CL-PPCRE search/full-match semantics, options, ownership and retained causes |
 | `mise run json` | Inner | Optional bounded filter documents, allowlists, false/empty/null distinctions and regex opt-in |
 | `mise run control` | Inner | Private LF assembly, byte fidelity, chunk/EOF handling, ownership and decoding limits; no live control connection |
+| `tools/lisp.sh tools/test.lisp control-integration` | Outer | Private persistent requests/events on 3.8, binary pane output, expiry/close/startup cleanup, and 3.3a pre-launch rejection |
 | `mise run check` | Mid | Source whitespace, all local unit suites, exported docstrings, generated references, excerpts and local documentation links |
 | `mise run lint-workflows` | Mid | GitHub Actions syntax, expressions and shell checks |
 | `mise run integration` | Outer | Bounded transport, cancellation/cleanup, managed daemon startup/shutdown and failure recovery, linked graphs, attached clients, daemon replacement, named operations, typed configuration mutations, exact target/server termination and tutorial failure cleanup |

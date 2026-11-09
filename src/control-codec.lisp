@@ -1,7 +1,6 @@
 (in-package #:libtmux.internal)
 
-;; These codecs preserve wire data. Marker-looking command text is not proof
-;; of a reply boundary; a transport owner still needs a typed output schema.
+;; Byte codecs preserve wire data; the connection owner matches replies.
 
 (defstruct (control-line-decoder (:constructor %make-control-line-decoder))
   "Private LF assembler with bounded retained storage and single-caller state."

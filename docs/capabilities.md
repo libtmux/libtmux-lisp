@@ -14,7 +14,7 @@ workspace bootstrap. Persistent control/events remain future work.
 | Streaming/events | Complete bounded captures and byte buffers; daemon-owned `pipe-pane` | Native event/output subscriptions, bounded delivery, loss and backpressure |
 | Workspace | Separate bounded JSON/native system, pure plans, explicit apply, topology reuse and explicit-endpoint CLI | Owned declaration/ID metadata, drift inspection, richer configuration and explicit reconciliation; deletion and process supervision remain outside v1 |
 | MCP | Intentionally excluded by project policy | Use a separately maintained external integration if one becomes suitable |
-| Optional integrations | Separate CL-PPCRE regex, bounded query JSON, workspace/CLI and private control byte-codec systems | Qualified control transport and public subscriptions |
+| Optional integrations | Separate CL-PPCRE regex, bounded query JSON, workspace/CLI and private control connection/codecs | Public control/subscription API and complete event/reconnect acceptance |
 | Performance | No benchmark claims | Reproducible acquisition/filter/stream workloads and latency/allocation results |
 
 The process backend services stdin/stdout/stderr through nonblocking descriptors

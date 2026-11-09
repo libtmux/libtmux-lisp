@@ -186,6 +186,9 @@ with tempfile.TemporaryDirectory(prefix="libtmux-lisp-consumer-") as directory:
     if arguments.examples:
         extracted = destination / "libtmux"
         environment["LIBTMUX_QLOT_SETUP"] = str(qlot_setup)
+        subprocess.run(["python3", str(root / "tools/test-processes.py"),
+                        str(root / "tools/lisp.sh"), str(extracted / "tools/test.lisp"),
+                        "control-integration"], cwd=root, env=environment, check=True)
         subprocess.run(["python3", str(extracted / "tools/doc-examples.py")],
                        cwd=extracted, env=environment, check=True)
         subprocess.run(["python3", str(extracted / "tools/test-processes.py"), "python3",
@@ -201,5 +204,6 @@ evidence = {"artifact": archive.name, "sha256": hashlib.sha256(archive.read_byte
             "optional_source": "archive"}
 if arguments.examples:
     evidence["archived_examples"] = "PASS"
+    evidence["archived_control_integration"] = "PASS"
 (output / "package-evidence.json").write_text(json.dumps(evidence, indent=2) + "\n")
 print(json.dumps(evidence))

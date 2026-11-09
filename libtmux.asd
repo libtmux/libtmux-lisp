@@ -118,18 +118,21 @@
                       :description "Closed versioned filter documents with bounded event decoding.")))
 
 (defsystem "libtmux/control"
-  :description "Private control byte codecs; live transport remains unqualified"
+  :description "Private persistent control requests, events and byte codecs"
   :depends-on ("libtmux")
   :in-order-to ((test-op (test-op "libtmux/tests/control")))
   :serial t
   :components ((:file "src/control-codec"
-                      :description "Private bounded LF assembly and byte-preserving pane-output decoding; no reply attribution or live connection.")))
+                      :description "Private bounded LF assembly and byte-preserving pane-output decoding.")
+               (:file "src/control-peer" :if-feature (:and :sbcl :linux :x86-64)
+                      :description "Private persistent control connection, queued requests, bounded events and owned worker cleanup.")))
 
 (defsystem "libtmux/tests/control"
   :description "Local control-output byte-codec tests; no tmux connection"
   :depends-on ("libtmux/tests" "libtmux/control")
   :serial t
-  :components ((:file "tests/control-codec"))
+  :components ((:file "tests/control-codec")
+               (:file "tests/control-state"))
   :perform (test-op (operation component)
              (declare (ignore operation component))
              (unless (uiop:symbol-call :libtmux.tests :run-suite :control)
@@ -193,12 +196,13 @@
 
 (defsystem "libtmux/tests/integration"
   :description "Owned tmux fixtures and external-operation tests"
-  :depends-on ("libtmux/tests" "libtmux/workspace")
+  :depends-on ("libtmux/tests" "libtmux/workspace" "libtmux/control")
   :serial t
   :components ((:file "tests/fixture")
                (:file "tests/process")
                (:file "tests/daemon")
                (:file "tests/capture")
+               (:file "tests/control-peer")
                (:file "tests/operations")
                (:file "tests/client-operations")
                (:file "tests/server-operations")
