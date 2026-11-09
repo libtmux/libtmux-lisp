@@ -23,6 +23,7 @@ All examples use the native SBCL implementation.
 | [Workspace API](workspace-api.md) | Generated workspace, plan, result, condition and CLI reference |
 | [Captured fields](fields.md) | Generated typed field/relation registry |
 | [Capabilities and limits](capabilities.md) | Platform, concurrency, planned modules and adoption gaps |
+| [Benchmarks](benchmarks.md) | Same-workload native read paths, acquisition cost, samples and limits |
 | [Testing](testing.md) | FiveAM's interactive workflow and isolated tmux CI |
 | [Source modules](modules.md) | Generated implementation responsibility map |
 

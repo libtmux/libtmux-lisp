@@ -19,6 +19,12 @@ Provisioning uses the network; verification does not install dependencies.
 | `mise run package-examples` | Outer | Archive-local links, examples, and the installed workspace CLI's validate/plan/apply/reapply workflow |
 | `mise run docs` | Maintenance | Regenerate API signatures/docstrings, condition hierarchy, applicable models, fields, modules and executable excerpts |
 
+Performance uses a separate tier: `mise run benchmark` compares identical native
+reads and measures graph acquisition separately. It is not run by CI or these
+test loops. The mid loop includes only the reporter's four critical evidence
+checks. See the [benchmark guide](docs/benchmarks.md) for sampling, owned cleanup,
+source identity, resource accounting and interpretation limits.
+
 These commands exercise the implemented native core; they do not establish
 full-suite compatibility. New operation tests extend the integration suite as
 those APIs are implemented. `check` detects generated-document drift without

@@ -16,7 +16,7 @@ complete event coverage remain unfinished.
 | Workspace | Separate bounded JSON/native system, pure plans, explicit apply, topology reuse and explicit-endpoint CLI | Owned declaration/ID metadata, drift inspection, richer configuration and explicit reconciliation; deletion and process supervision remain outside v1 |
 | MCP | Intentionally excluded by project policy | Use a separately maintained external integration if one becomes suitable |
 | Optional integrations | Separate CL-PPCRE regex, bounded query JSON, workspace/CLI and scoped native control connections | Complete event/reconnect acceptance and mode benchmarks |
-| Performance | No benchmark claims | Reproducible acquisition/filter/stream workloads and latency/allocation results |
+| Performance | [Optional native read-path comparison](benchmarks.md) with separate acquisition/startup, launch counts and allocation samples | Large-graph, query and stream workloads; retained heap and broader latency qualification |
 
 The process backend services stdin/stdout/stderr through nonblocking descriptors
 and a private poll loop. Public operations still block their caller. The library
