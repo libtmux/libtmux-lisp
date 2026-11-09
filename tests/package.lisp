@@ -11,6 +11,8 @@
 (def-suite control)
 (def-suite workspace)
 (def-suite integration)
+(def-suite transport-integration)
+(def-suite workspace-integration)
 (def-suite control-integration)
 (def-suite configuration-integration)
 
@@ -21,6 +23,8 @@
           (:regex 'regex)
           (:json 'json)
           (:control 'control)
+          (:transport-integration 'transport-integration)
+          (:workspace-integration 'workspace-integration)
           (:control-integration 'control-integration)
           (:configuration-integration 'configuration-integration)
           (:workspace 'workspace)

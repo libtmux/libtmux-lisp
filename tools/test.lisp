@@ -6,6 +6,8 @@
                   (or (cdr (assoc argument '(("unit" . :unit) ("query" . :query)
                                             ("regex" . :regex) ("json" . :json)
                                             ("control" . :control)
+                                            ("transport-integration" . :transport-integration)
+                                            ("workspace-integration" . :workspace-integration)
                                             ("control-integration" . :control-integration)
                                             ("configuration-integration" . :configuration-integration)
                                             ("workspace" . :workspace)
@@ -13,7 +15,7 @@
                       (error "Unknown test suite: ~A" argument)))
                 arguments)))
   (unless suites
-    (error "Expected unit, query, regex, json, control, control-integration, configuration-integration, workspace or integration"))
+    (error "Expected unit, query, regex, json, control, transport-integration, control-integration, configuration-integration, workspace-integration, workspace or integration"))
   (dolist (suite suites)
     (asdf:load-system (ecase suite
                         (:unit "libtmux/tests")
@@ -21,10 +23,9 @@
                         (:regex "libtmux/tests/regex")
                         (:json "libtmux/tests/json")
                         (:control "libtmux/tests/control")
-                        (:control-integration "libtmux/tests/integration")
-                        (:configuration-integration "libtmux/tests/integration")
                         (:workspace "libtmux/tests/workspace")
-                        (:integration "libtmux/tests/integration")))
+                        ((:transport-integration :integration :control-integration
+                          :configuration-integration :workspace-integration) "libtmux/tests/integration")))
     (format t "~&SBCL ~A; ASDF ~A; UIOP ~A~%"
             (lisp-implementation-version) (asdf:asdf-version)
             (asdf:component-version (asdf:find-system "uiop")))

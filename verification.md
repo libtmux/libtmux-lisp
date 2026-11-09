@@ -3,9 +3,10 @@
 Run commands from the repository root after `mise install` and `mise run setup`.
 Provisioning uses the network; verification does not install dependencies.
 
-`mise run integration` runs core, control and decoded-configuration groups in
-separate serialized child processes. Each retains the same 60-second cap and
-owned-process cleanup checks. ASDF test-op includes all three groups too.
+`mise run integration` runs transport, core operations, control, decoded
+configuration and workspace groups in separate serialized child processes. Each
+retains the same 60-second cap and owned-process cleanup checks. ASDF test-op
+includes all five groups too.
 
 | Command | Tier | Current coverage |
 | --- | --- | --- |

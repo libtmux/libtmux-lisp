@@ -1,6 +1,6 @@
 (in-package #:libtmux.tests)
 
-(in-suite integration)
+(in-suite transport-integration)
 
 (defun process-arguments (mode &rest extra)
   (append (list "/usr/bin/python3" "-u"

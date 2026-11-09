@@ -1,6 +1,6 @@
 (in-package #:libtmux.tests)
 
-(in-suite integration)
+(in-suite workspace-integration)
 
 (defun live-workspace-data (directory child)
   (list :schema "libtmux.lisp.workspace/1"

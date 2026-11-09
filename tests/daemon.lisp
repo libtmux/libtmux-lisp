@@ -1,6 +1,6 @@
 (in-package #:libtmux.tests)
 
-(in-suite integration)
+(in-suite transport-integration)
 
 (eval-when (:compile-toplevel :load-toplevel :execute)
   (require :sb-bsd-sockets))
