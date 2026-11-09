@@ -183,16 +183,16 @@
             (is (plusp (length (state-call :owned-inspection-causes inspection))))))))))
 
 (test owned-inspection-vacancy-check-includes-the-closing-inventory
-  (with-tmux-fixture (fixture)
+  (with-tmux-fixture (fixture :socket-suffix "socket-H")
     (with-fixture-client (client fixture)
       (let* ((declaration (state-fixture-declaration "free-name")) (inventories 0)
+             (inventory-command (libtmux.internal::tmux-command-text '("show-options" "-s" "-H")))
              (key (state-call :owned-record-key "acquisition" :pending (make-string 32 :initial-element #\C))))
         (is (eq :vacant (getf (inspection-last-attempt (state-call :inspect-owned-state client declaration)) :status)))
         (let* ((libtmux.internal::*process-launched-hook*
                  (lambda (job)
                    (let ((arguments (libtmux.internal::process-job-argv job)))
-                     (when (and (some (lambda (argument) (search "show-options" argument)) arguments)
-                                (some (lambda (argument) (search "-H" argument)) arguments)
+                     (when (and (find inventory-command arguments :test #'string=)
                                 (= 2 (incf inventories)))
                        (fixture-ok fixture "set-option" "-s" "--" key "opaque")))))
                (inspection (state-call :inspect-owned-state client declaration)))
