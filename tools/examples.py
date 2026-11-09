@@ -186,6 +186,14 @@ with tempfile.TemporaryDirectory(prefix="libtmux-lisp-managed-") as directory:
         "--script", str(root / "examples/managed-daemon.lisp"),
     ], cwd=directory, env=managed_environment, check=True, timeout=20)
 control_example = "SKIP: requires tmux 3.7 or newer"
+with tempfile.TemporaryDirectory(prefix="libtmux-lisp-configuration-") as directory:
+    configuration_environment = environment.copy()
+    configuration_environment["LIBTMUX_PROGRAM"] = program
+    subprocess.run([
+        "sbcl", "--noinform", "--no-sysinit", "--no-userinit",
+        "--load", str(Path(asdf) / "asdf.lisp"),
+        "--script", str(root / "examples/configuration.lisp"),
+    ], cwd=directory, env=configuration_environment, check=True, timeout=20)
 control_version = re.fullmatch(r"tmux ([0-9]+)\.([0-9]+)([a-z]?)", version)
 if control_version and tuple(map(int, control_version.group(1, 2))) >= (3, 7):
     control_environment = environment.copy()
@@ -212,6 +220,7 @@ evidence["tutorial_lisp_blocks"] = len(forms)
 evidence["tutorial_console_setup_cleanup"] = "PASS"
 evidence["workspace_cli"] = workspace_cli
 evidence["managed_daemon"] = "PASS"
+evidence["decoded_configuration"] = "PASS"
 evidence["persistent_control"] = control_example
 output = Path(__file__).resolve().parents[1] / "dist"
 output.mkdir(exist_ok=True)

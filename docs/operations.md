@@ -49,6 +49,10 @@ Creation defaults to detached mode. Selection uses explicit captured targets.
 `:horizontal` (left/right) or `:vertical` (top/bottom), with a cell `:size` or
 `:percent`. Creation returns a fresh captured entity through `outcome-value`.
 
+For typed option/hook values, inherited table reads and environment presence,
+see [decoded configuration](configuration.md). Raw printers remain available for
+unrestricted native inspection.
+
 ## Names and child commands
 
 Names and creation `:cwd` strings are literal, including `#[...]` and `#{...}`
@@ -542,8 +546,8 @@ Names use `[A-Za-z_][A-Za-z0-9_]*` so later named acquisition is reversible.
 All seven operations return a
 [`command-outcome`](api.md#command-outcome-type), retain effective arguments
 and diagnostics, and never retry uncertain mutations. Use the guarded
-[text inspectors](#configuration-inspection) for native printer views. Decoded
-configuration readers remain under development; use
+[text inspectors](#configuration-inspection) for native printer views and
+[decoded configuration](configuration.md) for typed, presence-aware reads. Use
 [`run-command`](api.md#run-command-function) when raw tmux argv and its weaker
 target contract are intentional.
 

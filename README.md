@@ -22,14 +22,14 @@ bounded subprocess transport; cancellation; named operations, byte buffers,
 validated native queries, eager QuerySets, optional regex and bounded JSON;
 [bounded declarative workspaces](docs/workspaces.md) with pure plans, explicit
 apply and an explicit-endpoint CLI;
-[configuration printer inspection](docs/operations.md#configuration-inspection) and
+[decoded configuration reads](docs/configuration.md),
+[printer inspection](docs/operations.md#configuration-inspection) and
 [typed option, hook and environment mutations](docs/operations.md#configuration-mutations)
 for the exact reviewed tmux catalogs through 3.8; explicit entity and server
 termination with retained outcome evidence; [owned daemon scopes](docs/daemons.md);
 optional [queued control commands and pane-output streams](docs/control.md) on
 tmux 3.7+.
-**In development:** decoded configuration readers, reconnect and broader event
-qualification.
+**In development:** reconnect and broader event qualification.
 MCP is intentionally out of scope. The `0.1.0`
 systems are unreleased.
 
@@ -316,6 +316,7 @@ names. See [optional query interchange](docs/query-interchange.md).
 | Add CL-PPCRE or exchange bounded filter documents | [Query interchange](docs/query-interchange.md) · [JSON API](docs/json-api.md) |
 | Validate, plan or explicitly apply a declarative workspace | [Workspaces](docs/workspaces.md) · [Workspace API](docs/workspace-api.md) |
 | Rename, resize, move, send input, capture, use buffers or terminate explicit targets | [Operation contracts](docs/operations.md) |
+| Read typed options, hooks and environment | [Decoded configuration](docs/configuration.md) |
 | Inspect native option, hook and environment output | [Configuration inspection](docs/operations.md#configuration-inspection) |
 | Look up signatures, multiple values and conditions | [Public API](docs/api.md) · [Captured fields](docs/fields.md) |
 | Understand deadlines, cancellation and cleanup | [Transport](docs/transport.md) |

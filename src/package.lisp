@@ -18,6 +18,9 @@ See docs/index.md for the tutorial, API reference and current capability limits.
    #:invalid-argument #:unsupported-platform #:unsupported-tmux
    #:unsupported-configuration #:error-setting #:error-commands
    #:unsupported-capability #:error-feature #:error-required-version #:error-actual-version
+   #:show-options #:show-option #:show-hooks #:show-environment
+   #:configuration-read-failed #:configuration-partial-records #:configuration-read-outcomes
+   #:configuration-error-name #:configuration-error-scope
    #:show-options-text #:show-hooks-text #:show-environment-text
    #:client-closed #:client-busy #:cleanup-failed #:command-failed
    #:outcome-unknown #:command-cancelled #:deadline-exceeded

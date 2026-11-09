@@ -29,6 +29,11 @@
 
 ### Added
 
+- Add decoded option, hook and named environment readers with exact live-catalog
+  types, presence-aware lookup, sparse arrays and explicit inherited sources.
+  Preserve hidden/removal state, shared limits and native failure evidence;
+  returned records own their mutable data.
+
 - Add literal user/group server ACL operations and native listing output,
   preserving versioned frontend permission updates and command outcomes.
 

@@ -172,12 +172,20 @@ See docs/index.md for the tutorial, API reference and current capability limits.
 
 **Inspect and configure options, hooks and environment**
 
+[configuration-error-name](#configuration-error-name-function)
+[configuration-error-scope](#configuration-error-scope-function)
+[configuration-partial-records](#configuration-partial-records-function)
+[configuration-read-outcomes](#configuration-read-outcomes-function)
 [remove-environment](#remove-environment-function)
 [set-environment](#set-environment-function)
 [set-hook](#set-hook-function)
 [set-option](#set-option-function)
+[show-environment](#show-environment-function)
 [show-environment-text](#show-environment-text-function)
+[show-hooks](#show-hooks-function)
 [show-hooks-text](#show-hooks-text-function)
+[show-option](#show-option-function)
+[show-options](#show-options-function)
 [show-options-text](#show-options-text-function)
 [unset-environment](#unset-environment-function)
 [unset-hook](#unset-hook-function)
@@ -370,6 +378,60 @@ failure signals CLEANUP-FAILED; the active owner still retains cleanup duty.
 [Source](../src/client.lisp)
 
 Applicable first argument types: [client](#client-type).
+
+<a id="configuration-error-name-function"></a>
+
+### configuration-error-name
+
+`(configuration-error-name condition)`
+
+Return the owned active name at failure, or NIL before name resolution. No I/O.
+
+See also: [configuration-error-scope](#configuration-error-scope-function), [configuration-read-failed](#configuration-read-failed-type).
+
+[Source](../src/configuration-acquisition.lisp)
+
+<a id="configuration-error-scope-function"></a>
+
+### configuration-error-scope
+
+`(configuration-error-scope condition)`
+
+Return the active native table scope at acquisition failure. No I/O.
+This may be an ancestor table used for inherited lookup.
+
+See also: [configuration-error-name](#configuration-error-name-function), [configuration-read-failed](#configuration-read-failed-type).
+
+[Source](../src/configuration-acquisition.lisp)
+
+<a id="configuration-partial-records-function"></a>
+
+### configuration-partial-records
+
+`(configuration-partial-records condition)`
+
+Return owned copies of records fully resolved before acquisition failed. No I/O.
+Inspect CONFIGURATION-READ-OUTCOMES for valid individual observations from a
+failing or incomplete name. No partial record proves a complete acquisition.
+
+See also: [configuration-read-failed](#configuration-read-failed-type), [outcome-value](#outcome-value-function).
+
+[Source](../src/configuration-acquisition.lisp)
+
+<a id="configuration-read-outcomes-function"></a>
+
+### configuration-read-outcomes
+
+`(configuration-read-outcomes condition)`
+
+Return a fresh vector of all retained read outcomes, in acquisition order.
+Outcome objects retain identity. OUTCOME-VALUE exposes any valid decoded leaf
+observation, independently of the native outcome's success status. Preflight
+failures can have no selected read outcome. No I/O.
+
+See also: [configuration-partial-records](#configuration-partial-records-function), [error-outcome](#error-outcome-function), [outcome-value](#outcome-value-function).
+
+[Source](../src/configuration-acquisition.lisp)
 
 <a id="copy-mode-function"></a>
 
@@ -1919,6 +1981,27 @@ its outcome and any partial bytes.
 
 [Source](../src/buffers.lisp)
 
+<a id="show-environment-function"></a>
+
+### show-environment
+
+`(show-environment client &key scope target (names nil names-p) cancel-token timeout output-limit (record-limit 4096) (value-limit 1048576))`
+
+Acquire named raw environment entries; return owned record/outcome vectors.
+SCOPE is :GLOBAL or :SESSION; session scope requires a captured TARGET. NAMES
+is required; explicit NIL/#() performs no I/O. Native names are nonempty UTF-8
+without NUL or =, including names outside the mutation identifier grammar.
+Each plist has :NAME, :SCOPE, :TARGET-ID, :VERSION, :STATE and :VALUE. States are
+:PRESENT, :REMOVED and :ABSENT. Empty strings remain present. Present/removal
+records additionally carry explicit :HIDDEN-P; absent records claim no visibility.
+Read ordinary visibility first, then hidden only after empty success. Contradictory
+views retry under the original limits. This is not a merged child environment.
+Shared limits, ordinary-output assumptions and failure evidence follow SHOW-OPTIONS.
+
+See also: [configuration-read-failed](#configuration-read-failed-type), [set-environment](#set-environment-function), [show-environment-text](#show-environment-text-function), [show-options](#show-options-function).
+
+[Source](../src/configuration-acquisition.lisp)
+
 <a id="show-environment-text-function"></a>
 
 ### show-environment-text
@@ -1943,6 +2026,23 @@ See also: [error-outcome](#error-outcome-function), [remove-environment](#remove
 
 [Source](../src/configuration-operations.lisp)
 
+<a id="show-hooks-function"></a>
+
+### show-hooks
+
+`(show-hooks client &key scope target (names nil names-p) (include-inherited t) cancel-token timeout output-limit (record-limit 4096) (value-limit 1048576))`
+
+Acquire owned hook records and native read outcomes, following SHOW-OPTIONS.
+Omitted NAMES enumerates built-in hooks. Explicit dynamic @ names require a
+supporting catalog and remain ordinary strings, without a registration claim.
+Builtin command values are inert canonical tmux source. Inspection never requests
+set-hook -R; ordinary after-read hooks still apply. :SERVER is unavailable.
+No Lisp reader or evaluator parses source.
+
+See also: [configuration-read-failed](#configuration-read-failed-type), [set-hook](#set-hook-function), [show-hooks-text](#show-hooks-text-function), [show-options](#show-options-function).
+
+[Source](../src/configuration-acquisition.lisp)
+
 <a id="show-hooks-text-function"></a>
 
 ### show-hooks-text
@@ -1966,6 +2066,56 @@ retries. Missing names and decoding/resource failures retain outcome evidence.
 See also: [error-outcome](#error-outcome-function), [set-hook](#set-hook-function), [show-options-text](#show-options-text-function), [unset-hook](#unset-hook-function).
 
 [Source](../src/configuration-operations.lisp)
+
+<a id="show-option-function"></a>
+
+### show-option
+
+`(show-option client name &key scope target (key nil key-p) (include-inherited t) cancel-token timeout output-limit (record-limit 4096) (value-limit 1048576))`
+
+Acquire one decoded option; return VALUE, PRESENT-P and a read-outcome vector.
+False returns NIL,T; absence returns NIL,NIL. KEY selects an entry only after
+acquiring a whole named array. A missing key does not fall through a present
+local array. Mutable key text is copied before I/O and bounded to 1 MiB UTF-8.
+Keys normalize under the exact live catalog before payload reads.
+Scopes, limits, inheritance, ownership and failure evidence follow SHOW-OPTIONS.
+
+See also: [configuration-read-failed](#configuration-read-failed-type), [outcome-value](#outcome-value-function), [show-options](#show-options-function).
+
+[Source](../src/configuration-acquisition.lisp)
+
+<a id="show-options-function"></a>
+
+### show-options
+
+`(show-options client &key scope target (names nil names-p) (include-inherited t) cancel-token timeout output-limit (record-limit 4096) (value-limit 1048576))`
+
+Acquire decoded options; return owned record and native read-outcome vectors.
+SCOPE and TARGET follow SET-OPTION. Omitted NAMES enumerates registered built-in
+non-hook names in source order; explicit finite lists/vectors preserve requested
+order and duplicates, including user names. At most 4096 names of at most 1 MiB
+UTF-8 each are accepted, independently of RECORD-LIMIT. Explicit NIL/#() performs
+no I/O after argument validation.
+Each plist has :NAME, :SCOPE, :TARGET-ID, :VERSION, :TYPE, :ARRAY-P, :PRESENT-P,
+:VALUE, :SOURCE-SCOPE, :SOURCE-TARGET-ID and :INHERITED-P. A present false flag
+has NIL value and true presence. Arrays are vectors of (key-text . typed-value)
+pairs, including sparse and supported string keys; empty arrays are present.
+INCLUDE-INHERITED defaults true: use explicit ancestor tables only after local
+absence and recheck every shadowing absence. Observations span an interval,
+not a transaction. Read hooks can run again during bounded consistency retries.
+One lease, token, deadline and aggregate byte/record budget covers all reads.
+RECORD-LIMIT counts decoded rows/negative observations, including rechecks.
+VALUE-LIMIT bounds each decoded UTF-8 value. Preparation and cleanup add wall time.
+The ordinary printer must match its known schema; unrelated after-read output
+signals a decoding failure. This assumes trusted native output, not per-leaf
+origin authentication. Raw SHOW-OPTIONS-TEXT preserves unrestricted inspection.
+Every requested name has a record even when absent. Read outcomes retain native
+failures for expected missing names; this does not prove later hooks succeeded.
+Records contain no operational handle; strings/containers own their storage.
+
+See also: [configuration-read-failed](#configuration-read-failed-type), [show-hooks](#show-hooks-function), [show-option](#show-option-function), [show-options-text](#show-options-text-function).
+
+[Source](../src/configuration-acquisition.lisp)
 
 <a id="show-options-text-function"></a>
 
@@ -2428,6 +2578,22 @@ dispatch evidence. An observation error does not erase a successful mutation.
 [Source](../src/transport.lisp)
 
 Direct supertypes: `standard-object`.
+
+<a id="configuration-read-failed-type"></a>
+
+### configuration-read-failed
+
+A decoded acquisition failed, retaining prior records and native outcomes.
+ERROR-CAUSE identifies the failure. ERROR-OUTCOME retains cause-associated or current
+leaf evidence, possibly NIL before the associated read. Its status can be success
+when decoding or diagnostics failed. No transport failure becomes absence.
+No mutation is retried.
+
+See also: [configuration-error-name](#configuration-error-name-function), [configuration-error-scope](#configuration-error-scope-function), [configuration-partial-records](#configuration-partial-records-function), [configuration-read-outcomes](#configuration-read-outcomes-function), [error-cause](#error-cause-function).
+
+[Source](../src/configuration-acquisition.lisp)
+
+Direct supertypes: [command-failed](#command-failed-type).
 
 <a id="daemon-type"></a>
 

@@ -10,7 +10,7 @@ complete event coverage remain unfinished.
 | Runtime | SBCL 2.6.10, ASDF/UIOP 3.3.7, Linux x86-64, kernel 6.9+, Bash | Other implementation/OS support |
 | Acquisition | Finite CLOS snapshots, explicit window links, identity, bounds and replacement observations | Complete acceptance after further operations |
 | Local processing | Ordinary lists/vectors, functions, owned plists, presence via multiple values, validated relation/regex queries and eager QuerySets | Source-side filter lowering |
-| Operations | Creation, rename, selection, geometry, placement, input, buffers, respawn, shell pipes, native configuration printer inspection and typed mutations, captured terminal-client requests, session/server frontend locking, message/command/key printing, key binding/removal, server ACL entries, wait channels (blocking wait/lock require 3.8), explicit entity/server termination and private empty-config daemon scopes | Remaining named server-command helpers and decoded configuration readers |
+| Operations | Creation, rename, selection, geometry, placement, input, buffers, respawn, shell pipes, decoded configuration reads, native printer inspection and typed mutations, captured terminal-client requests, session/server frontend locking, message/command/key printing, key binding/removal, server ACL entries, wait channels (blocking wait/lock require 3.8), explicit entity/server termination and private empty-config daemon scopes | Remaining named server-command helpers |
 | Concurrency | Synchronous core calls; one operation per client; optional nonblocking control submission and event waits | Reconnect and complete control/event qualification |
 | Streaming/events | Bounded captures and byte buffers; daemon-owned `pipe-pane`; optional native pane-output events with gap/end results | Complete event coverage, reconnect and backpressure policy |
 | Workspace | Separate bounded JSON/native system, pure plans, explicit apply, topology reuse and explicit-endpoint CLI | Owned declaration/ID metadata, drift inspection, richer configuration and explicit reconciliation; deletion and process supervision remain outside v1 |
@@ -51,14 +51,14 @@ CI uses the latest stable SBCL pin and checks only the two endpoints, 3.3a and
 floor. Runtime flags and some operation semantics depend on the live daemon
 version as documented in the
 [operation contracts](operations.md).
-Configuration mutations require one of the twelve exact reviewed catalogs from
+Decoded configuration reads and mutations require one of the twelve exact reviewed catalogs from
 3.3a through 3.8; an unreviewed neighboring release is rejected rather than
 silently borrowing another version's schema.
 
 A build-versus-adopt decision should check the platform boundary, required
 operations, identity policy, synchronous concurrency model, diagnostics and
-cleanup behavior against the actual application. Teams requiring subscriptions,
-streaming or an MCP endpoint need a separate integration. The single maintainer
+cleanup behavior against the actual application. Teams requiring continuous updates should check the optional control system
+against their required event coverage and reconnect policy. MCP stays excluded. The single maintainer
 and unreleased status do not change those technical boundaries.
 
 Benchmark evidence must report workload, graph size, tmux/toolchain versions,

@@ -11,9 +11,10 @@ Provisioning uses the network; verification does not install dependencies.
 | `mise run json` | Inner | Optional bounded filter documents, allowlists, false/empty/null distinctions and regex opt-in |
 | `mise run control` | Inner | Local codecs, byte fidelity, queued/active cancellation, terminal races, CLOS resource identity and lexical cleanup; no live connection |
 | `tools/lisp.sh tools/test.lisp control-integration` | Outer | Persistent requests/events on 3.8, binary pane output, public cancellation, expiry/close/startup recovery and 3.3a pre-launch rejection |
+| `tools/lisp.sh tools/test.lisp configuration-integration` | Outer | Decoded reads on both tmux endpoints, false/absence, sparse keys, inheritance/visibility races, partial evidence, cancellation and truncation |
 | `mise run check` | Mid | Source whitespace, all local unit suites, exported docstrings, generated references, excerpts and local documentation links |
 | `mise run lint-workflows` | Mid | GitHub Actions syntax, expressions and shell checks |
-| `mise run integration` | Outer | Bounded transport, cancellation/cleanup, managed daemon startup/shutdown and failure recovery, linked graphs, attached clients, daemon replacement, named operations, typed configuration mutations, exact target/server termination and tutorial failure cleanup |
+| `mise run integration` | Outer | Bounded transport, cancellation/cleanup, managed daemon startup/shutdown and failure recovery, linked graphs, attached clients, daemon replacement, named operations, typed configuration reads/mutations, exact target/server termination and tutorial failure cleanup |
 | `mise run package` | Outer | Source archive plus isolated core/query/regex/JSON/control consumers and dependency-boundary checks |
 | `mise run examples` | Outer | Shipped Lisp recipes, all tutorial Lisp blocks, literal console setup/cleanup, worker consumption signals, optional control streaming and owned daemon cleanup |
 | `mise run package-examples` | Outer | Archive-local links, examples, and the installed workspace CLI's validate/plan/apply/reapply workflow |
@@ -29,6 +30,9 @@ These commands exercise the implemented native core; they do not establish
 full-suite compatibility. New operation tests extend the integration suite as
 those APIs are implemented. `check` detects generated-document drift without
 rewriting files. `docs` deliberately rewrites generated pages and excerpts.
+Decoded configuration uses its own serialized outer-loop process: complete
+catalog reads exercise many native commands. Each integration process retains
+the same 60-second ceiling; the outer task runs both groups and cleanup checks.
 No formatting tool is prescribed for Common Lisp; source checks and SBCL
 compilation catch whitespace and reader/compiler errors respectively.
 The [testing guide](docs/testing.md) describes FiveAM's interactive workflow and
@@ -109,7 +113,7 @@ This check asserts the executable's release, expects `unsupported-tmux`, and
 checks that opening the client created no daemon socket.
 
 Complete control/event coverage and reconnect, source filtering, shared-site
-rendering, benchmarks and
+rendering, broader benchmarks and
 integrated acceptance of all required capabilities on both CI endpoints remain
 pending. MCP is excluded by policy. The
 [capability table](docs/capabilities.md) separates implemented behavior from

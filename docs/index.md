@@ -11,6 +11,7 @@ All examples use the native SBCL implementation.
 | [Native queries](queries.md) | Typed forms, relations, QuerySets, limits and cardinality |
 | [Query interchange](query-interchange.md) | Optional regex and bounded versioned JSON documents |
 | [Declarative workspaces](workspaces.md) | Bounded documents, pure plans, explicit apply and CLI |
+| [Decoded configuration](configuration.md) | Typed values, inheritance, hooks, environment state and failure evidence |
 | [Explicit operations](operations.md) | Creation, placement, input, buffers and mutation outcomes |
 | [Transport](transport.md) | Client lifecycle, limits, cancellation and failure evidence |
 | [Persistent control](control.md) | Nonblocking submission, byte output, cancellation and owned connection scopes |

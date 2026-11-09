@@ -20,8 +20,8 @@ an architectural review, and acceptance does not establish runtime support.
 The decisions below describe the committed core and the boundaries of remaining
 work. They preserve the existing ownership and explicit-effect contracts.
 
-Core acquisition, local queries, optional codecs, named mutations and workspace
-creation are implemented. Decoded configuration readers, source filtering,
+Core acquisition, local queries, optional codecs, named mutations, decoded
+configuration readers and workspace creation are implemented. Source filtering,
 complete control/event coverage, reconnect and final suite qualification remain
 open. Scoped persistent requests and pane-output byte events are implemented
 in an optional system. Private decoder or relay experiments do not establish
@@ -334,8 +334,30 @@ absence from that presentation. Tmux's
 [`cmd_show_options_exec`](https://github.com/tmux/tmux/blob/3.8/cmd-show-options.c#L108-L209)
 format-expands an option reference before matching it, so literal reader names
 use the same format encoder as other literal inputs. Explicit output formats
-remain a separate source boundary. Decoded acquisition retains its own
-unfinished schema, attribution and transport obligations.
+remain a separate source boundary.
+
+Decoded [configuration acquisition](../configuration.md) uses the ordinary
+subprocess transport, exact version catalogs and known-name printer grammars.
+It does not require the withdrawn one-shot control route. A synthetic internal
+end token adapts a fully drained payload to the existing bounded decoder; that
+token is not a daemon frame. The decoder must consume the complete payload.
+Version profiles apply to ordinary clients too: tmux 3.4's
+[`server_client_print`](https://github.com/tmux/tmux/blob/3.4/server-client.c#L3274-L3307)
+applies its escaping before selecting ordinary versus control output.
+
+This decision assumes trusted native command output rather than per-leaf origin
+authentication against matching hook records. Extra unrelated output fails
+decoding. Native outcomes remain inspectable, including expected missing-name
+failures and a valid positive observation before a later hook failure. No
+cancellation, truncated output or exhausted limit becomes absence.
+
+Inherited lookup reads explicit ancestor tables and rechecks every absence that
+could shadow the selected value. Pane-to-window traversal retains a relationship
+guard. Environment lookup distinguishes present, removed, hidden and absent
+entries through separate visibility reads. Contradictions retry at most three
+times under one lease, token, deadline and aggregate byte/record budget. These
+checks detect some races; they do not make the reads transactional. Public
+records own their mutable storage and retain no operational handles.
 
 [`command-outcome`](../api.md#command-outcome-type) retains dispatch phase,
 status, diagnostics, arguments and timing. A mutation can succeed while its

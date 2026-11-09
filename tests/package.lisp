@@ -12,6 +12,7 @@
 (def-suite workspace)
 (def-suite integration)
 (def-suite control-integration :in integration)
+(def-suite configuration-integration)
 
 (defun run-suite (name)
   (run! (ecase name
@@ -21,5 +22,6 @@
           (:json 'json)
           (:control 'control)
           (:control-integration 'control-integration)
+          (:configuration-integration 'configuration-integration)
           (:workspace 'workspace)
           (:integration 'integration))))

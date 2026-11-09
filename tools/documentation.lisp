@@ -154,7 +154,7 @@
     ("Rename, capture, send input and manage pane processes"
      "operations" "terminal-operations" "process-operations")
     ("Read and write buffers and files" "buffers")
-    ("Inspect and configure options, hooks and environment" "configuration-operations")
+    ("Inspect and configure options, hooks and environment" "configuration-operations" "configuration-acquisition")
     ("Terminate explicit targets" "termination")
     ("Inspect failure evidence" "conditions")))
 

@@ -29,6 +29,7 @@ These files implement the core `libtmux` system; their internal package is priva
 | [src/configuration-options](../src/configuration-options.lisp) | Private typed decoding of known option and hook records across exact tmux schemas. |
 | [src/dispatch](../src/dispatch.lisp) | Target guards, dispatch evidence and independent observation outcomes. |
 | [src/configuration-operations](../src/configuration-operations.lisp) | Native configuration printer inspection and typed option, hook and environment mutations. |
+| [src/configuration-acquisition](../src/configuration-acquisition.lisp) | Decoded named configuration reads, explicit inheritance and shared acquisition budgets. |
 | [src/operations](../src/operations.lisp) | Rename, select and terminal capture operations with explicit clients. |
 | [src/client-operations](../src/client-operations.lisp) | Captured terminal-client targeting, switching and explicit frontend requests. |
 | [src/server-operations](../src/server-operations.lisp) | Literal message printing, server ACL changes, locks and wait-channel state. |

@@ -52,6 +52,8 @@
                       :description "Target guards, dispatch evidence and independent observation outcomes.")
                (:file "src/configuration-operations"
                       :description "Native configuration printer inspection and typed option, hook and environment mutations.")
+               (:file "src/configuration-acquisition"
+                      :description "Decoded named configuration reads, explicit inheritance and shared acquisition budgets.")
                (:file "src/operations"
                       :description "Rename, select and terminal capture operations with explicit clients.")
                (:file "src/client-operations"
@@ -87,6 +89,7 @@
                (:file "tests/configuration-codec")
                (:file "tests/configuration-registry")
                (:file "tests/configuration-options")
+               (:file "tests/configuration-acquisition")
                (:file "tests/model"))
   :perform (test-op (operation component)
              (declare (ignore operation component))
@@ -207,6 +210,7 @@
                (:file "tests/capture")
                (:file "tests/control-peer")
                (:file "tests/operations")
+               (:file "tests/configuration-reads")
                (:file "tests/client-operations")
                (:file "tests/server-operations")
                (:file "tests/key-bindings")
@@ -219,5 +223,6 @@
                (:file "tests/workspace-integration"))
   :perform (test-op (operation component)
              (declare (ignore operation component))
-             (unless (uiop:symbol-call :libtmux.tests :run-suite :integration)
-               (error "libtmux integration tests failed"))))
+             (dolist (suite '(:integration :configuration-integration))
+               (unless (uiop:symbol-call :libtmux.tests :run-suite suite)
+                 (error "libtmux ~A tests failed" suite)))))
