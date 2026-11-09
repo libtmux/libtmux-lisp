@@ -35,14 +35,34 @@ These commands exercise the implemented native core; they do not establish
 full-suite compatibility. New operation tests extend the integration suite as
 those APIs are implemented. `check` detects generated-document drift without
 rewriting files. `docs` deliberately rewrites generated pages and excerpts.
-Decoded configuration uses its own serialized outer-loop process: complete
-catalog reads exercise many native commands. Each integration process retains
-the same 60-second ceiling; the outer task runs both groups and cleanup checks.
+Complete catalog reads exercise many native commands. Each of the five
+integration processes retains the same 60-second ceiling; the outer task runs
+every group and cleanup checks.
 No formatting tool is prescribed for Common Lisp; source checks and SBCL
 compilation catch whitespace and reader/compiler errors respectively.
 The [testing guide](docs/testing.md) describes FiveAM's interactive workflow and
 the exact tmux build cache. Hosted results must identify the tested commit;
 local package or integration success does not establish a hosted CI result.
+
+## Recorded local compatibility
+
+The [native matrix record](data/native-compatibility.json) identifies the exact
+source revision, native source/binary identities, runtime and per-group results.
+On 2026-11-09, the existing native integration suite at
+[0e1a6f3](https://github.com/libtmux/libtmux-lisp/tree/0e1a6f3eed926b5470692e098414f1b91acf7466)
+passed on all twelve
+supported releases: 3.3a, 3.4, 3.5, 3.5a, 3.6, 3.6a, 3.6b, 3.7, 3.7a, 3.7b,
+3.7c and 3.8. The two-cell local sweep took 236.28 seconds, including startup.
+All cells checked owned-process cleanup. Eleven control cases are explicitly
+skipped below the optional feature's 3.8 floor; older-daemon refusal is tested.
+
+This record covers the implemented native integration surface at its pinned
+revision. It does not establish completion of the unfinished suite. CI continues
+to test only 3.3a and 3.8; source-archive consumers and complete examples have
+separate endpoint evidence. The record's timings are verification costs, not
+performance measurements or latency guarantees.
+
+## Source archives and consumers
 
 The package command writes `dist/libtmux-source.tar.gz` and
 `dist/package-evidence.json`. The consumer loads the extracted artifact from a

@@ -1,0 +1,390 @@
+{
+  "kind": "native-integration-checkpoint",
+  "recorded_at": "2026-11-09T09:52:19.400228+00:00",
+  "repository": "libtmux/libtmux-lisp",
+  "tested_revision": "0e1a6f3eed926b5470692e098414f1b91acf7466",
+  "scope": "Existing native integration cases, not the entire unfinished suite or every native emitter policy",
+  "status": "PASS",
+  "command": [
+    "mise",
+    "run",
+    "integration"
+  ],
+  "program_selection": "LIBTMUX_TEST_TMUX selects each pinned native binary",
+  "runtime": {
+    "sbcl": "2.6.10",
+    "asdf_uiop": "3.3.7",
+    "qlfile_lock_sha256": "950687d213c3e21af68a9f54246b9b8c49028b39e6e9bdc346cee4e8b62ff1d2",
+    "host": {
+      "system": "Linux",
+      "machine": "x86_64",
+      "kernel": "6.18.54.1-microsoft-standard-WSL2"
+    },
+    "compiler": "cc (Ubuntu 15.2.0-16ubuntu1) 15.2.0",
+    "libraries": {
+      "libevent": "2.1.12-stable",
+      "ncurses": "6.6.20251231"
+    }
+  },
+  "groups": [
+    "transport-integration",
+    "integration",
+    "control-integration",
+    "configuration-integration",
+    "workspace-integration"
+  ],
+  "registered_cases": 100,
+  "parallel_cells": 2,
+  "whole_command_seconds": 236.28,
+  "cell_elapsed_seconds_sum_is_not_wall_time": true,
+  "ci_versions": [
+    "3.3a",
+    "3.8"
+  ],
+  "optional_control_minimum": "3.8",
+  "owned_process_cleanup": "PASS in every cell",
+  "rows": [
+    {
+      "tmux": "3.3a",
+      "status": "PASS",
+      "source_commit": "0b355ae8114511e1ff6359272b164f1cdf718e80",
+      "binary_sha256": "f79c5c92701867c851ef0d40cb865751f2cbb3d1571d06a4eee7b8c43df94d08",
+      "seconds": 34.563,
+      "checks": [
+        227,
+        481,
+        20,
+        48,
+        17
+      ],
+      "passes": [
+        227,
+        481,
+        9,
+        48,
+        17
+      ],
+      "skips": [
+        0,
+        0,
+        11,
+        0,
+        0
+      ]
+    },
+    {
+      "tmux": "3.4",
+      "status": "PASS",
+      "source_commit": "9ae69c3795ab5ef6b4d760f6398cd9281151f632",
+      "binary_sha256": "df07a7b4c2e9f8afc03ab8ec7245db99285f709581216b48be0df1f3175f3dfe",
+      "seconds": 34.661,
+      "checks": [
+        227,
+        478,
+        20,
+        48,
+        17
+      ],
+      "passes": [
+        227,
+        478,
+        9,
+        48,
+        17
+      ],
+      "skips": [
+        0,
+        0,
+        11,
+        0,
+        0
+      ]
+    },
+    {
+      "tmux": "3.5",
+      "status": "PASS",
+      "source_commit": "ac44566c9c7e3e94d23be6def4c7ae83472543f5",
+      "binary_sha256": "64fc45ff57a0b624180e5437e68ddbe53125b51f485dbb3881f06436830d4735",
+      "seconds": 36.99,
+      "checks": [
+        227,
+        478,
+        20,
+        48,
+        17
+      ],
+      "passes": [
+        227,
+        478,
+        9,
+        48,
+        17
+      ],
+      "skips": [
+        0,
+        0,
+        11,
+        0,
+        0
+      ]
+    },
+    {
+      "tmux": "3.5a",
+      "status": "PASS",
+      "source_commit": "549c35b06165f6ae023115eb76f83f2cbf945395",
+      "binary_sha256": "0b259a033399cdd7a7e3db6659dcead362dc5ebf5ab9a4b59bfe99ccca347517",
+      "seconds": 36.847,
+      "checks": [
+        227,
+        478,
+        20,
+        48,
+        17
+      ],
+      "passes": [
+        227,
+        478,
+        9,
+        48,
+        17
+      ],
+      "skips": [
+        0,
+        0,
+        11,
+        0,
+        0
+      ]
+    },
+    {
+      "tmux": "3.6",
+      "status": "PASS",
+      "source_commit": "0dac7fe434d029a4f0b819cba8eb7963df291990",
+      "binary_sha256": "8ff0f401a0290576d81a5f1167cf455fecd9557548f916087dc6a2afb0e4edb3",
+      "seconds": 45.328,
+      "checks": [
+        227,
+        479,
+        20,
+        48,
+        17
+      ],
+      "passes": [
+        227,
+        479,
+        9,
+        48,
+        17
+      ],
+      "skips": [
+        0,
+        0,
+        11,
+        0,
+        0
+      ]
+    },
+    {
+      "tmux": "3.6a",
+      "status": "PASS",
+      "source_commit": "cc117b5048f77a4842820f8ebbe3a86e5c077224",
+      "binary_sha256": "1116ae8d7da327c97193a1d288a4220a76a3aed40f878bf3e2b4241a149e19af",
+      "seconds": 45.332,
+      "checks": [
+        227,
+        479,
+        20,
+        48,
+        17
+      ],
+      "passes": [
+        227,
+        479,
+        9,
+        48,
+        17
+      ],
+      "skips": [
+        0,
+        0,
+        11,
+        0,
+        0
+      ]
+    },
+    {
+      "tmux": "3.6b",
+      "status": "PASS",
+      "source_commit": "0623d1e968423ad0c192e0d8debf1258671063d5",
+      "binary_sha256": "e782b0e824481cf7c8e8a314773edaea020057354b0c45c35e960a34ec5543fc",
+      "seconds": 37.125,
+      "checks": [
+        227,
+        479,
+        20,
+        48,
+        17
+      ],
+      "passes": [
+        227,
+        479,
+        9,
+        48,
+        17
+      ],
+      "skips": [
+        0,
+        0,
+        11,
+        0,
+        0
+      ]
+    },
+    {
+      "tmux": "3.7",
+      "status": "PASS",
+      "source_commit": "81f88f8517c9fc5371b56cf117530c6b477c96ac",
+      "binary_sha256": "579d3918f3f8f9f73cfd218f158c821346415834788c318ba8be1a50ddb7f87b",
+      "seconds": 37.991,
+      "checks": [
+        227,
+        484,
+        20,
+        48,
+        17
+      ],
+      "passes": [
+        227,
+        484,
+        9,
+        48,
+        17
+      ],
+      "skips": [
+        0,
+        0,
+        11,
+        0,
+        0
+      ]
+    },
+    {
+      "tmux": "3.7a",
+      "status": "PASS",
+      "source_commit": "0e418b62d259ce8da8970f75732cc6632ee4c3a0",
+      "binary_sha256": "c529ac58976f8ffe9bb6e0b83309791415219bd4e729fb8e2924445e4fec1f67",
+      "seconds": 39.819,
+      "checks": [
+        227,
+        480,
+        20,
+        48,
+        17
+      ],
+      "passes": [
+        227,
+        480,
+        9,
+        48,
+        17
+      ],
+      "skips": [
+        0,
+        0,
+        11,
+        0,
+        0
+      ]
+    },
+    {
+      "tmux": "3.7b",
+      "status": "PASS",
+      "source_commit": "e802909de06012a4df6209d55e86487c56223163",
+      "binary_sha256": "16d302cd3ba9434dd8b18c73a2f050b10914b978a370759976cd70f5c2b643d0",
+      "seconds": 39.976,
+      "checks": [
+        227,
+        480,
+        20,
+        48,
+        17
+      ],
+      "passes": [
+        227,
+        480,
+        9,
+        48,
+        17
+      ],
+      "skips": [
+        0,
+        0,
+        11,
+        0,
+        0
+      ]
+    },
+    {
+      "tmux": "3.7c",
+      "status": "PASS",
+      "source_commit": "e476c1230b958df0cb12977517d24b3dc931375b",
+      "binary_sha256": "982e995bd4a81216319bd8a8a77099e0db96ef02d6f812fff543684a27a65997",
+      "seconds": 39.327,
+      "checks": [
+        227,
+        480,
+        20,
+        48,
+        17
+      ],
+      "passes": [
+        227,
+        480,
+        9,
+        48,
+        17
+      ],
+      "skips": [
+        0,
+        0,
+        11,
+        0,
+        0
+      ]
+    },
+    {
+      "tmux": "3.8",
+      "status": "PASS",
+      "source_commit": "7f2a35ad3321f9ba57a1062ca73b1f3ff26aca53",
+      "binary_sha256": "b50e93aa2316f562f51a915e73b4c99ac0b17af75ea9d583a62531036b056ff3",
+      "seconds": 41.229,
+      "checks": [
+        227,
+        494,
+        147,
+        50,
+        17
+      ],
+      "passes": [
+        227,
+        494,
+        147,
+        50,
+        17
+      ],
+      "skips": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    }
+  ],
+  "limitations": [
+    "Archive/installed consumers and complete examples were separately verified on CI endpoints; this record does not repeat them for intermediate versions",
+    "Larger graph/query/stream/retention benchmarks are separate",
+    "Source filtering and full workspace reconciliation remain unfinished",
+    "Shared docs build/publication are separate gates"
+  ]
+}
