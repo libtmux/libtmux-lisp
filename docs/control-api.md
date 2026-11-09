@@ -14,7 +14,9 @@ serializes requests and reads all protocol data. No application callback
 runs in that worker. Commands use tmux argv, not shell source.
 Results and events own their mutable bytes and containers. A completed
 command queue does not establish application readiness. No automatic replay
-or reconnect occurs. See also: WITH-CONNECTION, SUBMIT-COMMAND, NEXT-EVENT.
+or reconnect occurs. Explicit RECONNECT renews the original core client's
+generation and returns fresh observations.
+See also: WITH-CONNECTION, WITH-RECONNECTION, SUBMIT-COMMAND, NEXT-EVENT.
 
 ## Functions
 
@@ -159,8 +161,11 @@ EVENT-LIMIT or EVENT-BYTE-LIMIT and report loss. REPLY-BYTE-LIMIT bounds each
 request's retained output; overflow closes the connection with a cause.
 This call blocks until ready or failed. All limits must be positive integers
 except the nonnegative real TIMEOUT. No daemon is started or terminated.
+Attachment preserves the stored session environment; native attach hooks and
+server lifecycle policies still apply. Readiness checks the observed daemon
+witness after attachment, so a refused candidate may have appeared briefly.
 
-See also: [close-connection](#close-connection-function), [next-event](#next-event-function), [submit-command](#submit-command-function), [with-connection](#with-connection-function).
+See also: [close-connection](#close-connection-function), [next-event](#next-event-function), [reconnect](#reconnect-function), [submit-command](#submit-command-function), [with-connection](#with-connection-function).
 
 [Source](../src/control.lisp)
 
@@ -174,6 +179,37 @@ Return a fresh vector of connections retaining failed cleanup work. No I/O.
 Retry CLOSE-CONNECTION explicitly. Successful close removes the entry.
 
 See also: [connection-cleanup-failed](#connection-cleanup-failed-type), [error-connection](#error-connection-function).
+
+[Source](../src/control.lisp)
+
+<a id="reconnect-function"></a>
+
+### reconnect
+
+`(reconnect connection &key (timeout 30) (request-limit nil request-limit-p) (event-limit nil event-limit-p) (event-byte-limit nil event-byte-limit-p) (reply-byte-limit nil reply-byte-limit-p))`
+
+Retire CONNECTION and return a fresh connection and complete snapshot.
+Use the original core client and exact session ID. The client must remain open
+in the original generation. Explicitly supplied limits must be positive integers;
+omitted queue/reply limits inherit the old connection. TIMEOUT is nonnegative
+real seconds shared across preflight, retirement, recapture and startup;
+preparation and cleanup can add wall time. Capture output shares the core
+client's output budget. Concurrent core work signals LIBTMUX:CLIENT-BUSY.
+Preflight refusal leaves a live old connection alone. After successful close,
+renew the core generation even if later work fails. Every earlier core capture
+from that client becomes stale for operations, while local data remains usable.
+The returned snapshot precedes new attachment; it does not include that new
+frontend. A closing/closed old resource remains reconnectable with valid origin.
+Old requests/results/events stay on the retired resource. Pending work is closed,
+never replayed; dispatched effects can remain uncertain. Other separately owned
+control resources remain independent. No event continuity or replay is implied.
+The CLOSE-CONNECTION generic runs on the caller thread; its failures are retained.
+CONNECTION-STALE refuses changed origin/session/daemon. Old cleanup failures
+retain the old resource; startup failures retain the new candidate through
+CONNECTION-START-FAILED. After failed cutover, acquire/select and open anew.
+Use WITH-RECONNECTION or close the returned resource explicitly.
+
+See also: [await-request](#await-request-function), [close-connection](#close-connection-function), [connection-stale](#connection-stale-type), [with-reconnection](#with-reconnection-function).
 
 [Source](../src/control.lisp)
 
@@ -225,6 +261,22 @@ See also: [close-connection](#close-connection-function), [connection-cleanup-fa
 
 [Source](../src/control.lisp)
 
+<a id="with-reconnection-function"></a>
+
+### with-reconnection
+
+`(with-reconnection (name snapshot previous &rest options) &body body)`
+
+Bind a fresh NAME and SNAPSHOT from explicit RECONNECT; close NAME on exit.
+Evaluate PREVIOUS and options once. BODY permits declarations and returns all
+values. Rebinding either visible name cannot redirect cleanup. Preserve primary
+errors/nonlocal exits and record secondary cleanup errors on the new connection.
+The previous resource retains its own old results and events.
+
+See also: [connection-cleanup-failures](#connection-cleanup-failures-function), [reconnect](#reconnect-function), [with-connection](#with-connection-function).
+
+[Source](../src/control.lisp)
+
 ## Classes and conditions
 
 These resources and conditions retain native connection/request state; their slots are private.
@@ -236,9 +288,10 @@ These resources and conditions retain native connection/request state; their slo
 An owned persistent tmux connection with one protocol worker.
 Use WITH-CONNECTION or CLOSE-CONNECTION to release it. Closing the originating
 core client does not close this resource. Captured core observations remain
-separate; raw control commands do not refresh them.
+separate; raw control commands do not refresh them. RECONNECT requires that
+original core client to remain open.
 
-See also: [connection-state](#connection-state-function), [open-connection](#open-connection-function), [pending-cleanups](#pending-cleanups-function).
+See also: [connection-state](#connection-state-function), [open-connection](#open-connection-function), [pending-cleanups](#pending-cleanups-function), [reconnect](#reconnect-function).
 
 [Source](../src/control.lisp)
 
@@ -290,6 +343,21 @@ See also: [libtmux:error-cause](api.md#error-cause-function), [error-connection]
 [Source](../src/control.lisp)
 
 Direct supertypes: `libtmux-error`.
+
+<a id="connection-stale-type"></a>
+
+### connection-stale
+
+The original control client generation, daemon or session changed.
+ERROR-CONNECTION and LIBTMUX:ERROR-TARGET retain the old public connection.
+Acquire fresh observations and use OPEN-CONNECTION explicitly; stale authority
+cannot authorize reconnection to a replacement target. No request is replayed.
+
+See also: [libtmux:error-cause](api.md#error-cause-function), [reconnect](#reconnect-function), [libtmux:stale-target](api.md#stale-target-type).
+
+[Source](../src/control.lisp)
+
+Direct supertypes: `connection-error`, `stale-target`.
 
 <a id="connection-start-failed-type"></a>
 

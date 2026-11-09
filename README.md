@@ -27,9 +27,9 @@ apply and an explicit-endpoint CLI;
 [typed option, hook and environment mutations](docs/operations.md#configuration-mutations)
 for the exact reviewed tmux catalogs through 3.8; explicit entity and server
 termination with retained outcome evidence; [owned daemon scopes](docs/daemons.md);
-optional [queued control commands and pane-output streams](docs/control.md) on
+optional [queued control commands, pane-output streams and explicit reconnection](docs/control.md) on
 tmux 3.7+.
-**In development:** reconnect and broader event qualification.
+**In development:** broader event qualification and source filtering.
 MCP is intentionally out of scope. The `0.1.0`
 systems are unreleased.
 
@@ -320,6 +320,7 @@ names. See [optional query interchange](docs/query-interchange.md).
 | Inspect native option, hook and environment output | [Configuration inspection](docs/operations.md#configuration-inspection) |
 | Look up signatures, multiple values and conditions | [Public API](docs/api.md) · [Captured fields](docs/fields.md) |
 | Understand deadlines, cancellation and cleanup | [Transport](docs/transport.md) |
+| Reconnect without replaying commands | [Fresh control observations](docs/control.md#reconnect-with-fresh-observations) |
 | Evaluate async, streaming and performance support | [Capabilities and limits](docs/capabilities.md) |
 | Rerun FiveAM tests at the REPL or inspect CI coverage | [Testing](docs/testing.md) · [Verification](verification.md) |
 | Navigate all documentation | [Guide index](docs/index.md) |

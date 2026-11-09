@@ -9,8 +9,8 @@ Provisioning uses the network; verification does not install dependencies.
 | `mise run query` | Inner | Scalar/reference agreement, relations, QuerySets, malformed data, limits, ownership and cardinality |
 | `mise run regex` | Inner | Optional CL-PPCRE search/full-match semantics, options, ownership and retained causes |
 | `mise run json` | Inner | Optional bounded filter documents, allowlists, false/empty/null distinctions and regex opt-in |
-| `mise run control` | Inner | Local codecs, byte fidelity, queued/active cancellation, terminal races, CLOS resource identity and lexical cleanup; no live connection |
-| `tools/lisp.sh tools/test.lisp control-integration` | Outer | Persistent requests/events on 3.8, binary pane output, public cancellation, expiry/close/startup recovery and 3.3a pre-launch rejection |
+| `mise run control` | Inner | Local codecs, byte fidelity, queued/active cancellation, terminal races, CLOS resource identity, reconnect admission and lexical cleanup; no live connection |
+| `tools/lisp.sh tools/test.lisp control-integration` | Outer | Persistent requests/events on 3.8, binary pane output, public cancellation, environment preservation, explicit reconnect/recapture without replay, cutover cancellation/cleanup recovery and 3.3a pre-launch rejection |
 | `tools/lisp.sh tools/test.lisp configuration-integration` | Outer | Decoded reads on both tmux endpoints, false/absence, sparse keys, inheritance/visibility races, partial evidence, cancellation and truncation |
 | `mise run check` | Mid | Source whitespace, all local unit suites, exported docstrings, generated references, excerpts and local documentation links |
 | `mise run lint-workflows` | Mid | GitHub Actions syntax, expressions and shell checks |
@@ -112,7 +112,7 @@ $ mise exec -- tools/lisp.sh tools/check-floor.lisp /path/to/tmux-3.3/tmux
 This check asserts the executable's release, expects `unsupported-tmux`, and
 checks that opening the client created no daemon socket.
 
-Complete control/event coverage and reconnect, source filtering, shared-site
+Complete control/event coverage, source filtering, shared-site
 rendering, broader benchmarks and
 integrated acceptance of all required capabilities on both CI endpoints remain
 pending. MCP is excluded by policy. The

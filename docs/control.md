@@ -7,7 +7,8 @@ their existing contracts. Control commands do not refresh earlier observations.
 The current control backend requires the core SBCL/Linux runtime profile and an
 actual tmux daemon at least 3.7. Core operations still support tmux 3.3a through
 3.8. Endpoint CI exercises control on 3.8 and verifies rejection before launch
-on 3.3a. Reconnect and automatic replay are unavailable.
+on 3.3a. Reconnection is explicit and returns fresh observations; automatic
+reconnection and replay are unavailable.
 
 ## Run a complete example
 
@@ -131,6 +132,78 @@ or nonlocal exit, the scope preserves that exit and records the last 16 close
 failures on the connection. Use
 [`connection-cleanup-failures`](control-api.md#connection-cleanup-failures-function)
 to inspect them.
+
+## Reconnect with fresh observations
+
+[`reconnect`](control-api.md#reconnect-function) retires the old connection and
+returns two values: a fresh connection and a complete captured snapshot. Use
+[`with-reconnection`](control-api.md#with-reconnection-function) to bind both
+and close the new resource reliably. The original core client must remain open.
+Omitted queue/reply limits inherit the old connection; supplied limits must be
+positive integers. The call blocks while it validates, retires, recaptures and
+attaches. It does not replay requests or events.
+
+The following function comes from the same complete program above. It verifies
+the generation change, executes a request on the new connection and returns
+ordinary owned pane data after both resource scopes close.
+
+<!-- example:controlreconnect -->
+```lisp
+(defun inspect-after-reconnect (client session)
+  "Return owned pane data and provenance after an explicit generation change."
+  (let ((before (getf (tm:provenance session) :generation)))
+    (control:with-connection (old client session)
+      (control:with-reconnection (connection snapshot old)
+        (assert (eq :closed (control:connection-state old)))
+        (assert (> (getf (tm:provenance snapshot) :generation) before))
+        (let ((request (control:submit-command
+                        connection '("display-message" "-p" "-l" "reconnected") :effect :read)))
+          (multiple-value-bind (result delivery) (control:await-request request :timeout 1)
+            (assert (eq :ready delivery))
+            (assert (eq :completed (getf result :status)))))
+        (values (map 'vector #'tm:entity-data (tm:panes snapshot))
+                (tm:provenance snapshot))))))
+```
+<!-- /example -->
+
+Reconnection uses the original client context, daemon witness and exact session
+ID. It refuses a replacement session even if the old name is reused. A closed
+or naturally disconnected connection can reconnect while that origin remains
+valid. A different daemon or client requires explicit acquisition and
+[`open-connection`](control-api.md#open-connection-function).
+
+After successfully retiring the old resource, the operation advances the core
+client's generation before checking cancellation or expiry again. All earlier
+core observations from that client then become stale for operations; their
+captured values remain readable. Use the returned snapshot's entities for
+subsequent core commands. The snapshot precedes new attachment and does not
+claim to contain the newly attached frontend. Other independently owned control
+connections stay separate.
+
+Old request handles retain their terminal results and partial dispatch evidence.
+Unissued queued work closes without dispatch. An issued mutation can already
+have effects; reconnection does not establish rollback or repeat it. Read the
+old event stream for retained output, gaps and its end result; read the new
+connection for new events. Neither stream implies continuity across cutover.
+
+Validation failure before retirement leaves an otherwise live old connection
+alone. Old cleanup failure retains that resource and prevents new attachment.
+After retirement, a failed recapture or startup leaves the old resource closed
+and its generation advanced. Startup failure exposes the new candidate through
+[`connection-start-failed`](control-api.md#connection-start-failed-type);
+inspect/close that retained resource, then acquire fresh observations and open
+explicitly. Generation changes are not rolled back.
+
+One core operation lease, token, deadline and capture-output budget cover the
+cutover. Competing core work signals `libtmux:client-busy`. Existing cleanup and
+platform work can extend caller wall time. No control mutex is held during
+captures or worker joins. The public close generic runs on the caller thread,
+including application methods; callbacks never run in the transport reader.
+
+Both ordinary open and reconnect preserve stored session environment values
+using tmux's `attach-session -E`. Native attach hooks and daemon lifecycle
+policies still apply. A guarded ready marker checks the preflight daemon after
+attachment; a refused candidate may have appeared briefly before cleanup.
 
 See the [generated reference](control-api.md), [transport](transport.md#persistent-control-implementation),
 [capability limits](capabilities.md) and [native example](../examples/control.lisp).

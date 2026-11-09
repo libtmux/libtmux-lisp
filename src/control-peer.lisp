@@ -4,6 +4,7 @@
   "Private persistent connection; one worker owns all process and protocol I/O."
   (lock (make-lock "tmux control")) (changed (make-condition-variable))
   (close-lock (make-lock "tmux control close"))
+  origin-client origin-context origin-generation origin-session origin-witness
   job worker wake (state :starting) finished stop-requested stop-reason failure api-object
   (key (symbol-name (gensym "LIBTMUX-CONTROL-"))) (serial 0) ready-marker
   decoder header (frame (byte-buffer)) (wire-tail (octet-vector nil))
@@ -351,7 +352,7 @@ The worker records positive stdin progress before completing active cancellation
     (setf (control-peer-active peer) nil (control-peer-pending peer) nil)))
 
 (defun run-control-supervisor (peer)
-  (let ((job (control-peer-job peer)) (failure nil))
+  (let ((job (control-peer-job peer)) (failure nil) (*operation-client* nil))
     (unwind-protect
          (handler-case
              (progn
@@ -432,24 +433,105 @@ partial replies. A failed close retains the peer for a later cleanup retry."
       (progn
         (when (eq (control-peer-worker peer) (current-thread))
           (error 'libtmux:cleanup-failed :resource peer :message "A control worker cannot join itself"))
-        (call-with-lock (control-peer-close-lock peer) (lambda () (%close-control-peer peer))))
+        (let ((*operation-client* nil))
+          (call-with-lock (control-peer-close-lock peer) (lambda () (%close-control-peer peer)))))
     (error (condition)
       (retain-control-peer peer)
       (error condition))))
 
-(defun start-control-peer (client session &key (timeout 30) (request-limit 16)
-                                              (event-limit 256) (event-byte-limit 4194304)
-                                              (reply-byte-limit 1048576))
-  "Open a private persistent control connection to a captured session.
-Preflight once, then use one owned worker for queued commands and events.
-The live daemon must be 3.7 or newer. Closing CLIENT does not close this
-separate resource; close the returned peer explicitly. No application callback runs."
-  (check-type client libtmux:client)
-  (check-type session libtmux:session)
+(defun check-control-limits (timeout request-limit event-limit event-byte-limit reply-byte-limit)
   (check-limits timeout reply-byte-limit)
   (unless (and (typep request-limit '(integer 1)) (typep event-limit '(integer 1))
                (typep event-byte-limit '(integer 1)))
-    (invalid-argument "Control queue limits must be positive integers"))
+    (invalid-argument "Control queue limits must be positive integers")))
+
+(defun control-startup-cause (peer delivery)
+  "Preserve the worker failure or classify recorded startup termination."
+  (or (control-peer-failure peer)
+      (let* ((job (control-peer-job peer))
+             (reason (or (process-job-reason job)
+                         (and (libtmux:cancelled-p (process-job-token job)) :cancelled)
+                         (and (eq delivery :timeout) :deadline))))
+        (make-condition
+         (case reason
+           (:cancelled 'libtmux:command-cancelled)
+           ((:deadline :request-timeout) 'libtmux:deadline-exceeded)
+           (:output-limit 'libtmux:output-limit-exceeded)
+           (otherwise 'libtmux:command-failed))
+         :client (control-peer-origin-client peer)
+         :message (case reason
+                    (:cancelled "Control startup was cancelled")
+                    ((:deadline :request-timeout) "Control startup exceeded its deadline")
+                    (:output-limit "Control startup exceeded its output limit")
+                    (otherwise "Control transport closed before startup completed"))))))
+
+(defun control-attachment-input (marker witness)
+  "Emit the ready marker only on the observed daemon; refusal fails startup."
+  (format nil "~A~%"
+          (tmux-command-text
+           (list "if-shell" "-F" (server-guard witness)
+                 (tmux-command-text (list "display-message" "-p" "-l" marker))
+                 "libtmux-internal-control-server-refused"))))
+
+(defun attach-control-peer (client current token budget witness
+                           &key request-limit event-limit event-byte-limit reply-byte-limit)
+  "Attach one owned worker after preflight, borrowing WITNESS under CLIENT's lease."
+  (check-capture-budget budget token)
+  (let* ((*command-socket-path* (server-witness-endpoint witness))
+         (peer (%make-control-peer
+                :origin-client client :origin-context (slot-value client 'libtmux::context)
+                :origin-generation (slot-value client 'libtmux::generation)
+                :origin-session (libtmux:id current) :origin-witness (owned-data (witness-values witness))
+                :request-limit request-limit :event-limit event-limit
+                :event-byte-limit event-byte-limit :reply-byte-limit reply-byte-limit))
+         (returned nil) (primary nil))
+    (setf (control-peer-ready-marker peer) (format nil "~A-READY" (control-peer-key peer))
+          (control-peer-job peer)
+          (make-process-job
+           :argv (argument-vector (client-argv client (list "-N" "-C" "attach-session" "-E" "-t" (libtmux:id current))))
+           :input (encode-utf8 (control-attachment-input (control-peer-ready-marker peer) witness))
+           :keep-input-open t :environment (process-environment)
+           :token token :cap 1048576 :start (capture-budget-start budget)
+           :deadline (capture-budget-deadline budget)))
+    (unwind-protect
+         (handler-case
+             (progn
+               (let ((launched *process-launched-hook*) (dispatch *before-dispatch-hook*)
+                     (started *process-started-hook*))
+                 (setf (control-peer-worker peer)
+                       (sb-thread:make-thread
+                        (lambda ()
+                          (let ((*process-launched-hook* launched) (*before-dispatch-hook* dispatch)
+                                (*process-started-hook* started))
+                            (run-control-supervisor peer))) :name "tmux control")))
+               (multiple-value-bind (state delivery)
+                   (wait-control-value peer (lambda ()
+                                              (when (or (eq (control-peer-state peer) :ready) (control-peer-finished peer))
+                                                (control-peer-state peer)))
+                                       (max 0 (- (capture-budget-deadline budget) (monotonic-seconds))))
+                 (unless (and (eq delivery :ready) (eq state :ready))
+                   (error (control-startup-cause peer delivery))))
+               (setf returned t))
+           (error (condition) (setf primary condition)))
+      (unless returned
+        (handler-case (close-control-peer peer)
+          (error (condition)
+            (setf primary (or primary condition) (control-peer-failure peer) condition)
+            (retain-control-peer peer)))))
+    (when primary
+      (error 'control-start-failed :peer peer :cause primary
+             :message "Control startup failed; inspect its retained cause and peer"))
+    peer))
+
+(defun start-control-peer (client session &key (timeout 30) (request-limit 16)
+                                              (event-limit 256) (event-byte-limit 4194304)
+                                              (reply-byte-limit 1048576))
+  "Open an independently owned persistent connection to a captured SESSION.
+Preflight once; one worker owns queued commands and events. The live daemon
+must be >=3.7. CLIENT is borrowed, never closed by this resource."
+  (check-type client libtmux:client)
+  (check-type session libtmux:session)
+  (check-control-limits timeout request-limit event-limit event-byte-limit reply-byte-limit)
   (call-with-operation
    client nil
    (lambda (token)
@@ -459,43 +541,6 @@ separate resource; close the returned peer explicitly. No application callback r
                                          :row-limit 100000 :field-limit 1048576))
             (current (first (preflight-targets client (list session) token budget))))
        (check-command-capability client :control "3.7")
-       (let* ((*command-socket-path* (server-witness-endpoint (slot-value client 'libtmux::witness)))
-              (peer (%make-control-peer :request-limit request-limit :event-limit event-limit
-                                        :event-byte-limit event-byte-limit :reply-byte-limit reply-byte-limit))
-              (returned nil) (primary nil))
-         (setf (control-peer-ready-marker peer) (format nil "~A-READY" (control-peer-key peer))
-               (control-peer-job peer)
-               (make-process-job :argv (argument-vector (client-argv client (list "-N" "-C" "attach-session" "-t" (libtmux:id current))))
-                                 :input (encode-utf8 (control-marker-input (control-peer-ready-marker peer)))
-                                 :keep-input-open t :environment (process-environment)
-                                 :token token :cap 1048576 :start start :deadline (capture-budget-deadline budget)))
-         (unwind-protect
-              (handler-case
-                  (progn
-                    (let ((launched *process-launched-hook*) (dispatch *before-dispatch-hook*)
-                          (started *process-started-hook*))
-                      (setf (control-peer-worker peer)
-                            (sb-thread:make-thread
-                             (lambda ()
-                               (let ((*process-launched-hook* launched) (*before-dispatch-hook* dispatch)
-                                     (*process-started-hook* started))
-                                 (run-control-supervisor peer))) :name "tmux control")))
-                    (multiple-value-bind (state delivery)
-                        (wait-control-value peer (lambda ()
-                                                   (when (or (eq (control-peer-state peer) :ready) (control-peer-finished peer))
-                                                     (control-peer-state peer)))
-                                            (max 0 (- (capture-budget-deadline budget) (monotonic-seconds))))
-                      (unless (and (eq delivery :ready) (eq state :ready))
-                        (error (or (control-peer-failure peer)
-                                   (make-condition 'libtmux:deadline-exceeded :message "Control connection did not become ready")))))
-                    (setf returned t))
-                (error (condition) (setf primary condition)))
-           (unless returned
-             (handler-case (close-control-peer peer)
-               (error (condition)
-                 (setf primary (or primary condition) (control-peer-failure peer) condition)
-                 (retain-control-peer peer)))))
-         (when primary
-           (error 'control-start-failed :peer peer :cause primary
-                  :message "Control startup failed; inspect its retained cause and peer"))
-         peer)))))
+       (attach-control-peer client current token budget (slot-value client 'libtmux::witness)
+         :request-limit request-limit :event-limit event-limit
+         :event-byte-limit event-byte-limit :reply-byte-limit reply-byte-limit)))))

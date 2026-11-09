@@ -2,6 +2,65 @@
 
 (in-suite control-integration)
 
+(test control-ready-refuses-a-mismatched-daemon-witness
+  (with-tmux-fixture (fixture)
+    (libtmux:with-client (client :program (or (uiop:getenv "LIBTMUX_TEST_TMUX") "tmux")
+                                 :socket-path (fixture-socket fixture))
+      (if (not (libtmux.internal::version-at-least-p (libtmux:tmux-version client) "3.7"))
+          (skip "Persistent control readiness requires tmux 3.7 or newer")
+          (let* ((session (aref (libtmux:fetch-sessions client) 0))
+                 (actual (slot-value client 'libtmux::witness))
+                 (expected (libtmux.internal::copy-server-witness actual))
+                 (candidate nil) (failure nil))
+            (incf (libtmux.internal::server-witness-pid expected))
+            (unwind-protect
+                 (progn
+                   (libtmux.internal::call-with-operation
+                    client nil
+                    (lambda (token)
+                      (let* ((start (libtmux.internal::monotonic-seconds))
+                             (budget (libtmux.internal::make-capture-budget
+                                      :start start :deadline (+ start 1) :remaining 1048576
+                                      :row-limit 100000 :field-limit 1048576)))
+                        (handler-case
+                            (setf candidate (libtmux.internal::attach-control-peer client session token budget expected
+                                              :request-limit 16 :event-limit 256 :event-byte-limit 4194304
+                                              :reply-byte-limit 1048576))
+                          (libtmux.internal::control-start-failed (condition)
+                            (setf failure condition candidate (libtmux.internal::failed-control-peer condition)))))))
+                   (is (typep failure 'libtmux.internal::control-start-failed))
+                   (when failure
+                     (is (not (typep (libtmux:error-cause failure) 'libtmux:deadline-exceeded))))
+                   (is (libtmux:client-open-p client))
+                   (is (eq actual (slot-value client 'libtmux::witness))))
+              (when candidate (libtmux.internal::close-control-peer candidate))))))))
+
+(test control-attachment-preserves-the-session-environment
+  (with-tmux-fixture (fixture)
+    (libtmux:with-client (client :program (or (uiop:getenv "LIBTMUX_TEST_TMUX") "tmux")
+                                 :socket-path (fixture-socket fixture))
+      (if (not (libtmux.internal::version-at-least-p (libtmux:tmux-version client) "3.7"))
+          (skip "Persistent control attachment requires tmux 3.7 or newer")
+          (let* ((session (aref (libtmux:fetch-sessions client) 0))
+                 (name "LIBTMUX_CONTROL_ENVIRONMENT_FIXTURE")
+                 (value (concatenate 'string "session:" (or (uiop:getenv name) "absent")))
+                 (old nil))
+            (libtmux:set-option client "update-environment" name :scope :session :target session)
+            (libtmux:set-environment client name value :scope :session :target session)
+            (libtmux.control:with-connection (connection client session :timeout 1)
+              (setf old connection)
+              (is (eq :ready (libtmux.control:connection-state connection)))
+              (libtmux.control:submit-command connection '("detach-client") :effect :mutation)
+              (let ((peer (libtmux.control::%peer connection)))
+                (is (eq :ready (nth-value 1 (libtmux.internal::wait-control-value
+                                            peer (lambda () (libtmux.internal::control-peer-finished peer)) 0.8))))))
+            (libtmux.control:with-reconnection (connection capture old :timeout 1)
+              (is (eq :ready (libtmux.control:connection-state connection)))
+              (let ((current (find (libtmux:id session) (libtmux:sessions capture) :key #'libtmux:id :test #'string=)))
+                (is (equal value
+                           (getf (aref (libtmux:show-environment client :scope :session :target current
+                                                                      :names (vector name)) 0) :value))))))))))
+
 (test control-soft-timer-wakes-the-supervisor-without-aborting-the-process
   (let* ((start (libtmux.internal::monotonic-seconds))
          (job (libtmux.internal::make-process-job
@@ -205,3 +264,183 @@
                          finally (fail "No end event after connection cleanup"))
                    (is (zerop (nth-value 2 (fixture-command fixture "has-session")))))
               (libtmux.control:close-connection connection)))))))
+
+(test control-reconnect-recaptures-and-retires-without-replay
+  (with-tmux-fixture (fixture)
+    (libtmux:with-client (client :program (or (uiop:getenv "LIBTMUX_TEST_TMUX") "tmux")
+                                 :socket-path (fixture-socket fixture))
+      (if (not (libtmux.internal::version-at-least-p (libtmux:tmux-version client) "3.7"))
+          (skip "Explicit control reconnect requires tmux 3.7 or newer")
+          (let* ((session (aref (libtmux:fetch-sessions client) 0))
+                 (generation (getf (libtmux:provenance session) :generation))
+                 (old (libtmux.control:open-connection client session :timeout 1
+                        :request-limit 3 :event-limit 7 :event-byte-limit 512 :reply-byte-limit 4096))
+                 (new nil))
+            (unwind-protect
+                 (let* ((completed (libtmux.control:submit-command old '("display-message" "-p" "-l" "retained") :effect :read))
+                        (before (libtmux.control:await-request completed :timeout 0.8)))
+                   (is (eq :completed (getf before :status)))
+                   (let* ((active (libtmux.control:submit-command old '("wait-for" "reconnect-held") :effect :read))
+                          (peer (libtmux.control::%peer old)))
+                     (is (eq :ready
+                             (nth-value 1 (libtmux.internal::wait-control-value
+                                           peer (lambda () (libtmux.internal::control-request-dispatched
+                                                            (libtmux.control::%handle active))) 0.8))))
+                     (let ((queued (libtmux.control:submit-command old '("set-option" "-g" "@must-not-replay" "bad")
+                                                                 :effect :mutation)))
+                       (libtmux.control:with-reconnection (replacement capture old :timeout 1)
+                         (setf new replacement)
+                         (is (not (eq old new)))
+                         (is (eq :closed (libtmux.control:connection-state old)))
+                         (is (eq :ready (libtmux.control:connection-state new)))
+                         (is (> (getf (libtmux:provenance capture) :generation) generation))
+                         (let ((current (find (libtmux:id session) (libtmux:sessions capture)
+                                              :key #'libtmux:id :test #'string=)))
+                           (is (typep current 'libtmux:session))
+                           (is (not (libtmux:same-entity-p session current)))
+                           (signals libtmux:stale-target (libtmux:rename-session client session "stale"))
+                           (is (eq :succeeded (libtmux:outcome-status
+                                              (libtmux:rename-session client current "reconnected" :observe nil)))))
+                         (is (eq :closed (getf (libtmux.control:await-request active :timeout 0) :status)))
+                         (is (getf (libtmux.control:await-request active :timeout 0) :dispatched-p))
+                         (is (eq :closed (getf (libtmux.control:await-request queued :timeout 0) :status)))
+                         (is (not (getf (libtmux.control:await-request queued :timeout 0) :dispatched-p)))
+                         (is (equalp before (libtmux.control:await-request completed :timeout 0)))
+                         (is (not (nth-value 1 (libtmux:show-option client "@must-not-replay" :scope :global-session))))
+                         (is (= 3 (libtmux.internal::control-peer-request-limit (libtmux.control::%peer new))))
+                         (is (= 7 (libtmux.internal::control-peer-event-limit (libtmux.control::%peer new))))
+                         (is (= 512 (libtmux.internal::control-peer-event-byte-limit (libtmux.control::%peer new))))
+                         (is (= 4096 (libtmux.internal::control-peer-reply-byte-limit (libtmux.control::%peer new))))
+                         (signals libtmux.control:connection-stale (libtmux.control:reconnect old))
+                         (let ((read (libtmux.control:submit-command new '("display-message" "-p" "-l" "new") :effect :read)))
+                           (is (eq :completed (getf (libtmux.control:await-request read :timeout 0.8) :status))))
+                         (loop repeat 128 for event = (libtmux.control:next-event old :timeout 0)
+                               when (eq :end (getf event :kind)) return (is (eq :closed (getf event :reason)))
+                               finally (fail "Retired connection did not preserve its end event")))))
+                   (is (eq :closed (libtmux.control:connection-state new)))
+                   (is (string= "reconnected" (libtmux:name (aref (libtmux:fetch-sessions client) 0)))))
+              (when new (libtmux.control:close-connection new))
+              (libtmux.control:close-connection old)))))))
+
+(defclass cancel-after-control-close (libtmux.control:connection) ())
+
+(defmethod libtmux.control:close-connection :after ((connection cancel-after-control-close))
+  (let* ((client (libtmux.internal::control-peer-origin-client (libtmux.control::%peer connection)))
+         (operation (slot-value client 'libtmux::active)))
+    (when operation (libtmux:cancel (libtmux.internal::operation-token operation)))))
+
+(test control-reconnect-invalidates-before-post-close-cancellation
+  (with-tmux-fixture (fixture)
+    (libtmux:with-client (client :program (or (uiop:getenv "LIBTMUX_TEST_TMUX") "tmux")
+                                 :socket-path (fixture-socket fixture))
+      (if (not (libtmux.internal::version-at-least-p (libtmux:tmux-version client) "3.7"))
+          (skip "Explicit control reconnect requires tmux 3.7 or newer")
+          (let* ((session (aref (libtmux:fetch-sessions client) 0))
+                 (generation (getf (libtmux:provenance session) :generation))
+                 (old (libtmux.control:open-connection client session :timeout 1))
+                 (new nil) (launched 0))
+            (change-class old 'cancel-after-control-close)
+            (unwind-protect
+                 (let* ((libtmux.internal::*process-launched-hook*
+                          (lambda (job)
+                            (when (find "-C" (libtmux.internal::process-job-argv job) :test #'string=)
+                              (incf launched))))
+                        (failure (handler-case
+                                     (progn (setf new (libtmux.control:reconnect old :timeout 1)) nil)
+                                   (libtmux:command-cancelled (condition) condition))))
+                   (is (typep failure 'libtmux:command-cancelled))
+                   (is (zerop launched))
+                   (is (> (slot-value client 'libtmux::generation) generation))
+                   (is (eq :closed (libtmux.control:connection-state old)))
+                   (signals libtmux:stale-target (libtmux:rename-session client session "stale")))
+              (when new (libtmux.control:close-connection new))
+              (libtmux.control:close-connection old)))))))
+
+(test control-reconnect-refuses-a-new-session-with-the-old-name
+  (with-tmux-fixture (fixture)
+    (libtmux:with-client (client :program (or (uiop:getenv "LIBTMUX_TEST_TMUX") "tmux")
+                                 :socket-path (fixture-socket fixture))
+      (if (not (libtmux.internal::version-at-least-p (libtmux:tmux-version client) "3.7"))
+          (skip "Explicit control reconnect requires tmux 3.7 or newer")
+          (let* ((session (aref (libtmux:fetch-sessions client) 0))
+                 (old (libtmux.control:open-connection client session :timeout 1))
+                 (launched 0))
+            (unwind-protect
+                 (progn
+                   (libtmux:new-session client :name "keep-server" :command '("/bin/cat"))
+                   (libtmux:kill-session client session)
+                   (let* ((outcome (libtmux:new-session client :name "fixture" :command '("/bin/cat")))
+                          (replacement (libtmux:outcome-value outcome)))
+                     (is (not (string= (libtmux:id session) (libtmux:id replacement))))
+                     (is (string= (libtmux:name session) (libtmux:name replacement))))
+                   (let ((libtmux.internal::*process-launched-hook*
+                           (lambda (job)
+                             (when (find "-C" (libtmux.internal::process-job-argv job) :test #'string=)
+                               (incf launched)))))
+                     (signals libtmux.control:connection-stale (libtmux.control:reconnect old :timeout 1)))
+                   (is (zerop launched))
+                   (is (libtmux:client-open-p client)))
+              (libtmux.control:close-connection old)))))))
+
+(defclass refusing-control-close (libtmux.control:connection)
+  ((refuse :initform t)))
+
+(defmethod libtmux.control:close-connection ((connection refusing-control-close))
+  (if (slot-value connection 'refuse)
+      (error 'libtmux.control:connection-cleanup-failed :connection connection :resource connection
+             :message "Fixture refused control close")
+      (call-next-method)))
+
+(test control-reconnect-retains-a-generic-close-failure
+  (with-tmux-fixture (fixture)
+    (libtmux:with-client (client :program (or (uiop:getenv "LIBTMUX_TEST_TMUX") "tmux")
+                                 :socket-path (fixture-socket fixture))
+      (if (not (libtmux.internal::version-at-least-p (libtmux:tmux-version client) "3.7"))
+          (skip "Explicit control reconnect requires tmux 3.7 or newer")
+          (let* ((session (aref (libtmux:fetch-sessions client) 0))
+                 (generation (getf (libtmux:provenance session) :generation))
+                 (old (libtmux.control:open-connection client session :timeout 1))
+                 (launched 0))
+            (change-class old 'refusing-control-close)
+            (unwind-protect
+                 (let* ((libtmux.internal::*process-launched-hook*
+                          (lambda (job)
+                            (when (find "-C" (libtmux.internal::process-job-argv job) :test #'string=)
+                              (incf launched))))
+                        (failure (handler-case (progn (libtmux.control:reconnect old :timeout 1) nil)
+                                   (libtmux.control:connection-cleanup-failed (condition) condition))))
+                   (is (typep failure 'libtmux.control:connection-cleanup-failed))
+                   (is (eq old (libtmux.control:error-connection failure)))
+                   (is (= generation (slot-value client 'libtmux::generation)))
+                   (is (eq :ready (libtmux.control:connection-state old)))
+                   (is (libtmux:client-open-p client))
+                   (is (zerop launched))
+                   (is (plusp (length (libtmux.control:connection-cleanup-failures old))))
+                   (is (find old (libtmux.control:pending-cleanups)))
+                   (when (plusp (length (libtmux.control:connection-cleanup-failures old)))
+                     (is (eq failure (aref (libtmux.control:connection-cleanup-failures old) 0)))))
+              (setf (slot-value old 'refuse) nil)
+              (libtmux.control:close-connection old)))))))
+
+(test control-startup-cancellation-retains-its-cause
+  (with-tmux-fixture (fixture)
+    (libtmux:with-client (client :program (or (uiop:getenv "LIBTMUX_TEST_TMUX") "tmux")
+                                 :socket-path (fixture-socket fixture))
+      (if (not (libtmux.internal::version-at-least-p (libtmux:tmux-version client) "3.7"))
+          (skip "Persistent control startup requires tmux 3.7 or newer")
+          (let* ((session (aref (libtmux:fetch-sessions client) 0))
+                 (libtmux.internal::*process-launched-hook*
+                   (lambda (job)
+                     (when (find "-C" (libtmux.internal::process-job-argv job) :test #'string=)
+                       (libtmux:cancel (libtmux.internal::process-job-token job)))))
+                 (failure (handler-case
+                              (progn (libtmux.control:open-connection client session :timeout 1) nil)
+                            (libtmux.control:connection-start-failed (condition) condition))))
+            (is (typep failure 'libtmux.control:connection-start-failed))
+            (let ((candidate (libtmux.control:error-connection failure)))
+              (unwind-protect
+                   (progn
+                     (is (typep (libtmux:error-cause (libtmux:error-cause failure)) 'libtmux:command-cancelled))
+                     (is (eq :closed (libtmux.control:connection-state candidate)))
+                     (is (libtmux:client-open-p client)))
+                (libtmux.control:close-connection candidate))))))))

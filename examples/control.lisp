@@ -40,6 +40,23 @@
       (coerce bytes '(simple-array (unsigned-byte 8) (*))))))
 ;;; docs:end
 
+;;; docs:controlreconnect
+(defun inspect-after-reconnect (client session)
+  "Return owned pane data and provenance after an explicit generation change."
+  (let ((before (getf (tm:provenance session) :generation)))
+    (control:with-connection (old client session)
+      (control:with-reconnection (connection snapshot old)
+        (assert (eq :closed (control:connection-state old)))
+        (assert (> (getf (tm:provenance snapshot) :generation) before))
+        (let ((request (control:submit-command
+                        connection '("display-message" "-p" "-l" "reconnected") :effect :read)))
+          (multiple-value-bind (result delivery) (control:await-request request :timeout 1)
+            (assert (eq :ready delivery))
+            (assert (eq :completed (getf result :status)))))
+        (values (map 'vector #'tm:entity-data (tm:panes snapshot))
+                (tm:provenance snapshot))))))
+;;; docs:end
+
 (let ((program (or (uiop:getenv "LIBTMUX_PROGRAM") "tmux")))
   (tm:with-daemon (daemon :program program)
     (tm:with-client (client :program (tm:daemon-program daemon)
@@ -53,6 +70,12 @@
         (assert (plusp (length bytes)))
         (assert (= 1 (length (tm:fetch-sessions client))))
         (format t "CONTROL PASS: queued writes, streamed ~D bytes; daemon survived connection close~%"
-                (length bytes)))))
+                (length bytes))
+        (multiple-value-bind (data provenance)
+            (inspect-after-reconnect client (aref (tm:sessions snapshot) 0))
+          (assert (= 1 (length data)))
+          (assert (stringp (getf (aref data 0) :pane/id)))
+          (format t "CONTROL RECONNECT PASS: generation ~D; owned pane data remains after scope exit~%"
+                  (getf provenance :generation))))))
   (assert (zerop (length (control:pending-cleanups))))
   (assert (zerop (length (tm:pending-daemon-cleanups)))))

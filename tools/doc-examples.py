@@ -9,7 +9,7 @@ write = sys.argv[1:] == ["write"]
 source = "\n".join(path.read_text() for path in sorted((root / "examples").glob("*.lisp")))
 snippets = dict(re.findall(r"^;;; docs:(\w+)\n(.*?)^;;; docs:end$", source, re.M | re.S))
 errors = []
-for path in [root / "README.md", *sorted((root / "docs").glob("*.md"))]:
+for path in [root / "README.md", *sorted(path for path in (root / "docs").rglob("*.md") if "_build" not in path.relative_to(root / "docs").parts)]:
     text = path.read_text()
     def replace(match):
         name = match.group(1)

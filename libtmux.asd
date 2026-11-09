@@ -129,6 +129,8 @@
                       :description "Private bounded LF assembly and byte-preserving pane-output decoding.")
                (:file "src/control-peer" :if-feature (:and :sbcl :linux :x86-64)
                       :description "Private persistent control connection, queued requests, bounded events and owned worker cleanup.")
+               (:file "src/control-reconnect" :if-feature (:and :sbcl :linux :x86-64)
+                      :description "Explicit control cutover, generation renewal and fresh captured observations.")
                (:file "src/control"
                       :description "Public CLOS control resources, cancellation, conditions and lexical cleanup scopes.")))
 

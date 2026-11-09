@@ -5,7 +5,7 @@
            #:error-connection #:open-connection #:close-connection #:with-connection
            #:connection-state #:connection-failure #:connection-cleanup-failures
            #:pending-cleanups #:submit-command #:await-request #:request-state
-           #:cancel-request #:next-event)
+           #:cancel-request #:next-event #:reconnect #:with-reconnection #:connection-stale)
   (:documentation "Persistent native tmux commands and bounded byte events.
 Load the optional LIBTMUX/CONTROL system. The qualified backend requires the
 core SBCL/Linux profile and an actual tmux daemon >=3.7. Connections own a
@@ -15,7 +15,9 @@ serializes requests and reads all protocol data. No application callback
 runs in that worker. Commands use tmux argv, not shell source.
 Results and events own their mutable bytes and containers. A completed
 command queue does not establish application readiness. No automatic replay
-or reconnect occurs. See also: WITH-CONNECTION, SUBMIT-COMMAND, NEXT-EVENT."))
+or reconnect occurs. Explicit RECONNECT renews the original core client's
+generation and returns fresh observations.
+See also: WITH-CONNECTION, WITH-RECONNECTION, SUBMIT-COMMAND, NEXT-EVENT."))
 
 (in-package #:libtmux.control)
 
@@ -25,8 +27,9 @@ or reconnect occurs. See also: WITH-CONNECTION, SUBMIT-COMMAND, NEXT-EVENT."))
   (:documentation "An owned persistent tmux connection with one protocol worker.
 Use WITH-CONNECTION or CLOSE-CONNECTION to release it. Closing the originating
 core client does not close this resource. Captured core observations remain
-separate; raw control commands do not refresh them.
-See also: OPEN-CONNECTION, CONNECTION-STATE, PENDING-CLEANUPS."))
+separate; raw control commands do not refresh them. RECONNECT requires that
+original core client to remain open.
+See also: OPEN-CONNECTION, RECONNECT, CONNECTION-STATE, PENDING-CLEANUPS."))
 
 (defclass request ()
   ((handle :initarg :handle :reader %handle))
@@ -62,6 +65,13 @@ See also: CONNECTION-STATE, SUBMIT-COMMAND."))
   (:documentation "The bounded request queue, including active work, is full.
 Submission did not dispatch this command. See also: SUBMIT-COMMAND."))
 
+(define-condition connection-stale (connection-error libtmux:stale-target) ()
+  (:documentation "The original control client generation, daemon or session changed.
+ERROR-CONNECTION and LIBTMUX:ERROR-TARGET retain the old public connection.
+Acquire fresh observations and use OPEN-CONNECTION explicitly; stale authority
+cannot authorize reconnection to a replacement target. No request is replayed.
+See also: RECONNECT, LIBTMUX:ERROR-CAUSE, LIBTMUX:STALE-TARGET."))
+
 (defun %connection-for-peer (peer)
   (libtmux.internal::with-control-lock
    peer (lambda ()
@@ -81,7 +91,10 @@ EVENT-LIMIT or EVENT-BYTE-LIMIT and report loss. REPLY-BYTE-LIMIT bounds each
 request's retained output; overflow closes the connection with a cause.
 This call blocks until ready or failed. All limits must be positive integers
 except the nonnegative real TIMEOUT. No daemon is started or terminated.
-See also: WITH-CONNECTION, CLOSE-CONNECTION, SUBMIT-COMMAND, NEXT-EVENT."
+Attachment preserves the stored session environment; native attach hooks and
+server lifecycle policies still apply. Readiness checks the observed daemon
+witness after attachment, so a refused candidate may have appeared briefly.
+See also: WITH-CONNECTION, RECONNECT, CLOSE-CONNECTION, SUBMIT-COMMAND, NEXT-EVENT."
   (handler-case
       (%connection-for-peer
        (libtmux.internal::start-control-peer client session :timeout timeout
@@ -154,6 +167,63 @@ See also: WITH-CONNECTION, PENDING-CLEANUPS, CONNECTION-CLEANUP-FAILURES."))
         (%record-cleanup-failure connection condition)
         (error condition)))))
 
+(defun reconnect (connection &key (timeout 30)
+                                 (request-limit nil request-limit-p)
+                                 (event-limit nil event-limit-p)
+                                 (event-byte-limit nil event-byte-limit-p)
+                                 (reply-byte-limit nil reply-byte-limit-p))
+  "Retire CONNECTION and return a fresh connection and complete snapshot.
+Use the original core client and exact session ID. The client must remain open
+in the original generation. Explicitly supplied limits must be positive integers;
+omitted queue/reply limits inherit the old connection. TIMEOUT is nonnegative
+real seconds shared across preflight, retirement, recapture and startup;
+preparation and cleanup can add wall time. Capture output shares the core
+client's output budget. Concurrent core work signals LIBTMUX:CLIENT-BUSY.
+Preflight refusal leaves a live old connection alone. After successful close,
+renew the core generation even if later work fails. Every earlier core capture
+from that client becomes stale for operations, while local data remains usable.
+The returned snapshot precedes new attachment; it does not include that new
+frontend. A closing/closed old resource remains reconnectable with valid origin.
+Old requests/results/events stay on the retired resource. Pending work is closed,
+never replayed; dispatched effects can remain uncertain. Other separately owned
+control resources remain independent. No event continuity or replay is implied.
+The CLOSE-CONNECTION generic runs on the caller thread; its failures are retained.
+CONNECTION-STALE refuses changed origin/session/daemon. Old cleanup failures
+retain the old resource; startup failures retain the new candidate through
+CONNECTION-START-FAILED. After failed cutover, acquire/select and open anew.
+Use WITH-RECONNECTION or close the returned resource explicitly.
+See also: WITH-RECONNECTION, CONNECTION-STALE, CLOSE-CONNECTION, AWAIT-REQUEST."
+  (check-type connection connection)
+  (let ((peer (%peer connection)))
+    (handler-case
+        (multiple-value-bind (replacement capture)
+            (libtmux.internal::reconnect-control-peer peer :timeout timeout
+              :close-function (lambda ()
+                                (handler-case (close-connection connection)
+                                  (error (cause)
+                                    (libtmux.internal::retain-control-peer peer)
+                                    (%record-cleanup-failure connection cause)
+                                    (error cause))))
+              :request-limit (if request-limit-p request-limit (libtmux.internal::control-peer-request-limit peer))
+              :event-limit (if event-limit-p event-limit (libtmux.internal::control-peer-event-limit peer))
+              :event-byte-limit (if event-byte-limit-p event-byte-limit (libtmux.internal::control-peer-event-byte-limit peer))
+              :reply-byte-limit (if reply-byte-limit-p reply-byte-limit (libtmux.internal::control-peer-reply-byte-limit peer)))
+          (values (%connection-for-peer replacement) capture))
+      (libtmux.internal::control-origin-stale (cause)
+        (error 'connection-stale :connection connection :target connection
+               :client (libtmux:error-client cause) :cause cause :message (libtmux:error-message cause)))
+      (libtmux.internal::control-start-failed (cause)
+        (error 'connection-start-failed
+               :connection (%connection-for-peer (libtmux.internal::failed-control-peer cause))
+               :cause cause :message "Reconnection startup failed; inspect the new candidate and original cause"))
+      (libtmux:cleanup-failed (cause)
+        (unless (eq peer (slot-value cause 'libtmux::resource)) (error cause))
+        (let ((condition (make-condition 'connection-cleanup-failed
+                          :connection connection :resource connection :cause cause
+                          :message "Old control cleanup failed; retry closing the retained connection")))
+          (%record-cleanup-failure connection condition)
+          (error condition))))))
+
 (defun %call-with-connection-scope (connection body)
   (let ((completed nil))
     (unwind-protect
@@ -173,6 +243,20 @@ See also: OPEN-CONNECTION, CLOSE-CONNECTION, CONNECTION-CLEANUP-FAILURES."
   (let ((resource (gensym "CONNECTION")))
     `(let ((,resource (open-connection ,client ,session ,@options)))
        (%call-with-connection-scope ,resource (lambda (,name) ,@body)))))
+
+(defmacro with-reconnection ((name snapshot previous &rest options) &body body)
+  "Bind a fresh NAME and SNAPSHOT from explicit RECONNECT; close NAME on exit.
+Evaluate PREVIOUS and options once. BODY permits declarations and returns all
+values. Rebinding either visible name cannot redirect cleanup. Preserve primary
+errors/nonlocal exits and record secondary cleanup errors on the new connection.
+The previous resource retains its own old results and events.
+See also: RECONNECT, WITH-CONNECTION, CONNECTION-CLEANUP-FAILURES."
+  (let ((resource (gensym "CONNECTION")) (capture (gensym "SNAPSHOT")) (ignored (gensym "RESOURCE")))
+    `(multiple-value-bind (,resource ,capture) (reconnect ,previous ,@options)
+       (%call-with-connection-scope
+        ,resource (lambda (,ignored)
+                    (declare (ignore ,ignored))
+                    (funcall (lambda (,name ,snapshot) ,@body) ,resource ,capture))))))
 
 (defun submit-command (connection argv &key effect (timeout 30))
   "Queue copied tmux ARGV and return a REQUEST without waiting for its reply.

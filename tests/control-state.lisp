@@ -12,6 +12,24 @@
     (libtmux.internal::ensure-control-decoder peer)
     peer))
 
+(test control-startup-causes-distinguish-end-timeout-and-cancellation
+  (let* ((peer (local-control-peer))
+         (job (libtmux.internal::control-peer-job peer))
+         (primary (make-condition 'simple-error :format-control "original worker failure")))
+    (setf (libtmux.internal::control-peer-state peer) :closed
+          (libtmux.internal::control-peer-finished peer) t
+          (libtmux.internal::process-job-terminal job) t)
+    (let ((end (libtmux.internal::control-startup-cause peer :ready)))
+      (is (typep end 'libtmux:command-failed))
+      (is (not (typep end 'libtmux:deadline-exceeded))))
+    (is (typep (libtmux.internal::control-startup-cause peer :timeout) 'libtmux:deadline-exceeded))
+    (setf (libtmux.internal::process-job-reason job) :cancelled)
+    (is (typep (libtmux.internal::control-startup-cause peer :ready) 'libtmux:command-cancelled))
+    (setf (libtmux.internal::process-job-reason job) :output-limit)
+    (is (typep (libtmux.internal::control-startup-cause peer :ready) 'libtmux:output-limit-exceeded))
+    (setf (libtmux.internal::control-peer-failure peer) primary)
+    (is (eq primary (libtmux.internal::control-startup-cause peer :timeout)))))
+
 (test control-queued-expiry-does-not-wait-for-an-active-request
   (let* ((peer (local-control-peer))
          (active (libtmux.internal::submit-control-command peer '("wait-for" "fixture") :effect :read))

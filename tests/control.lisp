@@ -5,6 +5,30 @@
 (defun local-control-connection (&rest options)
   (libtmux.control::%connection-for-peer (apply #'local-control-peer options)))
 
+(test control-cleanup-does-not-transfer-ownership-to-a-core-operation
+  (let* ((client (make-instance 'libtmux:client))
+         (connection (local-control-connection))
+         (peer (libtmux.control::%peer connection))
+         (job (libtmux.internal::control-peer-job peer))
+         (directory (sb-posix:mkdtemp "/tmp/libtmux-control-owner-XXXXXX"))
+         (held (merge-pathnames "held" (uiop:ensure-directory-pathname directory))))
+    (unwind-protect
+         (progn
+           (with-open-file (stream held :direction :output :if-exists :error)
+             (write-string "keep directory nonempty" stream))
+           (setf (libtmux.internal::process-job-directory job) directory)
+           (let ((libtmux.internal::*operation-client* client))
+             (signals libtmux.control:connection-cleanup-failed
+               (libtmux.control:close-connection connection)))
+           (is (find connection (libtmux.control:pending-cleanups)))
+           (is (libtmux:client-open-p client))
+           (is (null (slot-value client 'libtmux::cleanup-jobs)))
+           (is (zerop (length (libtmux:client-cleanup-failures client)))))
+      (when (probe-file held) (delete-file held))
+      (let ((libtmux.internal::*operation-client* nil))
+        (libtmux.control:close-connection connection))
+      (libtmux:close-client client))))
+
 (test control-public-resource-identity-and-conditions
   (let* ((connection (local-control-connection :request-limit 1))
          (peer (libtmux.control::%peer connection)))
@@ -94,3 +118,74 @@
               (libtmux.control::%call-with-connection-scope
                connection (lambda (resource) (declare (ignore resource))
                             (throw 'leave :primary))))))))
+
+(test control-reconnect-validates-before-cutover
+  (let* ((client (make-instance 'libtmux:client))
+         (connection (local-control-connection
+                      :origin-client client :origin-context (slot-value client 'libtmux::context)
+                      :origin-generation 0 :origin-session "$0"
+                      :origin-witness '(1 1 "socket" "endpoint" "3.8" 1 1 1)))
+         (started 0)
+         (libtmux.internal::*process-launched-hook* (lambda (job) (declare (ignore job)) (incf started))))
+    (unwind-protect
+         (progn
+           (dolist (options '((:timeout -1) (:request-limit 0) (:event-limit nil)
+                              (:event-byte-limit 0) (:reply-byte-limit 0)))
+             (signals libtmux:invalid-argument (apply #'libtmux.control:reconnect connection options)))
+           (signals libtmux:deadline-exceeded (libtmux.control:reconnect connection :timeout 0))
+           (setf (slot-value client 'libtmux::active) (libtmux.internal::make-operation))
+           (unwind-protect
+                (signals libtmux:client-busy (libtmux.control:reconnect connection))
+             (setf (slot-value client 'libtmux::active) nil))
+           (setf (slot-value client 'libtmux::generation) 1)
+           (let ((condition (handler-case
+                                (progn (libtmux.control:reconnect connection) nil)
+                              (libtmux.control:connection-stale (failure) failure))))
+             (is (typep condition 'libtmux.control:connection-stale))
+             (is (eq connection (libtmux.control:error-connection condition)))
+             (is (eq connection (libtmux:error-target condition)))
+             (is (typep condition 'libtmux:stale-target)))
+           (is (eq :ready (libtmux.control:connection-state connection)))
+           (is (libtmux:client-open-p client))
+           (libtmux:close-client client)
+           (signals libtmux:client-closed (libtmux.control:reconnect connection))
+           (is (zerop started)))
+      (libtmux.control:close-connection connection)
+      (libtmux:close-client client))))
+
+(test control-reconnection-scope-binds-both-values-and-closes-original
+  (let ((old (local-control-connection))
+        (fresh (local-control-connection))
+        (other (local-control-connection))
+        (snapshot (make-instance 'libtmux:snapshot)))
+    (unwind-protect
+         (flet ((libtmux.control:reconnect (previous &rest options)
+                  (declare (ignore options))
+                  (is (eq old previous))
+                  (values fresh snapshot)))
+           (is (equal '(1 nil :tail)
+                      (multiple-value-list
+                       (libtmux.control:with-reconnection (resource captured old)
+                         (declare (special resource captured))
+                         (is (eq fresh (symbol-value 'resource)))
+                         (is (eq snapshot (symbol-value 'captured)))
+                         (setf resource other captured nil)
+                         (values 1 nil :tail)))))
+           (is (eq :closed (libtmux.control:connection-state fresh)))
+           (is (eq :ready (libtmux.control:connection-state old)))
+           (is (eq :ready (libtmux.control:connection-state other))))
+      (dolist (connection (list old fresh other)) (libtmux.control:close-connection connection)))))
+
+(test control-reconnection-scope-preserves-primary-failure
+  (let* ((primary (make-condition 'simple-error :format-control "body"))
+         (secondary (make-condition 'simple-error :format-control "cleanup"))
+         (connection (make-instance 'failing-control-close :peer (local-control-peer) :failure secondary)))
+    (flet ((libtmux.control:reconnect (previous &rest options)
+             (declare (ignore previous options)) (values connection nil)))
+      (is (eq primary
+              (handler-case
+                  (libtmux.control:with-reconnection (resource snapshot nil)
+                    (declare (ignore resource snapshot)) (error primary))
+                (simple-error (condition) condition))))
+      (is (eq secondary (aref (libtmux.control:connection-cleanup-failures connection) 0))))
+    (libtmux.internal::close-control-peer (libtmux.control::%peer connection))))

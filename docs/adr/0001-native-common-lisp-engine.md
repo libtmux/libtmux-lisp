@@ -22,7 +22,7 @@ work. They preserve the existing ownership and explicit-effect contracts.
 
 Core acquisition, local queries, optional codecs, named mutations, decoded
 configuration readers and workspace creation are implemented. Source filtering,
-complete control/event coverage, reconnect and final suite qualification remain
+complete control/event coverage and final suite qualification remain
 open. Scoped persistent requests and pane-output byte events are implemented
 in an optional system. Private decoder or relay experiments do not establish
 a public acquisition backend.
@@ -60,8 +60,9 @@ cover only tested implementations and operating systems.
 The selected implementation is native Common Lisp. Java, ABCL and a JVM
 sidecar are outside its architecture. MCP is excluded by project policy. The
 library does not implement a tmux daemon, a terminal emulator or operating-system
-confinement. Public asynchronous operations and event subscriptions remain
-separate unfinished capabilities.
+confinement. Optional control submission, output events and explicit
+reconnection are implemented separately; complete event coverage and
+qualification remain unfinished.
 
 ## Terminology
 
@@ -488,7 +489,7 @@ Persistent control uses a separate optional system. It needs one transport
 reader, serialized writes, bounded queues, byte-preserving output, distinct
 timeout/end/loss/cancellation results and callbacks outside the reader.
 Acknowledgment and operation-specific completion must remain distinct. Reconnect
-requires a new generation and recapture; it cannot imply replay.
+uses a new generation and recapture; it cannot imply replay.
 
 The persistent engine reuses the existing process supervisor for one persistent
 worker, serialized queued requests, bounded reply/event storage and explicit
@@ -499,9 +500,20 @@ request deadlines and connection end remain distinct. The public
 [`libtmux.control`](../control-api.md) adapter provides CLOS connection/request
 handles, lexical scopes, owned byte results/events and explicit cancellation.
 Queued cancellation is local; active cancellation disconnects without replay,
-retaining worker-observed dispatch evidence. Complete event/reconnect acceptance
-and the comparative mode benchmark remain unfinished. The engine assumes a
-trusted tmux daemon and follows its ordinary framing conventions.
+retaining worker-observed dispatch evidence. Explicit
+[reconnection](../control.md#reconnect-with-fresh-observations) retires the old
+resource, immediately invalidates the core generation, recaptures and attaches
+a new owner. Old results/events remain inspectable and queued work is never
+replayed. A failed cutover does not roll the generation back. Attachment uses
+`-E` to skip session environment updates in
+[`cmd_attach_session`](https://github.com/tmux/tmux/blob/3.8/cmd-attach-session.c#L134-L159).
+A guarded ready marker checks the observed daemon before reporting readiness.
+Control cleanup retains its
+own resource even under a borrowed core-client lease. Complete event acceptance
+and broader mode benchmarks remain unfinished; the bounded
+[read-path comparison](../benchmarks.md) has separate source-bound evidence.
+The engine assumes a trusted tmux daemon and follows its ordinary framing
+conventions.
 
 The private codecs provide bounded LF assembly and pane-output byte decoding.
 The
@@ -509,7 +521,7 @@ The
 uses three-digit octal escapes for C0 bytes and backslash, leaving DEL and high
 bytes unchanged. The decoder preserves octets. Per-feed bounds and retained
 queue/reply bounds are separate. See the
-[connection contract](../transport.md#private-control-implementation).
+[connection contract](../transport.md#persistent-control-implementation).
 
 tmux's [`control_write_guard`](https://github.com/tmux/tmux/blob/3.8/control.c#L522-L548)
 defines reply guards. Older daemon initialization needs separate scrutiny:
