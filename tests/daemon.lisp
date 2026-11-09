@@ -264,9 +264,21 @@
                     (lambda ()
                       (handler-case (libtmux:stop-daemon owner)
                         (error (condition) (setf close-failure condition))))))
-             (is (equal '(:state)
-                        (libtmux.internal::poll-owned
-                         (list (list :state (slot-value owner 'libtmux.internal::event) :input)) 0.75)))
+             ;; The constructor drains lifecycle events; wait on retained stop state.
+             (let* ((deadline (+ (libtmux.internal::monotonic-seconds) 0.75))
+                    (requested
+                      (libtmux.internal::call-with-daemon-lock
+                       owner
+                       (lambda ()
+                         (loop
+                           (when (slot-value owner 'libtmux.internal::stop-requested)
+                             (return t))
+                           (let ((remaining (- deadline (libtmux.internal::monotonic-seconds))))
+                             (unless (plusp remaining) (return nil))
+                             (libtmux.internal::condition-wait
+                              (slot-value owner 'libtmux.internal::changed)
+                              (slot-value owner 'libtmux.internal::lock) remaining)))))))
+               (is (eq t requested)))
              (sb-thread:signal-semaphore release)
              (sb-thread:join-thread constructor :timeout 0.75)
              (sb-thread:join-thread closer :timeout 0.75)
