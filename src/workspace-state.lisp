@@ -358,7 +358,8 @@
                                               (libtmux.internal::configuration-reader-client core) start)))))))))
 
 (defun call-with-owned-reader (client declaration cancel-token timeout output-limit record-limit procedure
-                              &optional on-failure)
+                              &optional on-failure on-exit)
+  "Acquire under one owner; ON-EXIT receives the retained ledger even on nonlocal exit."
   (check-type client libtmux:client)
   (check-type declaration owned-declaration)
   (libtmux.internal::check-limits timeout output-limit)
@@ -375,38 +376,40 @@
                      :remaining-bytes output-limit :remaining-frames record-limit :remaining-records record-limit
                      :check (lambda () (libtmux.internal::check-capture-budget budget token))))
             (reader nil))
-       (handler-case
-           (progn
-             (libtmux.internal::preflight-targets client nil token budget)
-             (let* ((witness (slot-value client 'libtmux::witness))
-                    (core (libtmux.internal::make-configuration-reader
-                           :client client :token token :budget budget :decode decode :witness witness
-                           :catalog (libtmux.internal::configuration-catalog
-                                     (libtmux.internal::server-witness-version witness))))
-                    (libtmux.internal::*command-socket-path* (libtmux.internal::server-witness-endpoint witness)))
-               (setf reader (make-owned-reader :core core :declaration declaration :witness witness
-                             :context (slot-value client 'libtmux::context)
-                             :generation (slot-value client 'libtmux::generation)
-                             :row-counter (libtmux.internal::make-configuration-input
-                                           (libtmux.internal::octet-vector nil) 0 0 decode)))
-               (funcall procedure reader start)))
-         (error (cause)
-           (let ((outcome (and (typep cause 'libtmux:libtmux-error) (libtmux:error-outcome cause))))
-             (when (and outcome (not (member outcome (libtmux.internal::capture-budget-outcomes budget))))
-               (libtmux.internal::charge-capture-outcome budget outcome))
-             (let* ((primary (or (and reader (owned-reader-failure reader)) cause))
-                    (causes (if reader (reverse (owned-reader-diagnostics reader)) nil)))
-               (unless (member cause causes) (setf causes (append causes (list cause))))
-               (if on-failure
-                   (funcall on-failure reader primary cause causes budget start)
-                   (error 'owned-state-error :client client :cause primary :outcome outcome
-                      :control (and reader (copy-seq (owned-reader-control reader)))
-                      :inventory (if reader (deep-copy (owned-reader-inventory reader)) #())
-                      :data (owned-reader-data reader client start declaration)
-                      :snapshot (and reader (owned-reader-snapshot reader))
-                      :causes (coerce causes 'simple-vector)
-                      :outcomes (coerce (reverse (libtmux.internal::capture-budget-outcomes budget)) 'simple-vector)
-                      :message (format nil "Workspace state acquisition failed: ~A" primary)))))))))))
+       (unwind-protect
+              (handler-case
+                (progn
+                  (libtmux.internal::preflight-targets client nil token budget)
+                  (let* ((witness (slot-value client 'libtmux::witness))
+                         (core (libtmux.internal::make-configuration-reader
+                                :client client :token token :budget budget :decode decode :witness witness
+                                :catalog (libtmux.internal::configuration-catalog
+                                          (libtmux.internal::server-witness-version witness))))
+                         (libtmux.internal::*command-socket-path* (libtmux.internal::server-witness-endpoint witness)))
+                    (setf reader (make-owned-reader :core core :declaration declaration :witness witness
+                                  :context (slot-value client 'libtmux::context)
+                                  :generation (slot-value client 'libtmux::generation)
+                                  :row-counter (libtmux.internal::make-configuration-input
+                                                (libtmux.internal::octet-vector nil) 0 0 decode)))
+                    (funcall procedure reader start)))
+              (error (cause)
+                (let ((outcome (and (typep cause 'libtmux:libtmux-error) (libtmux:error-outcome cause))))
+                  (when (and outcome (not (member outcome (libtmux.internal::capture-budget-outcomes budget))))
+                    (libtmux.internal::charge-capture-outcome budget outcome))
+                  (let* ((primary (or (and reader (owned-reader-failure reader)) cause))
+                         (causes (if reader (reverse (owned-reader-diagnostics reader)) nil)))
+                    (unless (member cause causes) (setf causes (append causes (list cause))))
+                    (if on-failure
+                        (funcall on-failure reader primary cause causes budget start)
+                        (error 'owned-state-error :client client :cause primary :outcome outcome
+                           :control (and reader (copy-seq (owned-reader-control reader)))
+                           :inventory (if reader (deep-copy (owned-reader-inventory reader)) #())
+                           :data (owned-reader-data reader client start declaration)
+                           :snapshot (and reader (owned-reader-snapshot reader))
+                           :causes (coerce causes 'simple-vector)
+                           :outcomes (coerce (reverse (libtmux.internal::capture-budget-outcomes budget)) 'simple-vector)
+                           :message (format nil "Workspace state acquisition failed: ~A" primary)))))))
+         (when on-exit (funcall on-exit budget)))))))
 
 (defun fetch-owned-state (client declaration &key cancel-token
                                              (timeout (slot-value client 'libtmux::timeout))

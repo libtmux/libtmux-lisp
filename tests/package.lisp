@@ -14,6 +14,7 @@
 (def-suite transport-integration)
 (def-suite workspace-integration)
 (def-suite workspace-inspection-integration :description "Live incomplete metadata and control-change races require owned tmux fixtures.")
+(def-suite workspace-writer-integration :description "Writer claims, immutable records and race outcomes require owned tmux fixtures.")
 (def-suite control-integration)
 (def-suite configuration-integration)
 
@@ -27,6 +28,7 @@
           (:transport-integration 'transport-integration)
           (:workspace-integration 'workspace-integration)
           (:workspace-inspection-integration 'workspace-inspection-integration)
+          (:workspace-writer-integration 'workspace-writer-integration)
           (:control-integration 'control-integration)
           (:configuration-integration 'configuration-integration)
           (:workspace 'workspace)

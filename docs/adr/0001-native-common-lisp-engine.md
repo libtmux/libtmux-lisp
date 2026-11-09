@@ -517,6 +517,14 @@ per-attempt evidence and distinguishes the last committed revision, current
 writer's intent and unpublished candidate. Missing data is not fabricated;
 terminal read failures retain their causes and outcomes. Its result cannot be
 passed to the ready-state planner, and inspection never replays mutations.
+Private writer primitives claim an exact idle head or absent genesis, retire
+only bounded obsolete references under the busy token, and write immutable
+pending chunks before their descriptor. Preparation checks predictable command
+envelopes before claiming. Each core call rechecks the original client generation
+after preflight; exact readback distinguishes successful writes from failed
+observation. Failure or a nonlocal exit during an admitted primitive makes the
+writer unusable. These primitives neither execute the domain plan nor publish
+a committed revision.
 Public workspace/2 acquisition and application remain unavailable until the
 complete path is qualified.
 

@@ -2,6 +2,43 @@
 
 (in-suite workspace)
 
+(test owned-writer-record-writes-are-immutable-chunks-then-descriptor
+  (let* ((record (workspace-call :make-owned-record :pending (owned-pending-data)))
+         (writes (workspace-call :owned-record-writes record))
+         (revision (make-string 32 :initial-element #\A))
+         (count (1- (length writes))))
+    (is (plusp count))
+    (is (string= (workspace-call :owned-record-key "a.child" :pending revision)
+                 (car (aref writes count))))
+    (loop for index below count
+          do (is (string= (workspace-call :owned-record-key "a.child" :pending revision index)
+                          (car (aref writes index)))))
+    (is (string= (workspace-call :owned-record-json record)
+                 (workspace-call :owned-record-json
+                   (workspace-call :decode-owned-record "a.child" :pending revision
+                     (cdr (aref writes count)) (map 'vector #'cdr (subseq writes 0 count))))))
+    (setf (char (cdr (aref writes 0)) 0) #\X)
+    (is (not (char= #\X (char (cdr (aref (workspace-call :owned-record-writes record) 0)) 0))))))
+
+(test owned-writer-retirement-uses-only-bounded-obsolete-references
+  (let* ((data (owned-committed-data))
+         (old (make-string 32 :initial-element #\B))
+         (writer (make-string 32 :initial-element #\C)))
+    (setf (getf data :previous) (list :revision old :bytes 2049 :chunks 2))
+    (let* ((record (workspace-call :make-owned-record :committed data))
+           (keys (workspace-call :owned-retirement-keys "a.child" record writer)))
+      (is (= 5 (length keys)))
+      (is (equalp (vector (workspace-call :owned-record-key "a.child" :committed old 0)
+                          (workspace-call :owned-record-key "a.child" :committed old 1)
+                          (workspace-call :owned-record-key "a.child" :committed old)
+                          (workspace-call :owned-record-key "a.child" :pending (getf data :revision) 0)
+                          (workspace-call :owned-record-key "a.child" :pending (getf data :revision))) keys))
+      (signals libtmux.workspace:workspace-error
+        (workspace-call :owned-retirement-keys "other" record writer))
+      (signals libtmux.workspace:workspace-error
+        (workspace-call :owned-retirement-keys "a.child" record old)))
+    (is (equalp #() (workspace-call :owned-retirement-keys "a.child" nil writer)))))
+
 (test owned-state-inventory-is-complete-and-namespace-exact
   (let* ((key "@libtmux.workspace.61.control")
          (text (format nil "exit-empty off~%user-keys~%~A \"idle\"~%@libtmux.workspace.612E6368696C64.control \"other\"~%" key))

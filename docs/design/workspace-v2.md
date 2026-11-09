@@ -6,6 +6,14 @@ not yet available.** The current constructor, file loader and CLI implement the
 [workspace/1 contract](workspace-v1.md), including topology-only reuse.
 This document records the implementation target and its remaining gates.
 
+The private implementation includes inert declarations and records, explicit
+ready and incomplete acquisition, local planning, and metadata writer
+primitives. The writer claims once, retires only known obsolete records and
+writes a complete immutable pending bundle. It retains partial outcomes and
+refuses reuse after an admitted primitive fails or exits nonlocally. Domain
+execution, final publication and the public workspace/2 constructor, loader and
+CLI remain unfinished.
+
 ## Identity and declarations
 
 Workspace/2 requires a bounded ASCII ID for the workspace, session, every window

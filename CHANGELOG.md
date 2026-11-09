@@ -37,6 +37,11 @@
 
 ### Added
 
+- Prepare private workspace writer claims, guarded retirement of known obsolete
+  records and absent-only pending bundles. Exact readback and retained outcomes
+  distinguish successful writes from failed observation. Interrupted writers
+  cannot resume. Domain application and workspace/2 publication remain pending.
+
 - Inspect private incomplete workspace metadata explicitly, retaining separate
   read attempts, partial records, captured graphs, causes and native outcomes.
   Inspection does not admit a workspace for planning or retry its mutations.

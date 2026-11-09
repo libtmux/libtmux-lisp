@@ -103,6 +103,8 @@ the integration tier; local domain and query tests must not contact tmux.
 Incomplete-workspace read and race scenarios run in the separate
 `workspace-inspection-integration` group. The integration and archive tasks run
 it with the same 60-second child cap as the other live groups.
+Writer contention, immutable metadata and interrupted-progress scenarios run in
+the separate `workspace-writer-integration` group under that same cap.
 
 Keep network access, installs, production builds, browser launches, sleeps,
 and broad corpus scans out of inner and mid loops. Investigate any timeout
