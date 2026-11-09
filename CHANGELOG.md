@@ -37,6 +37,10 @@
 
 ### Added
 
+- Prepare private local owned-workspace plans with separate declaration and
+  captured drift reports, logical pane insertion and explicit reconciliation
+  refusals. Public workspace/2 application remains unavailable.
+
 - Acquire private workspace geometry facts explicitly, distinguishing zoomed,
   floating and modal panes before future insertion or layout plans. Retain
   complete captured facts and shared read budgets; workspace/2 remains private.

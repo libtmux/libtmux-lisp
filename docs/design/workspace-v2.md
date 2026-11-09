@@ -1,8 +1,8 @@
 # Owned workspace design
 
 The accepted design for workspace/2 adds logical IDs, durable ownership records,
-drift inspection and explicit additive reconciliation. **Workspace/2 is not yet
-implemented.** The current constructor, file loader and CLI implement the
+drift inspection and explicit additive reconciliation. **Public workspace/2 is
+not yet available.** The current constructor, file loader and CLI implement the
 [workspace/1 contract](workspace-v1.md), including topology-only reuse.
 This document records the implementation target and its remaining gates.
 
@@ -69,6 +69,11 @@ This remains an observation over time, not an atomic snapshot.
 Planning consumes that acquired observation locally. A snapshot alone does not
 prove ownership. Plans distinguish declaration changes from observed drift and
 retain ordinary owned data. Inspection, traversal and projection do no I/O.
+The private planner returns eager logical-ID steps and separate informational
+context for unrelated windows, sharing and unmanaged panes. These alone do not
+require publication. A changed declaration or any domain step does; metadata
+edits are therefore distinct from a proven no-op. Apply must acquire and plan
+again rather than execute an earlier preview as authority.
 
 Default application refuses drift. Explicit `--reconcile` will add declared
 windows or panes, rename mapped sessions/windows, and apply requested layout
@@ -76,6 +81,12 @@ changes or repair observed layout drift. It preserves unrelated windows and
 links. Removal, process replacement, forced adoption, index swaps and missing
 or rebound owned IDs are refused. Unmanaged panes prevent splits and layout
 changes in their containing window.
+Existing omitted indexes retain their mapped positions. Adding a matching
+explicit index, removing an index constraint or changing window enumeration is
+a metadata edit. An existing index move or pane reorder is unsupported. New
+explicit indexes must be free of every captured link and are reserved before
+automatic windows. Changed cwd, argv, shell source or environment on an existing
+entity is unsupported; the planner does not infer creation inputs from processes.
 
 Pane additions can precede, interleave or follow existing panes while preserving
 their relative order. This requires regular, non-full-size splits: tmux inserts
@@ -141,7 +152,7 @@ A changed control can
 restart the read once; busy or invalid state stays a failure. Closing inventory
 and control checks also apply to vacancy. Missing physical identities and changed
 links fail; names, layouts and unmanaged entities remain observations for the
-future drift planner. Outcome retention includes failed reads. Inspection is
+local drift planner. Outcome retention includes failed reads. Inspection is
 local and returns owned data. This is an interval observation, not a transaction.
 Failure conditions retain already acquired metadata, graph, group facts, original
 context and interval. A later read failure does not replace the primary metadata
@@ -154,9 +165,16 @@ changes, pane-loop order and namespace discovery. An instrumented pinned
 formatter establishes the scalar expiry case and final-literal refusal.
 These are mechanism checks; they do not qualify a workspace/2 implementation.
 
+The private planner now separates declaration changes, observed drift and
+informational context. It supports fresh creation and reconcile previews for
+additions, names and layouts, with effect-scoped group, sharing and geometry
+checks. Geometry repair compares captured layouts with stored realized text;
+declared layout source remains separate. These are local previews, not proof
+that the planned effects occurred.
+
 The core now has a private dispatch-precondition adapter; workspace guard
-composition remains required. Other gates are pure drift planning,
-creation/publication/reconciliation, complete busy inspection,
+composition remains required. Other gates are creation/publication/reconciliation,
+complete busy inspection,
 installed CLI/examples and complete native compatibility. The main
 [architecture decision](../adr/0001-native-common-lisp-engine.md#keep-optional-systems-and-consumer-policy-explicit)
 keeps this consumer separate from core and preserves unfinished acceptance.

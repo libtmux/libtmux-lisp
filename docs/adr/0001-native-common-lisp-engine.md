@@ -504,7 +504,14 @@ Future geometry payloads must repeat the live checks; captured facts alone
 cannot authorize them.
 Stable control reads and closing inventory checks establish the captured owned
 mapping; a changed control permits one read restart. Missing mapped identities
-remain failures, while property drift remains input to the future planner.
+remain failures, while property drift is input to the private local planner.
+That planner separates declaration changes, captured drift and unrelated
+context. It prepares logical-ID steps and requires explicit reconciliation for
+supported edits; unsupported removals, reparenting, process-input changes,
+index moves and pane reorders remain refusals. Metadata-only edits still need
+publication. Fresh plans reserve explicit indexes before automatic windows;
+existing windows retain their mapped positions. These previews do not perform
+I/O or replace the required fresh acquisition and live checks at application.
 Public workspace/2 acquisition and application remain unavailable until the
 complete path is qualified.
 

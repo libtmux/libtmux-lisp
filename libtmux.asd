@@ -158,7 +158,9 @@
                (:file "src/workspace-geometry"
                       :description "Private source-qualified and complete workspace geometry observations.")
                (:file "src/workspace-state"
-                      :description "Private explicit owned metadata acquisition and captured mapping validation.")))
+                      :description "Private explicit owned metadata acquisition and captured mapping validation.")
+               (:file "src/workspace-plan"
+                      :description "Private local owned declaration and observed-drift planning.")))
 
 (defsystem "libtmux/workspace/cli"
   :description "Explicit-endpoint workspace command-line interface"
@@ -205,6 +207,7 @@
                (:file "tests/workspace-owned")
                (:file "tests/workspace-state")
                (:file "tests/workspace-geometry")
+               (:file "tests/workspace-plan")
                (:file "tests/workspace-cli"))
   :perform (test-op (operation component)
              (declare (ignore operation component))
