@@ -4,6 +4,10 @@
 
 ### Fixed
 
+- Require tmux 3.8 for persistent control so native notifications remain separate
+  from command replies. Reject live 3.7-series daemons even when a client caches
+  a newer version; core compatibility remains 3.3a through 3.8.
+
 - Keep failed control cleanup with its own resource rather than closing the
   borrowed core client. Preserve session environment values during attachment
   and verify the observed daemon before reporting a connection ready.

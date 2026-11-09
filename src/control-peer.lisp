@@ -528,7 +528,7 @@ partial replies. A failed close retains the peer for a later cleanup retry."
                                               (reply-byte-limit 1048576))
   "Open an independently owned persistent connection to a captured SESSION.
 Preflight once; one worker owns queued commands and events. The live daemon
-must be >=3.7. CLIENT is borrowed, never closed by this resource."
+must be >=3.8. CLIENT is borrowed, never closed by this resource."
   (check-type client libtmux:client)
   (check-type session libtmux:session)
   (check-control-limits timeout request-limit event-limit event-byte-limit reply-byte-limit)
@@ -540,7 +540,7 @@ must be >=3.7. CLIENT is borrowed, never closed by this resource."
                                          :remaining (slot-value client 'libtmux::output-limit)
                                          :row-limit 100000 :field-limit 1048576))
             (current (first (preflight-targets client (list session) token budget))))
-       (check-command-capability client :control "3.7")
+       (check-command-capability client :control "3.8")
        (attach-control-peer client current token budget (slot-value client 'libtmux::witness)
          :request-limit request-limit :event-limit event-limit
          :event-byte-limit event-byte-limit :reply-byte-limit reply-byte-limit)))))

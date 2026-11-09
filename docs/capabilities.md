@@ -3,7 +3,8 @@
 The implemented systems suit bounded, blocking SBCL/Linux tmux automation with
 captured graph traversal, native queries, explicit commands and declarative
 workspace bootstrap. Persistent control requests, explicit reconnection and pane-output events are
-optional; complete event coverage remains unfinished.
+optional on tmux 3.8+. Ordinary notifications retain raw bytes; pane output
+is decoded to octets. Larger stream and retained-memory benchmarks remain open.
 
 | Area | Available now | Remaining work |
 | --- | --- | --- |
@@ -11,11 +12,11 @@ optional; complete event coverage remains unfinished.
 | Acquisition | Finite CLOS snapshots, explicit window links, identity, bounds and replacement observations | Complete acceptance after further operations |
 | Local processing | Ordinary lists/vectors, functions, owned plists, presence via multiple values, validated relation/regex queries and eager QuerySets | Source-side filter lowering |
 | Operations | Creation, rename, selection, geometry, placement, input, buffers, respawn, shell pipes, decoded configuration reads, native printer inspection and typed mutations, captured terminal-client requests, session/server frontend locking, message/command/key printing, key binding/removal, server ACL entries, wait channels (blocking wait/lock require 3.8), explicit entity/server termination and private empty-config daemon scopes | Remaining named server-command helpers |
-| Concurrency | Synchronous core calls; one operation per client; optional nonblocking control submission/event waits and explicit generation-changing reconnect | Complete control/event qualification |
-| Streaming/events | Bounded captures and byte buffers; daemon-owned `pipe-pane`; optional native pane-output events with gap/end results | Complete event coverage and backpressure policy |
+| Concurrency | Synchronous core calls; one operation per client; optional nonblocking control submission/event waits and explicit generation-changing reconnect | Larger control workloads |
+| Streaming/events | Bounded captures and byte buffers; daemon-owned `pipe-pane`; optional raw notifications and native pane-output events with gap/end results and bounded drop-oldest delivery | Long-running streams and retained-memory benchmarks |
 | Workspace | Separate bounded JSON/native system, pure plans, explicit apply, topology reuse and explicit-endpoint CLI | Owned declaration/ID metadata, drift inspection, richer configuration and explicit reconciliation; deletion and process supervision remain outside v1 |
 | MCP | Intentionally excluded by project policy | Use a separately maintained external integration if one becomes suitable |
-| Optional integrations | Separate CL-PPCRE regex, bounded query JSON, workspace/CLI and scoped native control connections | Complete event acceptance and broader mode benchmarks |
+| Optional integrations | Separate CL-PPCRE regex, bounded query JSON, workspace/CLI and scoped native control connections | Broader mode benchmarks |
 | Performance | [Optional native read-path comparison](benchmarks.md) with separate acquisition/startup, launch counts and allocation samples | Large-graph, query and stream workloads; retained heap and broader latency qualification |
 
 The process backend services stdin/stdout/stderr through nonblocking descriptors

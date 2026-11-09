@@ -30,6 +30,72 @@
     (setf (libtmux.internal::control-peer-failure peer) primary)
     (is (eq primary (libtmux.internal::control-startup-cause peer :timeout)))))
 
+(test control-routing-preserves-notifications-and-keeps-reply-context
+  (let* ((peer (local-control-peer))
+         (job (libtmux.internal::control-peer-job peer))
+         (request (libtmux.internal::submit-control-command peer '("display-message" "-p" "reply") :effect :read))
+         (lines '("%client-detached client" "%client-session-changed client $1 session"
+                  "%config-error config: error" "%continue %255" "%exit detached"
+                  "%layout-change @3 layout visible-layout *" "%pane-mode-changed %255"
+                  "%paste-buffer-changed buffer" "%paste-buffer-deleted buffer" "%pause %255"
+                  "%session-changed $1 session" "%session-renamed $1 session"
+                  "%session-window-changed $1 @3" "%sessions-changed"
+                  "%subscription-changed pane $1 @3 0 %255 : value"
+                  "%subscription-changed window $1 @3 0 - : value"
+                  "%subscription-changed session $1 - - - : value"
+                  "%unlinked-window-add @8" "%unlinked-window-close @8"
+                  "%unlinked-window-renamed @8 name" "%window-add @3" "%window-close @3"
+                  "%window-pane-changed @3 %255" "%window-renamed @3 name" "%window-renamed @3 name"))
+         (notices (append (mapcar #'libtmux.internal::encode-utf8 lines)
+                          (list (concatenate '(vector (unsigned-byte 8))
+                                             (libtmux.internal::encode-utf8 "%future-event ") #(255)))))
+         (reply (format nil "%window-renamed @3 reply~%%output %255 reply~%%end 1 99 1~%"))
+         (wire (apply #'concatenate '(vector (unsigned-byte 8))
+                      (append
+                       (list (libtmux.internal::encode-utf8 (format nil "%begin 1 7 1~%~A%end 1 7 1~%" reply)))
+                       (loop for notice in notices append (list notice #(10)))
+                       (list (libtmux.internal::encode-utf8
+                              (format nil "%output %255 \\377\\000X~%%extended-output %255 8 : \\001~%~
+                                           %begin 1 8 1~%~A~%%end 1 8 1~%~
+                                           %begin 1 9 1~%orphan~%%end 1 9 1~%~
+                                           %begin 1 10 1~%failure~%%error 1 10 1~%"
+                                      (libtmux.internal::control-request-marker request))))))))
+    (libtmux.internal::control-supervisor-step peer job)
+    (setf (libtmux.internal::process-job-offset job) (length (libtmux.internal::process-job-input job)))
+    (loop for start from 0 below (length wire) by 11
+          for chunk = (subseq wire start (min (length wire) (+ start 11)))
+          do (libtmux.internal::append-bytes (aref (libtmux.internal::process-job-buffers job) 0) chunk (length chunk))
+             (libtmux.internal::control-supervisor-step peer job)
+             (fill chunk 0))
+    (let ((result (libtmux.internal::await-control-request request :timeout 0))
+          (events (loop repeat (length notices) collect (libtmux.internal::next-control-event peer :timeout 0))))
+      (is (eq :completed (getf result :status)))
+      (is (equalp (libtmux.internal::encode-utf8 reply) (getf result :output)))
+      (is (every (lambda (event) (eq :notification (getf event :kind))) events))
+      (is (equalp notices (mapcar (lambda (event) (getf event :data)) events)))
+      (let* ((last-three (last events 3))
+             (first (getf (first last-three) :data)) (second (getf (second last-three) :data)))
+        (is (not (eq first second)))
+        (when first (setf (aref first 0) 0))
+        (is (equalp (libtmux.internal::encode-utf8 "%window-renamed @3 name") second))))
+    (let ((normal (libtmux.internal::next-control-event peer :timeout 0))
+          (extended (libtmux.internal::next-control-event peer :timeout 0)))
+      (is (eq :output (getf normal :kind)))
+      (is (equalp #(255 0 88) (getf normal :data)))
+      (is (eq :output (getf extended :kind)))
+      (is (= 8 (getf extended :age)))
+      (is (getf extended :extended-p))
+      (is (equalp #(1) (getf extended :data))))
+    (let ((unsolicited (libtmux.internal::next-control-event peer :timeout 0))
+          (failed (libtmux.internal::next-control-event peer :timeout 0)))
+      (is (eq :reply (getf unsolicited :kind)))
+      (is (not (getf unsolicited :failed-p)))
+      (is (equalp (libtmux.internal::encode-utf8 (format nil "orphan~%")) (getf unsolicited :data)))
+      (is (eq :reply (getf failed :kind)))
+      (is (getf failed :failed-p))
+      (is (equalp (libtmux.internal::encode-utf8 (format nil "failure~%")) (getf failed :data))))
+    (is (eq :timeout (nth-value 1 (libtmux.internal::next-control-event peer :timeout 0))))))
+
 (test control-queued-expiry-does-not-wait-for-an-active-request
   (let* ((peer (local-control-peer))
          (active (libtmux.internal::submit-control-command peer '("wait-for" "fixture") :effect :read))

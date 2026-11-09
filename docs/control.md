@@ -5,10 +5,15 @@ stream should share one connection. Core acquisition and captured objects keep
 their existing contracts. Control commands do not refresh earlier observations.
 
 The current control backend requires the core SBCL/Linux runtime profile and an
-actual tmux daemon at least 3.7. Core operations still support tmux 3.3a through
+actual tmux daemon at least 3.8. Core operations still support tmux 3.3a through
 3.8. Endpoint CI exercises control on 3.8 and verifies rejection before launch
 on 3.3a. Reconnection is explicit and returns fresh observations; automatic
 reconnection and replay are unavailable.
+
+Tmux 3.8 defers native notifications until a command reply ends. The earlier
+3.7 series can include pause/continue notices inside replies, so this API
+refuses those daemons before starting control mode. Core compatibility is
+unchanged. See the [architecture decision](adr/0001-native-common-lisp-engine.md#qualify-control-mode-and-source-filtering-before-exposing-them).
 
 ## Run a complete example
 
@@ -97,7 +102,10 @@ cancellation does not roll it back. No mutation is retried.
 [`next-event`](control-api.md#next-event-function) returns an owned event and
 `:ready`, or `nil` and `:timeout`. Pane `:output` events retain raw octets,
 including NUL and invalid UTF-8. Decode text only when its encoding is known.
-Ordinary notifications remain raw line bytes; no Lisp reader evaluates them.
+Ordinary notifications remain raw line bytes without LF, including unknown
+labels and bytes. No Lisp reader evaluates them. A native `%exit` line remains
+a notification; transport EOF independently produces `:end`. Unsolicited
+command frames use `:reply`, with bytes and `:failed-p` evidence.
 
 Requests, reply bytes, event count and event bytes have separate limits set by
 [`open-connection`](control-api.md#open-connection-function). The event queue
@@ -105,10 +113,55 @@ drops oldest events on overflow and reports `:gap` with event and byte counts.
 An oversized new event reports loss while retaining earlier smaller events.
 A reply limit failure ends the connection and retains its cause.
 
+Local dropping does not apply backpressure to tmux. Native `%pause` and
+`%continue` notices remain ordinary notifications, independent of local `:gap`
+reporting. Commands such as `refresh-client -A` explicitly change native flow
+state; the library does not issue them automatically.
+
 After retained events, `:end` reports reason, exit code, diagnostics, wire tail
 and cause. Subsequent reads return end immediately. Inspect
 [`connection-failure`](control-api.md#connection-failure-function) for a worker
 failure; conditions retain identity while public byte containers are fresh.
+
+Local routing checks exercise the 24 labels found in the pinned 3.7/3.8 sources,
+including both pane-output forms, unknown labels, reply context and chunked
+ownership. Native 3.8 checks exercise representative topology, buffer and
+pause/continue events alongside commands. These checks do not trigger every
+native emitter, subscription timer or daemon policy. Larger stream and retained
+memory measurements remain separate from this delivery contract.
+
+## Observe native notifications
+
+This function belongs to the [complete program](../examples/control.lisp) above.
+It observes an explicit [`rename-window`](api.md#rename-window-function) operation
+through raw notification bytes. The fixture uses a known ASCII name; it does
+not decode arbitrary notification payloads as text. The returned bytes remain
+usable after connection close. The captured window keeps its earlier name.
+Acquire a replacement explicitly when current values are needed.
+
+<!-- example:controlnotifications -->
+```lisp
+(defun observe-window-rename (client session window)
+  "Rename explicitly and return its owned notification bytes."
+  (let ((captured-name (tm:name window))
+        (expected (map 'vector #'char-code
+                       (format nil "%window-renamed ~A event-editors" (tm:id window)))))
+    (control:with-connection (connection client session)
+      (let ((outcome (tm:rename-window client window "event-editors" :observe nil)))
+        (assert (eq :succeeded (tm:outcome-status outcome))))
+      (let ((deadline (+ (get-internal-real-time) internal-time-units-per-second)))
+        (loop for remaining = (/ (- deadline (get-internal-real-time)) internal-time-units-per-second)
+              do (assert (plusp remaining))
+                 (multiple-value-bind (event delivery) (control:next-event connection :timeout remaining)
+                   (assert (eq :ready delivery))
+                   (when (member (getf event :kind) '(:gap :end))
+                     (error "Notification stream ended or lost data: ~S" event))
+                   (when (and (eq :notification (getf event :kind))
+                              (equalp expected (getf event :data)))
+                     (assert (string= captured-name (tm:name window)))
+                     (return (getf event :data)))))))))
+```
+<!-- /example -->
 
 ## Resource scopes and recovery
 

@@ -55,7 +55,7 @@ $ mise run benchmark -- --samples 6 --commands 2 --panes 2
   physical pane count. A graph acquisition is a different workload from a
   literal read; do not compare their totals as transport speedups.
 
-The optional control feature requires an actual daemon at least 3.7. On 3.3a the
+The optional control feature requires an actual daemon at least 3.8. On 3.3a the
 report explicitly records control as unsupported and measures available phases.
 Core support remains the complete tmux 3.3a–3.8 range. Benchmarks do not expand or
 replace compatibility qualification.

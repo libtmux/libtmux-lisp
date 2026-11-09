@@ -61,8 +61,9 @@ The selected implementation is native Common Lisp. Java, ABCL and a JVM
 sidecar are outside its architecture. MCP is excluded by project policy. The
 library does not implement a tmux daemon, a terminal emulator or operating-system
 confinement. Optional control submission, output events and explicit
-reconnection are implemented separately; complete event coverage and
-qualification remain unfinished.
+reconnection are implemented separately. Generic notification routing and
+representative native 3.8 event families have focused coverage; larger streams,
+retained-memory measurements and final suite qualification remain unfinished.
 
 ## Terminology
 
@@ -509,8 +510,11 @@ replayed. A failed cutover does not roll the generation back. Attachment uses
 [`cmd_attach_session`](https://github.com/tmux/tmux/blob/3.8/cmd-attach-session.c#L134-L159).
 A guarded ready marker checks the observed daemon before reporting readiness.
 Control cleanup retains its
-own resource even under a borrowed core-client lease. Complete event acceptance
-and broader mode benchmarks remain unfinished; the bounded
+own resource even under a borrowed core-client lease. Local routing checks cover
+the source notification labels; native 3.8 checks exercise representative
+topology, buffer and flow notices. This does not claim every daemon emitter or
+policy was triggered. Larger streams, retained memory and broader mode benchmarks
+remain unfinished; the bounded
 [read-path comparison](../benchmarks.md) has separate source-bound evidence.
 The engine assumes a trusted tmux daemon and follows its ordinary framing
 conventions.
@@ -530,8 +534,15 @@ can enter control cleanup, while
 [`server_client_dispatch_identify`](https://github.com/tmux/tmux/blob/3.3a/server-client.c#L2969-L2987)
 starts control state only after identification completes. The proposed one-shot
 control acquisition route remains disabled. The separate persistent
-engine checks the live daemon's 3.7 minimum before starting
-control mode. Harmless parser/relay experiments
+engine requires the live daemon to be at least 3.8 before starting control mode.
+In that release, [`control_notify_write`](https://github.com/tmux/tmux/blob/3.8/control.c#L556-L580)
+defers notifications while a reply guard is open. The 3.7 series instead calls
+[`control_write` from pause/continue](https://github.com/tmux/tmux/blob/3.7/control.c#L365-L391)
+directly. Native probes on 3.7 and 3.7c put those notifications into request
+reply bytes; the same 3.8 probe delivers separate events. Content heuristics
+cannot distinguish arbitrary reply text from a native notification there.
+The persistent feature therefore refuses the earlier protocol, while core
+operations continue to support every release from 3.3a through 3.8. Harmless parser/relay experiments
 cannot qualify a live daemon path, kernel premise or portable transport.
 
 Source filtering is also pending. It belongs at an explicit acquisition

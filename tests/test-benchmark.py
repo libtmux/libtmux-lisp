@@ -36,6 +36,8 @@ class BenchmarkEvidence(unittest.TestCase):
             valid = "\n".join(rows) + "\n"
             path.write_text(valid)
             self.assertEqual(12, len(benchmark.read_records(path, 6, 2)[1]))
+            path.write_text(valid.replace("unsupported-before-3.7", "unsupported-before-3.8"))
+            self.assertEqual(12, len(benchmark.read_records(path, 6, 2)[1]))
             for broken in (valid.replace("\t514", "\t513"), "\n".join(rows[:-1]),
                            valid.replace(rows[6] + "\n", ""), valid.replace("0.01", "0.0"),
                            valid.replace("\t2\t514", "\t0\t514")):

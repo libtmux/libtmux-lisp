@@ -40,6 +40,28 @@
       (coerce bytes '(simple-array (unsigned-byte 8) (*))))))
 ;;; docs:end
 
+;;; docs:controlnotifications
+(defun observe-window-rename (client session window)
+  "Rename explicitly and return its owned notification bytes."
+  (let ((captured-name (tm:name window))
+        (expected (map 'vector #'char-code
+                       (format nil "%window-renamed ~A event-editors" (tm:id window)))))
+    (control:with-connection (connection client session)
+      (let ((outcome (tm:rename-window client window "event-editors" :observe nil)))
+        (assert (eq :succeeded (tm:outcome-status outcome))))
+      (let ((deadline (+ (get-internal-real-time) internal-time-units-per-second)))
+        (loop for remaining = (/ (- deadline (get-internal-real-time)) internal-time-units-per-second)
+              do (assert (plusp remaining))
+                 (multiple-value-bind (event delivery) (control:next-event connection :timeout remaining)
+                   (assert (eq :ready delivery))
+                   (when (member (getf event :kind) '(:gap :end))
+                     (error "Notification stream ended or lost data: ~S" event))
+                   (when (and (eq :notification (getf event :kind))
+                              (equalp expected (getf event :data)))
+                     (assert (string= captured-name (tm:name window)))
+                     (return (getf event :data)))))))))
+;;; docs:end
+
 ;;; docs:controlreconnect
 (defun inspect-after-reconnect (client session)
   "Return owned pane data and provenance after an explicit generation change."
@@ -71,6 +93,10 @@
         (assert (= 1 (length (tm:fetch-sessions client))))
         (format t "CONTROL PASS: queued writes, streamed ~D bytes; daemon survived connection close~%"
                 (length bytes))
+        (let ((notification (observe-window-rename client (aref (tm:sessions snapshot) 0)
+                                                   (aref (tm:windows snapshot) 0))))
+          (assert (plusp (length notification)))
+          (format t "CONTROL NOTIFICATION PASS: explicit rename observed; captured name unchanged~%"))
         (multiple-value-bind (data provenance)
             (inspect-after-reconnect client (aref (tm:sessions snapshot) 0))
           (assert (= 1 (length data)))

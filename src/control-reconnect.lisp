@@ -45,7 +45,7 @@ roll back generation renewal after a failed cutover."
               (before (capture-with-retries client token budget 100000)))
          (require-control-origin peer client)
          (control-reconnect-session peer client before)
-         (check-command-capability client :control "3.7")
+         (check-command-capability client :control "3.8")
          (check-capture-budget budget token)
          (let ((*operation-client* nil))
            (if close-function (funcall close-function) (close-control-peer peer)))

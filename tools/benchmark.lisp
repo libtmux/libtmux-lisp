@@ -112,7 +112,7 @@ counter overhead. RESULT-BYTES counts application output, not wire framing."
           (let* ((snapshot (tm:fetch-snapshot client))
                  (session (aref (tm:sessions snapshot) 0)))
             (assert (= panes (length (tm:panes snapshot))))
-            (if (libtmux.internal::version-at-least-p (tm:tmux-version client) "3.7")
+            (if (libtmux.internal::version-at-least-p (tm:tmux-version client) "3.8")
                 (let ((start (ticks)) (allocated (sb-ext:get-bytes-consed))
                       (started launches) (close-start nil) (close-allocated nil) (close-launches nil))
                   (row stream "meta" "control" "available")
@@ -125,7 +125,7 @@ counter overhead. RESULT-BYTES counts application output, not wire framing."
                   (row stream "cleanup" "control-close" 0 (seconds-since close-start)
                        (- (sb-ext:get-bytes-consed) close-allocated) (- launches close-launches) nil))
                 (progn
-                  (row stream "meta" "control" "unsupported-before-3.7")
+                  (row stream "meta" "control" "unsupported-before-3.8")
                   (cells stream client nil samples commands panes counter)))))))
     (assert (eq :closed (tm:daemon-state owner)))
     (assert (not (probe-file socket)))

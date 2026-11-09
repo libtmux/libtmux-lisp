@@ -7,7 +7,7 @@ Edit source docstrings; `mise run check` detects drift.
 
 Persistent native tmux commands and bounded byte events.
 Load the optional LIBTMUX/CONTROL system. The qualified backend requires the
-core SBCL/Linux profile and an actual tmux daemon >=3.7. Connections own a
+core SBCL/Linux profile and an actual tmux daemon >=3.8. Connections own a
 worker and process independently of their originating LIBTMUX:CLIENT.
 Submission is nonblocking; waits use condition notifications. One worker
 serializes requests and reads all protocol data. No application callback
@@ -135,9 +135,13 @@ See also: [close-connection](#close-connection-function), [libtmux:error-cause](
 Wait for an owned event/:READY or NIL/:TIMEOUT on this connection.
 TIMEOUT is nonnegative real seconds or NIL; zero polls. :OUTPUT has :PANE,
 :AGE, :EXTENDED-P and :DATA octets, preserving invalid UTF-8. :NOTIFICATION
-contains a raw line in :DATA; unsolicited :REPLY also has :FAILED-P.
+contains a raw line without LF in :DATA, preserving unknown labels and bytes.
+Native %exit is a notification; transport end is reported independently.
+Unsolicited :REPLY also has :FAILED-P.
 :GAP reports :EVENTS and :BYTES dropped from the bounded queue. An oversized
 new event reports loss without discarding retained smaller events.
+Local loss does not pause tmux. Native pause/continue notices remain raw
+notifications and are distinct from local :GAP delivery.
 :END follows retained events, with :REASON, :EXIT-CODE, :DIAGNOSTICS bytes,
 :WIRE-TAIL bytes and :CAUSE. After end, repeated reads return end immediately.
 Causes retain condition identity. No application callback executes in the reader.
@@ -154,7 +158,7 @@ See also: [await-request](#await-request-function), [connection-failure](#connec
 
 Attach a separate owned control connection to a captured SESSION.
 CLIENT supplies the core endpoint and authority. Startup preflights the target
-and requires the live daemon to be >=3.7. TIMEOUT bounds startup admission and
+and requires the live daemon to be >=3.8. TIMEOUT bounds startup admission and
 supervised execution; platform preparation and cleanup add caller wall time.
 REQUEST-LIMIT includes active and queued work. Events drop oldest entries at
 EVENT-LIMIT or EVENT-BYTE-LIMIT and report loss. REPLY-BYTE-LIMIT bounds each

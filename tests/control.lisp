@@ -5,6 +5,62 @@
 (defun local-control-connection (&rest options)
   (libtmux.control::%connection-for-peer (apply #'local-control-peer options)))
 
+(defclass admission-control-connection (libtmux.control:connection)
+  ((closes :initform 0 :accessor admission-closes)))
+
+(defmethod libtmux.control:close-connection :before ((connection admission-control-connection))
+  (incf (admission-closes connection)))
+
+(test control-admission-refuses-legacy-live-witness-before-cutover
+  (let ((capture-function (symbol-function 'libtmux.internal::capture-with-retries))
+        (attach-function (symbol-function 'libtmux.internal::attach-control-peer))
+        (active-client nil) (capture nil) (witness nil) (attachments 0) (candidates nil))
+    (unwind-protect
+         (progn
+           (setf (symbol-function 'libtmux.internal::capture-with-retries)
+                 (lambda (client token budget limit)
+                   (declare (ignore token budget limit))
+                   (assert (eq client active-client))
+                   (setf (slot-value client 'libtmux::witness) witness)
+                   capture)
+                 (symbol-function 'libtmux.internal::attach-control-peer)
+                 (lambda (&rest arguments)
+                   (declare (ignore arguments))
+                   (incf attachments)
+                   (let ((peer (local-control-peer))) (push peer candidates) peer)))
+           (dolist (version '("3.7" "3.7a" "3.7b" "3.7c"))
+             (let* ((client (make-instance 'libtmux:client))
+                    (context (slot-value client 'libtmux::context))
+                    (generation (slot-value client 'libtmux::generation)))
+               (setf active-client client attachments 0
+                     capture (synthetic-snapshot :context context :generation generation)
+                     witness (libtmux.internal::make-server-witness :version version)
+                     (slot-value client 'libtmux::witness) witness
+                     (slot-value client 'libtmux::version) "3.8")
+               (let* ((peer (local-control-peer :origin-client client :origin-context context
+                              :origin-generation generation :origin-session "$1"
+                              :origin-witness (libtmux.internal::witness-values witness)))
+                      (old (make-instance 'admission-control-connection :peer peer)))
+                 (unwind-protect
+                      (progn
+                        (dolist (operation (list (lambda () (libtmux.control:open-connection
+                                                           client (aref (libtmux:sessions capture) 0)))
+                                                 (lambda () (libtmux.control:reconnect old))))
+                          (let ((failure (handler-case (progn (funcall operation) nil)
+                                           (error (condition) condition))))
+                            (is (typep failure 'libtmux:unsupported-capability))
+                            (when (typep failure 'libtmux:unsupported-capability)
+                              (is (string= "3.8" (libtmux:error-required-version failure)))
+                              (is (string= version (libtmux:error-actual-version failure)))))
+                          (is (zerop attachments))
+                          (is (zerop (admission-closes old)))
+                          (is (= generation (slot-value client 'libtmux::generation)))))
+                   (libtmux.control:close-connection old)
+                   (libtmux:close-client client))))))
+      (setf (symbol-function 'libtmux.internal::capture-with-retries) capture-function
+            (symbol-function 'libtmux.internal::attach-control-peer) attach-function)
+      (dolist (peer candidates) (libtmux.internal::close-control-peer peer)))))
+
 (test control-cleanup-does-not-transfer-ownership-to-a-core-operation
   (let* ((client (make-instance 'libtmux:client))
          (connection (local-control-connection))

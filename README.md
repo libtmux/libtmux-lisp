@@ -28,7 +28,7 @@ apply and an explicit-endpoint CLI;
 for the exact reviewed tmux catalogs through 3.8; explicit entity and server
 termination with retained outcome evidence; [owned daemon scopes](docs/daemons.md);
 optional [queued control commands, pane-output streams and explicit reconnection](docs/control.md) on
-tmux 3.7+.
+tmux 3.8+.
 **In development:** broader event qualification and source filtering.
 MCP is intentionally out of scope. The `0.1.0`
 systems are unreleased.

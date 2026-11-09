@@ -132,9 +132,9 @@ serialized request writes. Requests queue without waiting; awaiting a result
 and receiving an event have separate timeout results. Closing cancels pending
 work, joins the owned worker and leaves the daemon running.
 
-The live daemon must be at least 3.7 because older control initialization can
-crash during connection setup or cancellation. The version comes from the
-daemon witness. Core operations still support 3.3a through 3.8. Current live
+The live daemon must be at least 3.8 so native notifications are deferred until
+a command reply ends. The 3.7 series can include pause/continue notices inside
+replies. The version comes from the daemon witness. Core operations still support 3.3a through 3.8. Current live
 control tests exercise 3.8; the 3.3a test proves rejection before a control launch.
 
 Reply bytes, pending requests and event delivery have separate finite limits.

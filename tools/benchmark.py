@@ -80,7 +80,7 @@ def read_records(path, count, commands):
             raise ValueError("Unknown benchmark record")
     if not clean or not all(metadata.get(key) for key in ("sbcl", "asdf", "tmux", "control", "clock", "clock-units-per-second")):
         raise ValueError("Missing runtime or cleanup evidence")
-    if metadata["control"] not in ("available", "unsupported-before-3.7"):
+    if metadata["control"] not in ("available", "unsupported-before-3.7", "unsupported-before-3.8"):
         raise ValueError("Unknown control qualification")
     phases = ["subprocess", "snapshot"]
     if metadata["control"] == "available":
