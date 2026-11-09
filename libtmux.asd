@@ -49,7 +49,7 @@
                (:file "src/configuration-options"
                       :description "Private typed decoding of known option and hook records across exact tmux schemas.")
                (:file "src/dispatch"
-                      :description "Target guards, dispatch evidence and independent observation outcomes.")
+                      :description "Target and private consumer guards, dispatch evidence and independent observation outcomes.")
                (:file "src/configuration-operations"
                       :description "Native configuration printer inspection and typed option, hook and environment mutations.")
                (:file "src/configuration-acquisition"

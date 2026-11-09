@@ -497,3 +497,79 @@
                 (libtmux:show-options-text client :scope :server :name "@invalid-utf8" :value-only t)
               (is (string= (fixture-ok fixture "show-options" "-sv" "@invalid-utf8") text))
               (is (eq :succeeded (libtmux:outcome-status outcome)))))))))
+
+(test live-operation-preconditions-refuse-changed-state
+  (with-tmux-fixture (fixture)
+    (with-fixture-client (client fixture)
+      (let* ((window (aref (libtmux:fetch-windows client) 0))
+             (name (libtmux:name window))
+             (control "@libtmux-operation-state")
+             (expression (format nil "#{==:#{~A},EXPECTED}" control))
+             (generation (slot-value client 'libtmux::generation))
+             (caught nil) (changed nil) (after-guard 0))
+        (fixture-ok fixture "set-option" "-s" control "EXPECTED")
+        (let ((libtmux.internal::*dispatch-preconditions* (list (list nil expression)))
+              (libtmux.internal::*before-dispatch-hook*
+                (lambda (job)
+                  (when changed (incf after-guard))
+                  (when (and (not changed)
+                             (find "if-shell" (libtmux.internal::process-job-argv job)
+                                   :test #'equal))
+                    (setf changed t)
+                    (fixture-ok fixture "set-option" "-s" control "OTHER")))))
+          (declare (special libtmux.internal::*dispatch-preconditions*))
+          (handler-case (libtmux:rename-window client window "must-not-run")
+            (libtmux:libtmux-error (condition) (setf caught condition))))
+        (is (not (null changed)))
+        (is (not (null caught)))
+        (when caught
+          (is (typep caught 'libtmux.internal::dispatch-precondition-failed))
+          (is (eq window (libtmux:error-target caught)))
+          (let ((outcome (libtmux:error-outcome caught)))
+            (is (eq :not-dispatched (libtmux:outcome-status outcome)))
+            (is (eq :guard-rejected (libtmux:outcome-phase outcome)))
+            (is (eq :operation-precondition (libtmux:outcome-reason outcome)))))
+        (is (zerop after-guard))
+        (is (= generation (slot-value client 'libtmux::generation)))
+        (is (string= (format nil "~A~%" name)
+                     (fixture-ok fixture "display-message" "-p" "-t"
+                                 (libtmux:id window) "#{window_name}")))
+        (fixture-ok fixture "set-option" "-s" control "EXPECTED")
+        (let ((libtmux.internal::*dispatch-preconditions* (list (list nil expression)))
+              (libtmux.internal::*before-dispatch-hook*
+                (lambda (job)
+                  (declare (ignore job))
+                  (setf (char expression 0) #\0))))
+          (declare (special libtmux.internal::*dispatch-preconditions*))
+          (is (eq :succeeded (libtmux:outcome-status
+                              (libtmux:rename-window client window "guard-owned" :observe nil)))))
+        (let* ((snapshot (libtmux:fetch-snapshot client))
+               (fresh (find (libtmux:id window) (libtmux:windows snapshot)
+                            :key #'libtmux:id :test #'string=))
+               (pane-sequence (format nil "~{~A.~}"
+                                      (map 'list #'libtmux:id (libtmux:panes fresh))))
+               (libtmux.internal::*dispatch-preconditions*
+                 (list (list (libtmux:id fresh)
+                             (format nil "#{==:#{P:#{pane_id}.},~A}" pane-sequence))))
+               (added nil)
+               (libtmux.internal::*before-dispatch-hook*
+                 (lambda (job)
+                   (when (and (not added)
+                              (find "if-shell" (libtmux.internal::process-job-argv job)
+                                    :test #'equal))
+                     (setf added t)
+                     (fixture-ok fixture "split-window" "-d" "-t"
+                                 (libtmux:id fresh) "/bin/cat")))))
+          (declare (special libtmux.internal::*dispatch-preconditions*))
+          (signals libtmux:libtmux-error
+            (libtmux:select-layout client fresh :tiled :observe nil))
+          (is (not (null added))))
+        (let ((libtmux.internal::*dispatch-preconditions*
+                (list (list nil (make-string 20000 :initial-element #\1)))))
+          (declare (special libtmux.internal::*dispatch-preconditions*))
+          (signals libtmux:invalid-argument
+            (libtmux:rename-window client window "oversized-guard" :observe nil)))
+        (let ((libtmux.internal::*dispatch-preconditions* '((nil "1"))))
+          (declare (special libtmux.internal::*dispatch-preconditions*))
+          (signals libtmux:invalid-argument
+            (libtmux.internal::perform-command client nil '("show-buffer") :raw-read t)))))))

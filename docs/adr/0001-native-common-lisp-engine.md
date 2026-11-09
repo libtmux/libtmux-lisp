@@ -482,7 +482,13 @@ store `new-session -e` values before spawning the first pane. Describing those
 values as pane-local would hide inheritance by subsequent windows and panes.
 Custom layout source remains separate from observed geometry and pane IDs.
 Owned metadata, logical IDs, drift and explicit reconciliation remain required
-unfinished work; these creation inputs do not establish them.
+unfinished work; these creation inputs do not establish them. The separately
+reviewed [owned workspace design](../design/workspace-v2.md) uses a distinct
+schema, a permanent server-scoped control record and bounded immutable
+revisions. Publication ends the writer's mutations; the next claimed writer
+collects known garbage before domain changes. Local planning consumes explicit
+metadata acquisition rather than hiding reads in captured getters. Native
+mechanism probes do not qualify that consumer's implementation.
 
 The optional [`:total-timeout` application budget](../workspaces.md#bound-application-time)
 is shared within one application and checked after planning. Each core call

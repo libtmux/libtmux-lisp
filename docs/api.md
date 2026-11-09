@@ -792,7 +792,7 @@ Applicable first argument types: [unsupported-configuration](#unsupported-config
 
 `(error-target condition)`
 
-Return the stale captured target, or NIL when unavailable. No I/O.
+Return the captured target associated with a dispatch refusal, or NIL. No I/O.
 
 [Source](../src/conditions.lisp)
 
@@ -2765,7 +2765,7 @@ Direct supertypes: `standard-object`.
 
 ### stale-target
 
-Captured target authority no longer agrees with the live server.
+Captured target authority or required dispatch context no longer agrees with live state.
 
 [Source](../src/conditions.lisp)
 

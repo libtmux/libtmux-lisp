@@ -1,5 +1,38 @@
 (in-package #:libtmux.internal)
 
+(defvar *dispatch-preconditions* nil
+  "Private, dynamically scoped (locator expression) pairs for one core call.
+Co-released consumers generate bounded formats from registered fields and owned
+IDs. Persisted text is never accepted as executable format source.")
+
+(define-condition dispatch-precondition-failed (libtmux:stale-target) ()
+  (:documentation "An additional live guard refused the payload before dispatch."))
+
+(defun owned-dispatch-preconditions (preconditions)
+  (when (null preconditions) (return-from owned-dispatch-preconditions nil))
+  (let ((entries (finite-vector preconditions "Dispatch preconditions")))
+    (when (> (length entries) 8)
+      (invalid-argument "At most eight dispatch preconditions are supported"))
+    (labels ((own (value name)
+               (unless (and (stringp value) (<= (length value) 16000))
+                 (invalid-argument "~A must fit the command envelope" name))
+               (text-argument value name nil)))
+      (let ((owned
+              (loop for pair across entries
+                    for parts = (progn
+                                  (unless (listp pair)
+                                    (invalid-argument "A dispatch precondition must be a two-item list"))
+                                  (finite-vector pair "Dispatch precondition"))
+                    do (unless (= (length parts) 2)
+                         (invalid-argument "A dispatch precondition must contain locator and expression"))
+                    collect (list (when (aref parts 0)
+                                    (own (aref parts 0) "Precondition locator"))
+                                  (own (aref parts 1) "Precondition expression")))))
+        (check-command-envelope
+         (loop for (locator expression) in owned
+               append (if locator (list locator expression) (list expression))))
+        owned))))
+
 (defun format-equal (field value)
   (format nil "#{==:#{~A},~A}" field
           (if (integerp value) (write-to-string value :base 10 :radix nil) value)))
@@ -32,10 +65,20 @@
          (format-equal "start_time" (server-witness-start witness))
          (format-equal "version" (server-witness-version witness)))))
 
-(defun guarded-command (witness targets arguments nonce)
+(defun guarded-command (witness targets arguments nonce &optional preconditions)
   (let ((body (tmux-command-list
                (list arguments (receipt-command (concatenate 'string nonce ":complete")))))
         (reject-target (tmux-command-text (receipt-command (concatenate 'string nonce ":target")))))
+    (dolist (precondition (reverse preconditions))
+      (destructuring-bind (locator expression) precondition
+        ;; The selected literal rechecks the same formatter deadline after evaluation.
+        (setf body
+              (tmux-command-text
+               (append '("if-shell" "-F") (when locator (list "-t" locator))
+                       (list (format nil "#{?~A,1,0}" expression) body
+                             (tmux-command-text
+                              (receipt-command
+                               (concatenate 'string nonce ":precondition")))))))))
     (dolist (target (reverse targets))
       (multiple-value-bind (locator guard) (target-guard target)
         (when guard
@@ -83,6 +126,13 @@
          (body (if entered-p (subseq bytes (length entered)) bytes))
          (server-rejected (byte-prefix-p (receipt-bytes nonce "server") body))
          (target-rejected (byte-prefix-p (receipt-bytes nonce "target") body)))
+    (when (and entered-p
+               (byte-prefix-p (receipt-bytes nonce "precondition") body))
+      (setf (slot-value outcome 'libtmux::status) :not-dispatched
+            (slot-value outcome 'libtmux::phase) :guard-rejected
+            (slot-value outcome 'libtmux::reason) :operation-precondition)
+      (error 'dispatch-precondition-failed :client client :target (first targets)
+             :outcome outcome :message "The live operation precondition refused the command"))
     (when (or server-rejected target-rejected)
       (when server-rejected (invalidate-client-generation client))
       (setf (slot-value outcome 'libtmux::status) :not-dispatched
@@ -166,13 +216,16 @@
 
 (defun perform-command (client targets arguments &key input cancel-token timeout output-limit observe
                                                     minimum-version feature version-flags raw-read
-                                                    argument-builder)
+                                                    argument-builder
+                       &aux (preconditions (owned-dispatch-preconditions *dispatch-preconditions*)))
   (setf timeout (or timeout (slot-value client 'libtmux::timeout))
         output-limit (or output-limit (slot-value client 'libtmux::output-limit))
         arguments (coerce (argument-vector arguments) 'list)
         input (and input (octet-vector input)))
   (check-limits timeout output-limit)
   (check-command-envelope arguments)
+  (when (and raw-read preconditions)
+    (invalid-argument "Payload-only reads do not accept dispatch preconditions"))
   (when (and raw-read (or input observe (not (equal (first arguments) "show-buffer"))))
     (invalid-argument "The payload-only read path is reserved for show-buffer"))
   (handler-bind ((libtmux:libtmux-error
@@ -206,7 +259,7 @@
                               (let ((effective (command-version-flags client prepared version-flags)))
                                 (if raw-read
                                     (guarded-read-command witness current effective)
-                                    (guarded-command witness current effective nonce))))
+                                    (guarded-command witness current effective nonce preconditions))))
                            (libtmux:libtmux-error (condition)
                              (preflight-failure client requested-arguments start condition))))
                 (outcome (execute-tmux client encoded token

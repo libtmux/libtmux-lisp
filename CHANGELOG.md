@@ -37,6 +37,10 @@
 
 ### Added
 
+- Prepare private payload preconditions for owned workspace operations, retaining
+  non-dispatch evidence when live state changes. Full workspace ownership and
+  reconciliation remain unfinished.
+
 - Accept explicit pane shell source, bounded session environment and custom
   tmux layouts in native and JSON workspace declarations. Preserve creation
   outcomes and topology-only reuse.
