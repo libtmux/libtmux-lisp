@@ -185,6 +185,17 @@ with tempfile.TemporaryDirectory(prefix="libtmux-lisp-managed-") as directory:
         "--load", str(Path(asdf) / "asdf.lisp"),
         "--script", str(root / "examples/managed-daemon.lisp"),
     ], cwd=directory, env=managed_environment, check=True, timeout=20)
+control_example = "SKIP: requires tmux 3.7 or newer"
+control_version = re.fullmatch(r"tmux ([0-9]+)\.([0-9]+)([a-z]?)", version)
+if control_version and tuple(map(int, control_version.group(1, 2))) >= (3, 7):
+    control_environment = environment.copy()
+    control_environment["LIBTMUX_PROGRAM"] = program
+    subprocess.run([
+        "sbcl", "--noinform", "--no-sysinit", "--no-userinit",
+        "--load", str(Path(asdf) / "asdf.lisp"),
+        "--script", str(root / "examples/control.lisp"),
+    ], cwd=root, env=control_environment, check=True, timeout=10)
+    control_example = "PASS"
 evidence = {"status": "PASS", "tmux": version,
             "sbcl": subprocess.check_output(["sbcl", "--version"], text=True).strip(),
             "elapsed_seconds": round(time.monotonic() - started, 3),
@@ -201,6 +212,7 @@ evidence["tutorial_lisp_blocks"] = len(forms)
 evidence["tutorial_console_setup_cleanup"] = "PASS"
 evidence["workspace_cli"] = workspace_cli
 evidence["managed_daemon"] = "PASS"
+evidence["persistent_control"] = control_example
 output = Path(__file__).resolve().parents[1] / "dist"
 output.mkdir(exist_ok=True)
 (output / "examples-evidence.json").write_text(json.dumps(evidence, indent=2) + "\n")

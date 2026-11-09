@@ -4,7 +4,7 @@
   "Private persistent connection; one worker owns all process and protocol I/O."
   (lock (make-lock "tmux control")) (changed (make-condition-variable))
   (close-lock (make-lock "tmux control close"))
-  job worker wake (state :starting) finished stop-requested failure
+  job worker wake (state :starting) finished stop-requested stop-reason failure api-object
   (key (symbol-name (gensym "LIBTMUX-CONTROL-"))) (serial 0) ready-marker
   decoder header (frame (byte-buffer)) (wire-tail (octet-vector nil))
   (pending nil) active
@@ -17,7 +17,7 @@
 (defstruct control-request
   "Private queued request with owned arguments, accumulated replies and state."
   peer arguments effect marker deadline
-  (state :queued) dispatched reason (output (byte-buffer)) (replies 0) failed
+  (state :queued) dispatched reason cancel-requested (output (byte-buffer)) (replies 0) failed
   (wire-tail (octet-vector nil)) truncated)
 
 (define-condition control-start-failed (libtmux:command-failed)
@@ -92,9 +92,9 @@ retained events after the worker closes. Application callbacks are not run."
           (decf (control-peer-event-bytes peer) (length (getf event :data)))
           event))
        ((control-peer-finished peer)
-        (list :kind :end :reason (if (control-peer-stop-requested peer) :closed
-                                    (or (and (control-peer-job peer)
-                                             (process-job-reason (control-peer-job peer))) :eof))
+        (list :kind :end :reason (or (control-peer-stop-reason peer)
+                                    (and (control-peer-job peer)
+                                         (process-job-reason (control-peer-job peer))) :eof)
               :exit-code (and (control-peer-job peer) (process-job-code (control-peer-job peer)))
               :diagnostics (copy-seq (control-peer-diagnostics peer))
               :wire-tail (copy-seq (control-peer-wire-tail peer))
@@ -235,6 +235,31 @@ in-flight deadline closes this connection and retains partial replies."
          (when (control-peer-wake peer) (wake-operation (control-peer-wake peer)))
          request)))))
 
+(defun cancel-control-request (request)
+  "Cancel queued work, or close the connection for an active request.
+The worker records positive stdin progress before completing active cancellation."
+  (check-type request control-request)
+  (let* ((peer (control-request-peer request))
+         (cancelled
+           (with-control-lock
+            peer
+            (lambda ()
+              (when (and (not (control-request-cancel-requested request))
+                         (member (control-request-state request) '(:queued :writing :running)))
+                (setf (control-request-cancel-requested request) t)
+                (if (eq (control-request-state request) :queued)
+                    (setf (control-peer-pending peer) (remove request (control-peer-pending peer))
+                          (control-request-state request) :cancelled
+                          (control-request-reason request) :not-dispatched)
+                    (setf (control-peer-stop-requested peer) t
+                          (control-peer-stop-reason peer) :cancelled
+                          (control-peer-state peer) :closing))
+                (condition-broadcast (control-peer-changed peer))
+                t)))))
+    (when (and cancelled (control-peer-stop-requested peer) (control-peer-job peer))
+      (libtmux:cancel (process-job-token (control-peer-job peer))))
+    cancelled))
+
 (defun control-supervisor-step (peer job)
   (with-control-lock
    peer
@@ -243,7 +268,11 @@ in-flight deadline closes this connection and retains partial replies."
        (when (and request (plusp (process-job-offset job)))
          (setf (control-request-dispatched request) t)
          (when (member (control-request-state request) '(:queued :writing :running))
-           (setf (control-request-state request) :running))))
+           (setf (control-request-state request) :running)))
+       (when (and request (control-request-cancel-requested request))
+         (stop-job job :cancelled)
+         (setf (control-request-state request) :cancelled
+               (control-request-reason request) :cancelled)))
      (let ((stdout (aref (process-job-buffers job) 0))
            (stderr (aref (process-job-buffers job) 1)))
        (when (plusp (length stdout))
@@ -308,7 +337,9 @@ in-flight deadline closes this connection and retains partial replies."
              (remaining (- (control-peer-reply-byte-limit peer) (length (control-request-output active)))))
         (setf (control-request-wire-tail active) (subseq tail 0 (min remaining (length tail))))
         (when (> (length tail) remaining) (setf (control-request-truncated active) t)))
-      (unless (eq (control-request-state active) :timed-out)
+      (when (control-request-cancel-requested active)
+        (setf (control-request-state active) :cancelled (control-request-reason active) :cancelled))
+      (unless (member (control-request-state active) '(:timed-out :cancelled))
         (let ((reason (process-job-reason (control-peer-job peer))))
           (if (member reason '(:deadline :request-timeout))
               (setf (control-request-state active) :timed-out (control-request-reason active) :deadline)
@@ -354,8 +385,11 @@ Unfinished requests retain partial bytes and dispatch state. Retry this call
 if CLEANUP-FAILED retains resources. Repeated successful close is harmless."
   (check-type peer control-peer)
   (with-control-lock
-   peer (lambda () (setf (control-peer-stop-requested peer) t)
-          (unless (control-peer-finished peer) (setf (control-peer-state peer) :closing))))
+   peer (lambda ()
+          (unless (control-peer-finished peer)
+            (setf (control-peer-stop-requested peer) t
+                  (control-peer-stop-reason peer) (or (control-peer-stop-reason peer) :closed)
+                  (control-peer-state peer) :closing))))
   (when (control-peer-job peer) (libtmux:cancel (process-job-token (control-peer-job peer))))
   (when (and (control-peer-worker peer)
              (not (eq (control-peer-worker peer) (current-thread))))

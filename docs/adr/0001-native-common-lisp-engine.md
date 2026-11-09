@@ -22,8 +22,10 @@ work. They preserve the existing ownership and explicit-effect contracts.
 
 Core acquisition, local queries, optional codecs, named mutations and workspace
 creation are implemented. Decoded configuration readers, source filtering,
-persistent control/events and final suite qualification remain open. Private
-decoder or relay experiments do not establish a public acquisition backend.
+complete control/event coverage, reconnect and final suite qualification remain
+open. Scoped persistent requests and pane-output byte events are implemented
+in an optional system. Private decoder or relay experiments do not establish
+a public acquisition backend.
 The [verification record](../../verification.md) owns commands and evidence;
 this ADR owns the architectural decisions.
 
@@ -466,13 +468,17 @@ timeout/end/loss/cancellation results and callbacks outside the reader.
 Acknowledgment and operation-specific completion must remain distinct. Reconnect
 requires a new generation and recapture; it cannot imply replay.
 
-The private engine reuses the existing process supervisor for one persistent
+The persistent engine reuses the existing process supervisor for one persistent
 worker, serialized queued requests, bounded reply/event storage and explicit
 close. It follows ordinary tmux control framing. A separate completion command
 after each input line allows command-error recovery without stranding queued
 requests. Event overflow reports dropped event/byte counts; wait timeouts,
-request deadlines and connection end remain distinct. The public adapter and
-complete event/reconnect acceptance remain unfinished. The engine assumes a
+request deadlines and connection end remain distinct. The public
+[`libtmux.control`](../control-api.md) adapter provides CLOS connection/request
+handles, lexical scopes, owned byte results/events and explicit cancellation.
+Queued cancellation is local; active cancellation disconnects without replay,
+retaining worker-observed dispatch evidence. Complete event/reconnect acceptance
+and the comparative mode benchmark remain unfinished. The engine assumes a
 trusted tmux daemon and follows its ordinary framing conventions.
 
 The private codecs provide bounded LF assembly and pane-output byte decoding.
@@ -489,7 +495,7 @@ defines reply guards. Older daemon initialization needs separate scrutiny:
 can enter control cleanup, while
 [`server_client_dispatch_identify`](https://github.com/tmux/tmux/blob/3.3a/server-client.c#L2969-L2987)
 starts control state only after identification completes. The proposed one-shot
-control acquisition route remains disabled. The separate private persistent
+control acquisition route remains disabled. The separate persistent
 engine checks the live daemon's 3.7 minimum before starting
 control mode. Harmless parser/relay experiments
 cannot qualify a live daemon path, kernel premise or portable transport.

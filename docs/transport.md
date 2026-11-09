@@ -120,11 +120,14 @@ reported as incomplete cleanup.
 See the [architecture decision](adr/0001-native-common-lisp-engine.md#supervise-subprocesses-with-explicit-scopes-and-bounded-outcomes)
 for launcher alternatives and saved-image limitations.
 
-## Private control implementation
+<a id="private-control-implementation"></a>
 
-The optional `libtmux/control` system contains a private persistent connection
-engine and byte codecs. A public connection/subscription API remains in
-development. The engine uses the existing process supervisor, one reader and
+## Persistent control implementation
+
+The optional `libtmux/control` system exposes scoped native connections, queued
+requests and byte events through [`libtmux.control`](control-api.md). See the
+[control guide](control.md) and its executable example. The engine reuses the
+existing process supervisor, one reader and
 serialized request writes. Requests queue without waiting; awaiting a result
 and receiving an event have separate timeout results. Closing cancels pending
 work, joins the owned worker and leaves the daemon running.
@@ -157,4 +160,4 @@ It sends a separate completion command after each request so a failed command
 does not strand the next request. It performs no automatic mutation retry or
 reconnection. See the
 [architecture record](adr/0001-native-common-lisp-engine.md#qualify-control-mode-and-source-filtering-before-exposing-them)
-for the remaining public-interface and compatibility work.
+for the remaining reconnect, event coverage and compatibility work.

@@ -118,21 +118,24 @@
                       :description "Closed versioned filter documents with bounded event decoding.")))
 
 (defsystem "libtmux/control"
-  :description "Private persistent control requests, events and byte codecs"
+  :description "Persistent native control requests, scoped connections and byte events"
   :depends-on ("libtmux")
   :in-order-to ((test-op (test-op "libtmux/tests/control")))
   :serial t
   :components ((:file "src/control-codec"
                       :description "Private bounded LF assembly and byte-preserving pane-output decoding.")
                (:file "src/control-peer" :if-feature (:and :sbcl :linux :x86-64)
-                      :description "Private persistent control connection, queued requests, bounded events and owned worker cleanup.")))
+                      :description "Private persistent control connection, queued requests, bounded events and owned worker cleanup.")
+               (:file "src/control"
+                      :description "Public CLOS control resources, cancellation, conditions and lexical cleanup scopes.")))
 
 (defsystem "libtmux/tests/control"
   :description "Local control-output byte-codec tests; no tmux connection"
   :depends-on ("libtmux/tests" "libtmux/control")
   :serial t
   :components ((:file "tests/control-codec")
-               (:file "tests/control-state"))
+               (:file "tests/control-state")
+               (:file "tests/control"))
   :perform (test-op (operation component)
              (declare (ignore operation component))
              (unless (uiop:symbol-call :libtmux.tests :run-suite :control)

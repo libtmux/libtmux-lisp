@@ -2,7 +2,8 @@
 
 The implemented systems suit bounded, blocking SBCL/Linux tmux automation with
 captured graph traversal, native queries, explicit commands and declarative
-workspace bootstrap. Persistent control/events remain future work.
+workspace bootstrap. Persistent control requests and pane-output events are optional; reconnect and
+complete event coverage remain unfinished.
 
 | Area | Available now | Remaining work |
 | --- | --- | --- |
@@ -10,11 +11,11 @@ workspace bootstrap. Persistent control/events remain future work.
 | Acquisition | Finite CLOS snapshots, explicit window links, identity, bounds and replacement observations | Complete acceptance after further operations |
 | Local processing | Ordinary lists/vectors, functions, owned plists, presence via multiple values, validated relation/regex queries and eager QuerySets | Source-side filter lowering |
 | Operations | Creation, rename, selection, geometry, placement, input, buffers, respawn, shell pipes, native configuration printer inspection and typed mutations, captured terminal-client requests, session/server frontend locking, message/command/key printing, key binding/removal, server ACL entries, wait channels (blocking wait/lock require 3.8), explicit entity/server termination and private empty-config daemon scopes | Remaining named server-command helpers and decoded configuration readers |
-| Concurrency | Synchronous calls; cancellation; one operation per client | Public asynchronous API and persistent control transport |
-| Streaming/events | Complete bounded captures and byte buffers; daemon-owned `pipe-pane` | Native event/output subscriptions, bounded delivery, loss and backpressure |
+| Concurrency | Synchronous core calls; one operation per client; optional nonblocking control submission and event waits | Reconnect and complete control/event qualification |
+| Streaming/events | Bounded captures and byte buffers; daemon-owned `pipe-pane`; optional native pane-output events with gap/end results | Complete event coverage, reconnect and backpressure policy |
 | Workspace | Separate bounded JSON/native system, pure plans, explicit apply, topology reuse and explicit-endpoint CLI | Owned declaration/ID metadata, drift inspection, richer configuration and explicit reconciliation; deletion and process supervision remain outside v1 |
 | MCP | Intentionally excluded by project policy | Use a separately maintained external integration if one becomes suitable |
-| Optional integrations | Separate CL-PPCRE regex, bounded query JSON, workspace/CLI and private control connection/codecs | Public control/subscription API and complete event/reconnect acceptance |
+| Optional integrations | Separate CL-PPCRE regex, bounded query JSON, workspace/CLI and scoped native control connections | Complete event/reconnect acceptance and mode benchmarks |
 | Performance | No benchmark claims | Reproducible acquisition/filter/stream workloads and latency/allocation results |
 
 The process backend services stdin/stdout/stderr through nonblocking descriptors

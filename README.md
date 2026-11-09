@@ -25,8 +25,11 @@ apply and an explicit-endpoint CLI;
 [configuration printer inspection](docs/operations.md#configuration-inspection) and
 [typed option, hook and environment mutations](docs/operations.md#configuration-mutations)
 for the exact reviewed tmux catalogs through 3.8; explicit entity and server
-termination with retained outcome evidence; [owned daemon scopes](docs/daemons.md).
-**In development:** decoded configuration readers, control/events and streaming.
+termination with retained outcome evidence; [owned daemon scopes](docs/daemons.md);
+optional [queued control commands and pane-output streams](docs/control.md) on
+tmux 3.7+.
+**In development:** decoded configuration readers, reconnect and broader event
+qualification.
 MCP is intentionally out of scope. The `0.1.0`
 systems are unreleased.
 

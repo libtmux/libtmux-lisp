@@ -88,6 +88,7 @@
     (libtmux.internal::control-supervisor-step peer job)
     (let ((first (libtmux.internal::await-control-request request :timeout 0)))
       (is (eq :completed (getf first :status)))
+      (is (not (libtmux.internal::cancel-control-request request)))
       (is (eq t (getf first :dispatched-p)))
       (fill (getf first :output) 0))
     (is (equalp #(104 101 108 108 111 10)
@@ -177,3 +178,67 @@
     (let ((result (libtmux.internal::await-control-request request :timeout 0)))
       (is (eq :timed-out (getf result :status)))
       (is (eq :deadline (getf result :reason))))))
+
+(test control-cancellation-preserves-queue-and-dispatch-evidence
+  (let* ((peer (local-control-peer))
+         (active (libtmux.internal::submit-control-command peer '("wait-for" "held") :effect :read))
+         (queued (libtmux.internal::submit-control-command peer '("display-message" "-p" "unused") :effect :read))
+         (job (libtmux.internal::control-peer-job peer)))
+    (libtmux.internal::control-supervisor-step peer job)
+    (is (libtmux.internal::cancel-control-request queued))
+    (is (not (libtmux.internal::cancel-control-request queued)))
+    (let ((result (libtmux.internal::await-control-request queued :timeout 0)))
+      (is (eq :cancelled (getf result :status)))
+      (is (eq :not-dispatched (getf result :reason)))
+      (is (null (getf result :dispatched-p))))
+    (is (eq :ready (libtmux.internal::control-peer-state peer)))
+    (setf (libtmux.internal::process-job-offset job) 1)
+    (is (libtmux.internal::cancel-control-request active))
+    (libtmux.internal::finish-control-peer peer)
+    (let ((result (libtmux.internal::await-control-request active :timeout 0)))
+      (is (eq :cancelled (getf result :status)))
+      (is (eq :cancelled (getf result :reason)))
+      (is (eq t (getf result :dispatched-p))))
+    (is (not (libtmux.internal::cancel-control-request active)))))
+
+(test control-cancellation-survives-a-late-completion-marker
+  (let* ((peer (local-control-peer))
+         (request (libtmux.internal::submit-control-command peer '("display-message" "-p" "late") :effect :read))
+         (job (libtmux.internal::control-peer-job peer)))
+    (libtmux.internal::control-supervisor-step peer job)
+    (setf (libtmux.internal::process-job-offset job) (length (libtmux.internal::process-job-input job)))
+    (is (libtmux.internal::cancel-control-request request))
+    (let ((wire (libtmux.internal::encode-utf8
+                 (format nil "%begin 1 8 1~%late~%%end 1 8 1~%%begin 1 43 1~%~A~%%end 1 43 1~%"
+                         (libtmux.internal::control-request-marker request)))))
+      (libtmux.internal::append-bytes (aref (libtmux.internal::process-job-buffers job) 0) wire (length wire)))
+    (libtmux.internal::control-supervisor-step peer job)
+    (is (eq :cancelled (getf (libtmux.internal::await-control-request request :timeout 0) :status)))
+    (libtmux.internal::finish-control-peer peer)
+    (is (eq :cancelled (getf (libtmux.internal::await-control-request request :timeout 0) :status)))))
+
+(test control-worker-stops-input-before-publishing-cancellation
+  (let* ((peer (local-control-peer))
+         (request (libtmux.internal::submit-control-command peer '("display-message" "-p" "held") :effect :read))
+         (job (libtmux.internal::control-peer-job peer)))
+    (libtmux.internal::control-supervisor-step peer job)
+    ;; Model the caller after publishing intent but before cancelling the token.
+    (setf (libtmux.internal::control-request-cancel-requested request) t
+          (libtmux.internal::control-peer-state peer) :closing
+          (libtmux.internal::process-job-input-fd job) :unwritten-fixture)
+    (is (not (libtmux:cancelled-p (libtmux.internal::process-job-token job))))
+    (libtmux.internal::control-supervisor-step peer job)
+    (let ((result (libtmux.internal::await-control-request request :timeout 0)))
+      (is (eq :cancelled (getf result :status)))
+      (is (not (getf result :dispatched-p))))
+    (is (not (null (libtmux.internal::process-job-final-at job))))
+    (is (null (libtmux.internal::process-job-input-fd job)))))
+
+(test control-close-preserves-an-already-delivered-end-reason
+  (dolist (reason '(:eof :deadline :cancelled))
+    (let ((peer (local-control-peer :finished t)))
+      (setf (libtmux.internal::control-peer-state peer) :closed
+            (libtmux.internal::process-job-reason (libtmux.internal::control-peer-job peer)) reason)
+      (is (eq reason (getf (libtmux.internal::next-control-event peer :timeout 0) :reason)))
+      (libtmux.internal::close-control-peer peer)
+      (is (eq reason (getf (libtmux.internal::next-control-event peer :timeout 0) :reason))))))

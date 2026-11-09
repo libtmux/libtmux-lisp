@@ -73,7 +73,7 @@ description = "Run local workspace data and planning tests (inner loop)"
 run = "tools/lisp.sh tools/test.lisp workspace"
 
 [tasks.control]
-description = "Run private control byte-codec tests without a live transport (inner loop)"
+description = "Run local control codec, cancellation and resource-scope tests (inner loop)"
 run = "tools/lisp.sh tools/test.lisp control"
 
 [tasks.integration]

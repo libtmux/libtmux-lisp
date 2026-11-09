@@ -5,6 +5,7 @@
 (asdf:load-system "libtmux/query")
 (asdf:load-system "libtmux/regex")
 (asdf:load-system "libtmux/json")
+(asdf:load-system "libtmux/control")
 (asdf:load-system "libtmux/workspace/cli")
 
 (defpackage #:libtmux.documentation
@@ -14,6 +15,7 @@
 
 (defparameter *artifact-packages*
   '(("libtmux" :libtmux "libtmux" "core" "src/package.lisp")
+    ("libtmux.control" :libtmux.control "libtmux/control" "core" "src/control.lisp")
     ("libtmux.json" :libtmux.json "libtmux/json" "core" "src/json.lisp")
     ("libtmux.query" :libtmux.query "libtmux/query" "core" "src/query.lisp")
     ("libtmux.workspace" :libtmux.workspace "libtmux/workspace" "workspace"
@@ -35,6 +37,7 @@
 (defun reference-page (package)
   (or (cdr (assoc (package-name (find-package package))
                   '(("LIBTMUX" . "api.md")
+                    ("LIBTMUX.CONTROL" . "control-api.md")
                     ("LIBTMUX.QUERY" . "query-api.md")
                     ("LIBTMUX.JSON" . "json-api.md")
                     ("LIBTMUX.WORKSPACE" . "workspace-api.md")
@@ -663,6 +666,35 @@
                               (string-downcase (symbol-name (class-name superclass))))
                             (sb-mop:class-direct-superclasses class)))))))))
 
+(defun render-control-api ()
+  (let ((*package* (find-package :libtmux.control)) (*print-case* :downcase)
+        (*print-pretty* nil) (*print-circle* t))
+    (with-output-to-string (out)
+      (format out "# Persistent control API~%~%Generated from live package documentation and signatures by `mise run docs`.~%Edit source docstrings; `mise run check` detects drift.~%~%[Control guide](control.md) · [Transport contract](transport.md)~%~%")
+      (format out "~A~%~%" (required-documentation (find-package :libtmux.control) t))
+      (format out "## Functions~%~%")
+      (dolist (symbol (public-symbols :libtmux.control))
+        (when (fboundp symbol)
+          (multiple-value-bind (documentation related)
+              (documentation-parts symbol 'function :libtmux.control)
+            (format out "<a id=\"~A-function\"></a>~%~%### ~A~%~%`~A`~%~%~A~%~%"
+                    (spelling symbol) (spelling symbol)
+                    (signature-text (cons symbol (sb-introspect:function-lambda-list symbol)))
+                    documentation)
+            (when related (format out "~A~%~%" related))
+            (format out "~A~%~%" (source-link symbol (function-kind symbol))))))
+      (format out "## Classes and conditions~%~%These resources and conditions retain native connection/request state; their slots are private.~%~%")
+      (dolist (symbol (public-symbols :libtmux.control))
+        (let ((class (find-class symbol nil)))
+          (when class
+            (format out "<a id=\"~A-type\"></a>~%~%### ~A~%~%~A~%~%~A~%~%Direct supertypes: ~{`~A`~^, ~}.~%~%"
+                    (spelling symbol) (spelling symbol)
+                    (type-documentation symbol class)
+                    (source-link symbol (if (subtypep symbol 'condition) :condition :class))
+                    (mapcar (lambda (superclass)
+                              (string-downcase (symbol-name (class-name superclass))))
+                            (sb-mop:class-direct-superclasses class)))))))))
+
 (defun render-workspace-api ()
   (let ((*package* (find-package :libtmux.workspace)) (*print-case* :downcase)
         (*print-pretty* nil) (*print-circle* t))
@@ -737,6 +769,7 @@
     (error "Usage: tools/documentation.lisp [write|artifact [PATH]]"))
   (synchronize "docs/api.md" (render-api) write-p)
   (synchronize "docs/query-api.md" (render-query-api) write-p)
+  (synchronize "docs/control-api.md" (render-control-api) write-p)
   (synchronize "docs/json-api.md" (render-json-api) write-p)
   (synchronize "docs/workspace-api.md" (render-workspace-api) write-p)
   (synchronize "docs/fields.md" (render-fields) write-p)

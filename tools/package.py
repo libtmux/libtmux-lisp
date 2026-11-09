@@ -110,6 +110,7 @@ with tempfile.TemporaryDirectory(prefix="libtmux-lisp-consumer-") as directory:
         "--eval", '(require :asdf)',
         "--eval", '(asdf:load-system "libtmux/control")',
         "--eval", control_consumer_check,
+        "--eval", '(assert (find-class (find-symbol "CONNECTION" :libtmux.control) nil))',
         "--eval", '(assert (equalp #(0 255) (libtmux.internal::decode-control-output-line '
                   '(libtmux.internal::octet-vector #(37 111 117 116 112 117 116 32 37 49 32 '
                   '92 48 48 48 255)))))',
@@ -200,6 +201,7 @@ evidence = {"artifact": archive.name, "sha256": hashlib.sha256(archive.read_byte
             "core_consumer": "PASS", "query_consumer": "PASS",
             "regex_consumer": "PASS", "json_consumer": "PASS",
             "control_codec_consumer": "PASS",
+            "control_public_consumer": "PASS",
             "workspace_consumer": "PASS",
             "optional_source": "archive"}
 if arguments.examples:

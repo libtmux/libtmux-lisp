@@ -13,6 +13,8 @@ All examples use the native SBCL implementation.
 | [Declarative workspaces](workspaces.md) | Bounded documents, pure plans, explicit apply and CLI |
 | [Explicit operations](operations.md) | Creation, placement, input, buffers and mutation outcomes |
 | [Transport](transport.md) | Client lifecycle, limits, cancellation and failure evidence |
+| [Persistent control](control.md) | Nonblocking submission, byte output, cancellation and owned connection scopes |
+| [Control API](control-api.md) | Generated resource, request, event and recovery contracts |
 | [Daemon scopes](daemons.md) | Private foreground startup, readiness, environment and checked shutdown |
 | [Architecture decision](adr/0001-native-common-lisp-engine.md) | Engine boundaries, captured model, alternatives and trade-offs |
 | [Public API](api.md) | Generated signatures, docstrings, classes and conditions |

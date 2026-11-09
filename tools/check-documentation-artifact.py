@@ -72,6 +72,7 @@ require(
     package_names
     == [
         "libtmux",
+        "libtmux.control",
         "libtmux.json",
         "libtmux.query",
         "libtmux.workspace",
@@ -84,6 +85,9 @@ symbols = [symbol for package in packages for symbol in package.get("symbols", [
 ids = [symbol.get("id") for symbol in symbols]
 require(len(ids) == len(set(ids)), "duplicate public symbol identity")
 required = {
+    "libtmux.control:open-connection",
+    "libtmux.control:await-request",
+    "libtmux.control:next-event",
     "libtmux:fetch-snapshot",
     "libtmux:window-link",
     "libtmux.query:compile-filter",

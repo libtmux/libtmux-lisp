@@ -9,13 +9,13 @@ Provisioning uses the network; verification does not install dependencies.
 | `mise run query` | Inner | Scalar/reference agreement, relations, QuerySets, malformed data, limits, ownership and cardinality |
 | `mise run regex` | Inner | Optional CL-PPCRE search/full-match semantics, options, ownership and retained causes |
 | `mise run json` | Inner | Optional bounded filter documents, allowlists, false/empty/null distinctions and regex opt-in |
-| `mise run control` | Inner | Private LF assembly, byte fidelity, chunk/EOF handling, ownership and decoding limits; no live control connection |
-| `tools/lisp.sh tools/test.lisp control-integration` | Outer | Private persistent requests/events on 3.8, binary pane output, expiry/close/startup cleanup, and 3.3a pre-launch rejection |
+| `mise run control` | Inner | Local codecs, byte fidelity, queued/active cancellation, terminal races, CLOS resource identity and lexical cleanup; no live connection |
+| `tools/lisp.sh tools/test.lisp control-integration` | Outer | Persistent requests/events on 3.8, binary pane output, public cancellation, expiry/close/startup recovery and 3.3a pre-launch rejection |
 | `mise run check` | Mid | Source whitespace, all local unit suites, exported docstrings, generated references, excerpts and local documentation links |
 | `mise run lint-workflows` | Mid | GitHub Actions syntax, expressions and shell checks |
 | `mise run integration` | Outer | Bounded transport, cancellation/cleanup, managed daemon startup/shutdown and failure recovery, linked graphs, attached clients, daemon replacement, named operations, typed configuration mutations, exact target/server termination and tutorial failure cleanup |
-| `mise run package` | Outer | Source archive plus isolated core/query/regex/JSON/control-codec consumers and dependency-boundary checks |
-| `mise run examples` | Outer | Shipped Lisp recipes, all tutorial Lisp blocks, literal console setup/cleanup, worker consumption signals and owned daemon cleanup |
+| `mise run package` | Outer | Source archive plus isolated core/query/regex/JSON/control consumers and dependency-boundary checks |
+| `mise run examples` | Outer | Shipped Lisp recipes, all tutorial Lisp blocks, literal console setup/cleanup, worker consumption signals, optional control streaming and owned daemon cleanup |
 | `mise run package-examples` | Outer | Archive-local links, examples, and the installed workspace CLI's validate/plan/apply/reapply workflow |
 | `mise run docs` | Maintenance | Regenerate API signatures/docstrings, condition hierarchy, applicable models, fields, modules and executable excerpts |
 
@@ -102,7 +102,8 @@ $ mise exec -- tools/lisp.sh tools/check-floor.lisp /path/to/tmux-3.3/tmux
 This check asserts the executable's release, expects `unsupported-tmux`, and
 checks that opening the client created no daemon socket.
 
-Control/events, source filtering, shared-site rendering, benchmarks and
+Complete control/event coverage and reconnect, source filtering, shared-site
+rendering, benchmarks and
 integrated acceptance of all required capabilities on both CI endpoints remain
 pending. MCP is excluded by policy. The
 [capability table](docs/capabilities.md) separates implemented behavior from

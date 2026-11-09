@@ -54,6 +54,8 @@
               (setf (slot-value client 'libtmux::version) "3.8")
               (signals libtmux:unsupported-capability
                 (libtmux.internal::start-control-peer client session))
+              (signals libtmux:unsupported-capability
+                (libtmux.control:open-connection client session))
               (is (null launched)))
             (unwind-protect
                  (progn
@@ -152,12 +154,54 @@
                      (fixture-command fixture "kill-session" "-t" (libtmux:id session))))))
           (unwind-protect
                (progn
-                 (handler-case (libtmux.internal::start-control-peer client session :timeout 1)
-                   (libtmux.internal::control-start-failed (condition)
-                     (setf peer (libtmux.internal::failed-control-peer condition))))
+                 (handler-case (libtmux.control:open-connection client session :timeout 1)
+                   (libtmux.control:connection-start-failed (condition)
+                     (let ((connection (libtmux.control:error-connection condition)))
+                       (setf peer (libtmux.control::%peer connection))
+                       (is (eq connection (libtmux.control::%connection-for-peer peer)))
+                       (is (typep (libtmux:error-cause condition) 'libtmux.internal::control-start-failed))
+                       (libtmux.control:close-connection connection))))
                  (is (not (null peer)))
                  (when peer
                    (is (libtmux.internal::control-peer-finished peer))
                    (is (null (libtmux.internal::process-job-pidfd (libtmux.internal::control-peer-job peer)))))
                  (is (zerop (nth-value 2 (fixture-command fixture "has-session")))))
             (when peer (libtmux.internal::close-control-peer peer)))))))))
+
+(test control-public-cancellation-is-local-for-queued-work-and-closes-active-work
+  (with-tmux-fixture (fixture)
+    (libtmux:with-client (client :program (or (uiop:getenv "LIBTMUX_TEST_TMUX") "tmux")
+                                 :socket-path (fixture-socket fixture))
+      (if (not (libtmux.internal::version-at-least-p (libtmux:tmux-version client) "3.7"))
+          (skip "Public persistent control needs tmux 3.7 or newer")
+          (let* ((session (aref (libtmux:fetch-sessions client) 0))
+                 (connection (libtmux.control:open-connection client session :timeout 1)))
+            (unwind-protect
+                 (let* ((active (libtmux.control:submit-command connection '("wait-for" "public-held") :effect :read))
+                        (peer (libtmux.control::%peer connection)))
+                   (is (eq :ready
+                           (nth-value 1 (libtmux.internal::wait-control-value
+                                         peer (lambda () (libtmux.internal::control-request-dispatched
+                                                          (libtmux.control::%handle active))) 0.8))))
+                   (let ((queued (libtmux.control:submit-command connection '("display-message" "-p" "unused") :effect :read)))
+                     (is (libtmux.control:cancel-request queued))
+                     (is (eq :cancelled (getf (libtmux.control:await-request queued :timeout 0) :status)))
+                     (is (null (getf (libtmux.control:await-request queued :timeout 0) :dispatched-p)))
+                     (is (eq :ready (libtmux.control:connection-state connection))))
+                   (multiple-value-bind (result delivery) (libtmux.control:await-request active :timeout 0)
+                     (is (null result)) (is (eq :timeout delivery)))
+                   (let ((unused (libtmux.control:submit-command connection '("display-message" "-p" "never") :effect :read)))
+                     (is (libtmux.control:cancel-request active))
+                     (let ((result (libtmux.control:await-request active :timeout 0.8)))
+                       (is (eq :cancelled (getf result :status)))
+                       (is (eq t (getf result :dispatched-p))))
+                     (is (eq :closed (getf (libtmux.control:await-request unused :timeout 0.8) :status)))
+                     (is (not (libtmux.control:cancel-request active))))
+                   (libtmux.control:close-connection connection)
+                   (is (eq :closed (libtmux.control:connection-state connection)))
+                   (loop repeat 64 for event = (libtmux.control:next-event connection :timeout 0)
+                         when (eq :end (getf event :kind))
+                           do (is (eq :cancelled (getf event :reason))) (return)
+                         finally (fail "No end event after connection cleanup"))
+                   (is (zerop (nth-value 2 (fixture-command fixture "has-session")))))
+              (libtmux.control:close-connection connection)))))))
