@@ -69,17 +69,20 @@ See also: [apply-workspace](#apply-workspace-function), [result-outcomes](#resul
 
 ### make-workspace
 
-`(make-workspace data &key (max-windows 100) (max-panes 1000) (max-argv 256))`
+`(make-workspace data &key (max-windows 100) (max-panes 1000) (max-argv 256) (max-environment 256))`
 
 Validate closed native DATA and return an owned WORKSPACE without I/O.
 DATA is a keyword plist in schema libtmux.lisp.workspace/1. Lists and vectors
 must be finite. MAX-WINDOWS, MAX-PANES, and MAX-ARGV bound retained topology and
-commands. Session names reject period and colon; all names reject characters
-tmux would rewrite. Unknown or duplicate keys, unsafe text, and shell-like
-command strings signal INVALID-WORKSPACE. Input containers and strings are copied.
+commands. MAX-ENVIRONMENT bounds session (name . value) string pairs; tmux
+stores them in the session environment inherited by later panes. Pane :COMMAND
+is argv; :SHELL-COMMAND is explicit shell source, mutually exclusive with argv.
+Window :LAYOUT is a named keyword or (:CUSTOM string) validated by tmux on apply.
+Names reject characters tmux would rewrite. Unknown/duplicate keys, invalid
+types or limits signal INVALID-WORKSPACE. Mutable inputs are copied.
 
 
-See also: [parse-workspace](#parse-workspace-function), [plan-workspace](#plan-workspace-function), [workspace-data](#workspace-data-function).
+See also: [libtmux:new-session](api.md#new-session-function), [parse-workspace](#parse-workspace-function), [plan-workspace](#plan-workspace-function), [libtmux:select-layout](api.md#select-layout-function), [workspace-data](#workspace-data-function).
 
 [Source](../src/workspace.lisp)
 
@@ -87,12 +90,14 @@ See also: [parse-workspace](#parse-workspace-function), [plan-workspace](#plan-w
 
 ### parse-workspace
 
-`(parse-workspace source &key (max-input-bytes +default-max-input-bytes+) (max-depth +default-max-depth+) (max-nodes +default-max-nodes+) (max-string-length +default-max-string-length+) (max-windows +default-max-windows+) (max-panes +default-max-panes+) (max-argv +default-max-argv+) (max-integer-digits +default-max-integer-digits+))`
+`(parse-workspace source &key (max-input-bytes +default-max-input-bytes+) (max-depth +default-max-depth+) (max-nodes +default-max-nodes+) (max-string-length +default-max-string-length+) (max-windows +default-max-windows+) (max-panes +default-max-panes+) (max-argv +default-max-argv+) (max-environment +default-max-environment+) (max-integer-digits +default-max-integer-digits+))`
 
 Parse one bounded libtmux.lisp.workspace/1 JSON string into a WORKSPACE.
 The complete document uses a closed grammar, rejects duplicate members, and
 never interns or evaluates external names. Limits bound UTF-8 bytes, nesting,
-nodes, strings, windows, total panes, argv length, and integer token digits.
+nodes, strings, windows, total panes, argv length, session environment pairs
+(MAX-ENVIRONMENT, default 256), and integer token digits. Pane shell_command is
+explicit shell source; window layout accepts a named string or a custom object.
 Input and retained values are copied. Signals INVALID-WORKSPACE-DOCUMENT or
 WORKSPACE-LIMIT-EXCEEDED with WORKSPACE-PATH and WORKSPACE-LIMIT diagnostics.
 

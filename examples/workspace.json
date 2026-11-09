@@ -3,13 +3,14 @@
   "session": {
     "name": "declared",
     "cwd": "/tmp",
+    "environment": {"APP_LABEL": "declared"},
     "windows": [
       {
         "name": "code",
         "index": 2,
         "layout": "tiled",
         "panes": [
-          {"command": ["/bin/cat"]},
+          {"shell_command": "test \"$APP_LABEL\" = declared && exec /bin/cat"},
           {"command": ["/bin/cat"]}
         ]
       },

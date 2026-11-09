@@ -26,10 +26,35 @@ The command-line adapter is another explicit system:
 
 ## Describe a topology
 
-The shipped [`examples/workspace.json`](../examples/workspace.json) creates a
-session with two windows and three panes. Commands are argv arrays, not shell
-strings. The loader never invokes the Common Lisp reader, evaluates input, or
-interns external names.
+Start with native data. This function from
+[`examples/workspace.lisp`](../examples/workspace.lisp) constructs an owned
+declaration without I/O. The session environment is inherited by later panes.
+`:command` is literal argv; `:shell-command` explicitly requests shell execution
+during apply.
+
+<!-- example:workspacenative -->
+```lisp
+(defun workspace-description ()
+  "Build the demo's declaration without I/O. Commands run only during apply.
+APP_LABEL seeds the session environment, inherited by subsequent panes."
+  (ws:make-workspace
+   '(:schema "libtmux.lisp.workspace/1"
+     :session
+     (:name "declared" :cwd "/tmp"
+      :environment #(("APP_LABEL" . "declared"))
+      :windows
+      #((:name "code" :index 2 :layout :tiled
+         :panes #((:shell-command "test \"$APP_LABEL\" = declared && exec /bin/cat")
+                  (:command #("/bin/cat"))))
+        (:name "shell" :index 5
+         :panes #((:command #("/bin/cat")))))))))
+```
+<!-- /example -->
+
+The shipped [`examples/workspace.json`](../examples/workspace.json) describes
+the same two windows and three panes. The tested examples compare the native
+and JSON declarations before applying them. The loader never invokes the Common
+Lisp reader, evaluates input, or interns external names.
 
 ```json
 {
@@ -37,13 +62,14 @@ interns external names.
   "session": {
     "name": "declared",
     "cwd": "/tmp",
+    "environment": {"APP_LABEL": "declared"},
     "windows": [
       {
         "name": "code",
         "index": 2,
         "layout": "tiled",
         "panes": [
-          {"command": ["/bin/cat"]},
+          {"shell_command": "test \"$APP_LABEL\" = declared && exec /bin/cat"},
           {"command": ["/bin/cat"]}
         ]
       },
@@ -61,13 +87,23 @@ interns external names.
 UTF-8 file. [`parse-workspace`](workspace-api.md#parse-workspace-function)
 accepts a complete string. Both reject duplicate and unknown members, trailing
 data, nulls, floating-point numbers, and exhausted input, nesting, node, string,
-window, pane, argv, or integer-token bounds.
+window, pane, argv, environment-pair, or integer-token bounds.
 
 For trusted in-process data, [`make-workspace`](workspace-api.md#make-workspace-function)
 accepts the equivalent closed keyword plist with vectors or finite proper
 lists. It copies retained strings and containers. Session names cannot contain
 periods or colons; names also reject characters tmux would rewrite. `:layout`
 uses a Common Lisp keyword such as `:tiled`; JSON uses the corresponding string.
+Custom layouts use `(:custom text)` or JSON `{"custom": "..."}`. Tmux validates
+their checksum and geometry during apply; failure can follow completed creation.
+
+Session `:environment` accepts `(name . value)` string pairs; JSON accepts a
+string-valued object. Names are unique and exclude NUL and `=`. Empty values
+are allowed. `:max-environment` defaults to 256 and bounds pairs per session.
+These are raw tmux session values, not an exact child environment; tmux supplies
+variables such as `TMUX_PANE` and can update inherited values on attachment.
+Pane/window environment keys are unsupported. See the
+[creation-input contract](design/workspace-v1.md#native-data).
 
 ## Plan locally, then apply explicitly
 
@@ -191,7 +227,8 @@ layouts prevent repeatedly halving one shrinking pane. The requested layout
 runs after the final pane exists. No delete, restart, or compensating mutation
 runs.
 
-Command, cwd, and named layout values are creation inputs. They are not inferred
+Command argv, explicit shell source, environment, cwd and layouts are creation
+inputs. They are not inferred
 from later pane state. A pane may change process or directory without turning an
 otherwise matching topology into a destructive repair plan.
 
@@ -216,12 +253,14 @@ rolls back a mutation.
 
 Reuse checks topology by name, index and pane count, including sessions created
 outside this library. Version 1 does not retain a canonical declaration or
-owned entity mapping. Ownership checks, declaration-versus-drift planning,
-environment settings and explicit reconciliation remain unfinished.
+owned entity mapping. Logical IDs, ownership checks, declaration-versus-drift
+planning and explicit reconciliation remain unfinished. Session environment,
+shell source and custom layouts are creation inputs; reuse does not converge
+them.
 
-Version 1 deliberately omits YAML, plugins, lifecycle scripts, environment
-expansion, shell command strings, deletion, process supervision, daemon startup,
-control-mode events, and MCP. Use explicit core operations when the application
+Version 1 omits YAML, plugins, lifecycle scripts, implicit shell expansion,
+deletion, process supervision, daemon startup and control-mode events.
+Use explicit core operations when the application
 needs behavior outside this bounded bootstrap/reuse contract.
 
 The FiveAM suite proves pure planning and parser bounds without tmux. Integration

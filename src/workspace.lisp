@@ -107,16 +107,18 @@ See also: APPLY-WORKSPACE, WORKSPACE-LIMIT, RESULT-OUTCOMES."))
 (defmethod failed-step ((condition workspace-apply-failed))
   (slot-value condition 'step))
 
-(defstruct (pane-spec (:constructor %make-pane-spec (&key cwd cwd-p command command-p)))
-  cwd cwd-p command command-p)
+(defstruct (pane-spec (:constructor %make-pane-spec
+                        (&key cwd cwd-p command command-p shell-command shell-command-p)))
+  cwd cwd-p command command-p shell-command shell-command-p)
 
 (defstruct (window-spec
             (:constructor %make-window-spec
                 (&key name index index-p cwd cwd-p layout layout-p panes)))
   name index index-p cwd cwd-p layout layout-p panes)
 
-(defstruct (session-spec (:constructor %make-session-spec (&key name cwd cwd-p windows)))
-  name cwd cwd-p windows)
+(defstruct (session-spec (:constructor %make-session-spec
+                           (&key name cwd cwd-p environment environment-p windows)))
+  name cwd cwd-p environment environment-p windows)
 
 (defclass workspace ()
   ((session :initarg :session)
@@ -265,16 +267,52 @@ See also: RESULT-SNAPSHOT, RESULT-CREATED-P, APPLY-WORKSPACE."
                       :path path))
     arguments))
 
+(defun normalized-environment (value path maximum)
+  (let ((entries (finite-sequence value path "Session environment"))
+        (names (make-hash-table :test #'equal)))
+    (when (> (length entries) maximum)
+      (fail-workspace "Session environment exceeds MAX-ENVIRONMENT"
+                      :path path :limit :max-environment))
+    (loop for entry across entries for index from 0
+          for entry-path = (path+ path index)
+          do (unless (consp entry)
+               (fail-workspace "Environment entries must be (name . value) string pairs"
+                               :path entry-path))
+          collect (let ((name (owned-text (car entry) entry-path "Environment name"))
+                        (value (owned-text (cdr entry) entry-path "Environment value"
+                                           :empty-p t)))
+                    (when (or (find #\= name) (gethash name names))
+                      (fail-workspace "Environment names must be unique and cannot contain '='"
+                                      :path entry-path))
+                    (setf (gethash name names) t)
+                    (cons name value)) into result
+          finally (return (coerce result 'simple-vector)))))
+
+(defun normalized-layout (layout path)
+  (cond ((member layout +layouts+ :test #'eq) layout)
+        ((and (listp layout) (= 2 (finite-list-length layout path "Custom layout"))
+              (eq (first layout) :custom))
+         (list :custom (owned-text (second layout) path "Custom layout")))
+        (t (fail-workspace "Layout must be a named keyword or (:CUSTOM string)"
+                           :path path))))
+
 (defun normalize-pane (data path max-argv)
-  (closed-plist data '(:cwd :command) path "Pane")
+  (closed-plist data '(:cwd :command :shell-command) path "Pane")
   (multiple-value-bind (cwd cwd-p) (plist-value data :cwd)
     (multiple-value-bind (command command-p) (plist-value data :command)
-      (%make-pane-spec
-       :cwd (when cwd-p (owned-text cwd (path+ path :cwd) "Pane CWD"))
-       :cwd-p cwd-p
-       :command (when command-p
-                  (normalized-command command (path+ path :command) max-argv))
-       :command-p command-p))))
+      (multiple-value-bind (shell shell-p) (plist-value data :shell-command)
+        (when (and command-p shell-p)
+          (fail-workspace "Specify :COMMAND argv or :SHELL-COMMAND source, not both"
+                          :path path))
+        (%make-pane-spec
+         :cwd (when cwd-p (owned-text cwd (path+ path :cwd) "Pane CWD"))
+         :cwd-p cwd-p
+         :command (when command-p
+                    (normalized-command command (path+ path :command) max-argv))
+         :command-p command-p
+         :shell-command (when shell-p
+                          (owned-text shell (path+ path :shell-command) "Shell source"))
+         :shell-command-p shell-p)))))
 
 (defun normalize-window (data path max-panes max-argv)
   (closed-plist data '(:name :index :cwd :layout :panes) path "Window")
@@ -293,14 +331,13 @@ See also: RESULT-SNAPSHOT, RESULT-CREATED-P, APPLY-WORKSPACE."
                             :path (path+ path :index)))
           (multiple-value-bind (cwd cwd-p) (plist-value data :cwd)
             (multiple-value-bind (layout layout-p) (plist-value data :layout)
-              (when (and layout-p (not (member layout +layouts+ :test #'eq)))
-                (fail-workspace "Window layout must be a supported named-layout keyword"
-                                :path (path+ path :layout)))
               (%make-window-spec
                :name (owned-tmux-name name (path+ path :name) "Window name")
                :index index :index-p index-p
                :cwd (when cwd-p (owned-text cwd (path+ path :cwd) "Window CWD"))
-               :cwd-p cwd-p :layout layout :layout-p layout-p
+               :cwd-p cwd-p
+               :layout (when layout-p (normalized-layout layout (path+ path :layout)))
+               :layout-p layout-p
                :panes
                (loop with result = (make-array (length panes))
                      for pane across panes
@@ -313,13 +350,16 @@ See also: RESULT-SNAPSHOT, RESULT-CREATED-P, APPLY-WORKSPACE."
 (defun pane-data (pane)
   (append (when (pane-spec-cwd-p pane) (list :cwd (copy-seq (pane-spec-cwd pane))))
           (when (pane-spec-command-p pane)
-            (list :command (deep-copy (pane-spec-command pane))))))
+            (list :command (deep-copy (pane-spec-command pane))))
+          (when (pane-spec-shell-command-p pane)
+            (list :shell-command (copy-seq (pane-spec-shell-command pane))))))
 
 (defun window-data (window)
   (append (list :name (copy-seq (window-spec-name window)))
           (when (window-spec-index-p window) (list :index (window-spec-index window)))
           (when (window-spec-cwd-p window) (list :cwd (copy-seq (window-spec-cwd window))))
-          (when (window-spec-layout-p window) (list :layout (window-spec-layout window)))
+          (when (window-spec-layout-p window)
+            (list :layout (deep-copy (window-spec-layout window))))
           (list :panes (map 'simple-vector #'pane-data (window-spec-panes window)))))
 
 (defun normalized-data (session)
@@ -328,21 +368,29 @@ See also: RESULT-SNAPSHOT, RESULT-CREATED-P, APPLY-WORKSPACE."
         (append (list :name (copy-seq (session-spec-name session)))
                 (when (session-spec-cwd-p session)
                   (list :cwd (copy-seq (session-spec-cwd session))))
+                (when (session-spec-environment-p session)
+                  (list :environment (deep-copy (session-spec-environment session))))
                 (list :windows (map 'simple-vector #'window-data
                                     (session-spec-windows session))))))
 
-(defun make-workspace (data &key (max-windows 100) (max-panes 1000) (max-argv 256))
+(defun make-workspace (data &key (max-windows 100) (max-panes 1000) (max-argv 256)
+                                (max-environment 256))
   "Validate closed native DATA and return an owned WORKSPACE without I/O.
 DATA is a keyword plist in schema libtmux.lisp.workspace/1. Lists and vectors
 must be finite. MAX-WINDOWS, MAX-PANES, and MAX-ARGV bound retained topology and
-commands. Session names reject period and colon; all names reject characters
-tmux would rewrite. Unknown or duplicate keys, unsafe text, and shell-like
-command strings signal INVALID-WORKSPACE. Input containers and strings are copied.
+commands. MAX-ENVIRONMENT bounds session (name . value) string pairs; tmux
+stores them in the session environment inherited by later panes. Pane :COMMAND
+is argv; :SHELL-COMMAND is explicit shell source, mutually exclusive with argv.
+Window :LAYOUT is a named keyword or (:CUSTOM string) validated by tmux on apply.
+Names reject characters tmux would rewrite. Unknown/duplicate keys, invalid
+types or limits signal INVALID-WORKSPACE. Mutable inputs are copied.
 
-See also: WORKSPACE-DATA, PLAN-WORKSPACE, PARSE-WORKSPACE."
+See also: WORKSPACE-DATA, PLAN-WORKSPACE, PARSE-WORKSPACE,
+LIBTMUX:NEW-SESSION, LIBTMUX:SELECT-LAYOUT."
   (checked-limit max-windows :max-windows 1)
   (checked-limit max-panes :max-panes 1)
   (checked-limit max-argv :max-argv 0)
+  (checked-limit max-environment :max-environment 0)
   (closed-plist data '(:schema :session) #() "Workspace")
   (multiple-value-bind (schema schema-p) (plist-value data :schema)
     (unless (and schema-p (stringp schema) (string= schema +schema+))
@@ -350,7 +398,7 @@ See also: WORKSPACE-DATA, PLAN-WORKSPACE, PARSE-WORKSPACE."
     (multiple-value-bind (session-data session-p) (plist-value data :session)
       (unless session-p
         (fail-workspace "Workspace :SESSION is required" :path #(:session)))
-      (closed-plist session-data '(:name :cwd :windows) #(:session) "Session")
+      (closed-plist session-data '(:name :cwd :environment :windows) #(:session) "Session")
       (multiple-value-bind (name name-p) (plist-value session-data :name)
         (unless name-p
           (fail-workspace "Session :NAME is required" :path #(:session :name)))
@@ -385,7 +433,13 @@ See also: WORKSPACE-DATA, PLAN-WORKSPACE, PARSE-WORKSPACE."
                           :name (owned-tmux-name name #(:session :name) "Session name"
                                                  :session-p t)
                           :cwd (when cwd-p (owned-text cwd #(:session :cwd) "Session CWD"))
-                          :cwd-p cwd-p :windows (coerce specs 'simple-vector)))
+                          :cwd-p cwd-p
+                          :environment
+                          (when (nth-value 1 (plist-value session-data :environment))
+                            (normalized-environment (getf session-data :environment)
+                                                    #(:session :environment) max-environment))
+                          :environment-p (nth-value 1 (plist-value session-data :environment))
+                          :windows (coerce specs 'simple-vector)))
                        (normalized (normalized-data session)))
                   (make-instance 'workspace :session session :data normalized))))))))))
 
@@ -411,14 +465,18 @@ See also: MAKE-WORKSPACE, PLAN-WORKSPACE."
                   :pane-position position)
             (when cwd (list :cwd (copy-seq cwd)))
             (when (pane-spec-command-p pane)
-              (list :command (deep-copy (pane-spec-command pane)))))))
+              (list :command (deep-copy (pane-spec-command pane))))
+            (when (pane-spec-shell-command-p pane)
+              (list :shell-command (copy-seq (pane-spec-shell-command pane)))))))
 
 (defun first-pane-data (session window)
   (let* ((pane (aref (window-spec-panes window) 0))
          (cwd (effective-cwd pane window session)))
     (append (when cwd (list :cwd (copy-seq cwd)))
             (when (pane-spec-command-p pane)
-              (list :command (deep-copy (pane-spec-command pane)))))))
+              (list :command (deep-copy (pane-spec-command pane))))
+            (when (pane-spec-shell-command-p pane)
+              (list :shell-command (copy-seq (pane-spec-shell-command pane)))))))
 
 (defun append-pane-steps (steps session window)
   (let* ((panes (window-spec-panes window))
@@ -461,7 +519,10 @@ See also: MAKE-WORKSPACE, PLAN-WORKSPACE."
            (list (apply #'make-step :create-session
                         :session-name (session-spec-name session)
                         :window-name (window-spec-name first)
-                        (first-pane-data session first)))))
+                        (append (first-pane-data session first)
+                                (when (session-spec-environment-p session)
+                                  (list :environment
+                                        (deep-copy (session-spec-environment session)))))))))
     (when (or (window-spec-index-p first) reserved)
       (setf steps
             (append steps
@@ -547,6 +608,7 @@ See also: PLAN-STEPS, WORKSPACE-DATA, APPLY-WORKSPACE."
 (defconstant +default-max-windows+ 100)
 (defconstant +default-max-panes+ 1000)
 (defconstant +default-max-argv+ 256)
+(defconstant +default-max-environment+ 256)
 (defconstant +default-max-integer-digits+ 32)
 
 (defstruct (json-object (:constructor make-json-object (entries)))
@@ -747,7 +809,7 @@ See also: PLAN-STEPS, WORKSPACE-DATA, APPLY-WORKSPACE."
          arguments)))
 
 (defun wire-pane (object path max-argv)
-  (closed-object object '("cwd" "command") path "Pane")
+  (closed-object object '("cwd" "command" "shell_command") path "Pane")
   (let ((result nil))
     (multiple-value-bind (cwd present-p)
         (optional-json-member object "cwd" path
@@ -759,9 +821,19 @@ See also: PLAN-STEPS, WORKSPACE-DATA, APPLY-WORKSPACE."
                               (lambda (value member-path)
                                 (wire-command value member-path max-argv)))
       (when present-p (setf result (append result (list :command command)))))
+    (multiple-value-bind (shell present-p)
+        (optional-json-member object "shell_command" path
+                              (lambda (value member-path)
+                                (json-string value member-path "Shell source")))
+      (when present-p (setf result (append result (list :shell-command shell)))))
     result))
 
 (defun wire-layout (value path)
+  (when (json-object-p value)
+    (closed-object value '("custom") path "Custom layout")
+    (return-from wire-layout
+      (list :custom (json-string (required-member value "custom" path)
+                                (document-path+ path "custom") "Custom layout"))))
   (let* ((name (json-string value path "Window layout"))
          (entry (assoc name '(("even-horizontal" . :even-horizontal)
                               ("even-vertical" . :even-vertical)
@@ -808,8 +880,21 @@ See also: PLAN-STEPS, WORKSPACE-DATA, APPLY-WORKSPACE."
                                               max-argv))
                           finally (return panes)))))))
 
-(defun wire-session (object path max-windows max-panes max-argv)
-  (closed-object object '("name" "cwd" "windows") path "Session")
+(defun wire-environment (object path maximum)
+  (unless (json-object-p object)
+    (fail-document "Session environment must be a JSON object" :path path))
+  (when (> (length (json-object-entries object)) maximum)
+    (fail-document "Session environment exceeds MAX-ENVIRONMENT"
+                   :path path :limit :max-environment))
+  (map 'simple-vector
+       (lambda (entry)
+         (cons (copy-seq (car entry))
+               (json-string (cdr entry) (document-path+ path (car entry))
+                            "Environment value")))
+       (json-object-entries object)))
+
+(defun wire-session (object path max-windows max-panes max-argv max-environment)
+  (closed-object object '("name" "cwd" "environment" "windows") path "Session")
   (let* ((name (json-string (required-member object "name" path)
                             (document-path+ path "name") "Session name"))
          (windows-source (json-array (required-member object "windows" path)
@@ -824,6 +909,11 @@ See also: PLAN-STEPS, WORKSPACE-DATA, APPLY-WORKSPACE."
                                 (lambda (value member-path)
                                   (json-string value member-path "Session cwd")))
         (when present-p (setf result (append result (list :cwd cwd)))))
+      (multiple-value-bind (environment present-p)
+          (optional-json-member object "environment" path
+                                (lambda (value member-path)
+                                  (wire-environment value member-path max-environment)))
+        (when present-p (setf result (append result (list :environment environment)))))
       (append
        result
        (list
@@ -851,11 +941,14 @@ See also: PLAN-STEPS, WORKSPACE-DATA, APPLY-WORKSPACE."
        (max-windows +default-max-windows+)
        (max-panes +default-max-panes+)
        (max-argv +default-max-argv+)
+       (max-environment +default-max-environment+)
        (max-integer-digits +default-max-integer-digits+))
   "Parse one bounded libtmux.lisp.workspace/1 JSON string into a WORKSPACE.
 The complete document uses a closed grammar, rejects duplicate members, and
 never interns or evaluates external names. Limits bound UTF-8 bytes, nesting,
-nodes, strings, windows, total panes, argv length, and integer token digits.
+nodes, strings, windows, total panes, argv length, session environment pairs
+(MAX-ENVIRONMENT, default 256), and integer token digits. Pane shell_command is
+explicit shell source; window layout accepts a named string or a custom object.
 Input and retained values are copied. Signals INVALID-WORKSPACE-DOCUMENT or
 WORKSPACE-LIMIT-EXCEEDED with WORKSPACE-PATH and WORKSPACE-LIMIT diagnostics.
 
@@ -869,6 +962,7 @@ See also: READ-WORKSPACE, MAKE-WORKSPACE, WORKSPACE-DATA."
   (checked-limit max-windows :max-windows 1)
   (checked-limit max-panes :max-panes 1)
   (checked-limit max-argv :max-argv 0)
+  (checked-limit max-environment :max-environment 0)
   (checked-limit max-integer-digits :max-integer-digits 0)
   (bounded-utf-8-size source max-input-bytes)
   (validate-json-integers source max-integer-digits)
@@ -881,10 +975,11 @@ See also: READ-WORKSPACE, MAKE-WORKSPACE, WORKSPACE-DATA."
               (list :schema (copy-seq +schema+)
                     :session
                     (wire-session (required-member document "session" #())
-                                  #("session") max-windows max-panes max-argv))))
+                                  #("session") max-windows max-panes max-argv max-environment))))
         (handler-case
             (make-workspace native :max-windows max-windows
-                                   :max-panes max-panes :max-argv max-argv)
+                                   :max-panes max-panes :max-argv max-argv
+                                   :max-environment max-environment)
           (invalid-workspace-document (condition) (error condition))
           (invalid-workspace (cause)
             (fail-document "The workspace document violates the native workspace contract"
@@ -1003,6 +1098,11 @@ See also: PARSE-WORKSPACE, WORKSPACE-DATA."
     (error 'libtmux:incomplete-snapshot
            :message "Workspace execution state does not match the planned window")))
 
+(defun step-creation-options (data)
+  (loop for key in '(:cwd :command :shell-command :environment)
+        append (multiple-value-bind (value present-p) (plist-value data key)
+                 (when present-p (list key value)))))
+
 (defun execute-core-step (step client state options)
   (let ((action (step-action step))
         (data (step-data step)))
@@ -1011,11 +1111,7 @@ See also: PARSE-WORKSPACE, WORKSPACE-DATA."
        (let* ((arguments
                 (append (list :name (getf data :session-name)
                               :window-name (getf data :window-name))
-                        (multiple-value-bind (cwd present-p) (plist-value data :cwd)
-                          (when present-p (list :cwd cwd)))
-                        (multiple-value-bind (command present-p)
-                            (plist-value data :command)
-                          (when present-p (list :command command)))
+                        (step-creation-options data)
                         options))
               (outcome (apply #'libtmux:new-session client arguments))
               (session (required-outcome-value outcome 'libtmux:session
@@ -1046,11 +1142,7 @@ See also: PARSE-WORKSPACE, WORKSPACE-DATA."
                 (append (list :name (getf data :window-name))
                         (multiple-value-bind (index present-p) (plist-value data :index)
                           (when present-p (list :index index)))
-                        (multiple-value-bind (cwd present-p) (plist-value data :cwd)
-                          (when present-p (list :cwd cwd)))
-                        (multiple-value-bind (command present-p)
-                            (plist-value data :command)
-                          (when present-p (list :command command)))
+                        (step-creation-options data)
                         options))
               (outcome
                 (apply #'libtmux:new-window client (apply-state-session state) arguments))
@@ -1073,10 +1165,7 @@ See also: PARSE-WORKSPACE, WORKSPACE-DATA."
               (arguments
                 (append
                  (list :direction direction)
-                 (multiple-value-bind (cwd present-p) (plist-value data :cwd)
-                   (when present-p (list :cwd cwd)))
-                 (multiple-value-bind (command present-p) (plist-value data :command)
-                   (when present-p (list :command command)))
+                 (step-creation-options data)
                  options))
               (outcome (apply #'libtmux:split-pane client target arguments))
               (pane (required-outcome-value outcome 'libtmux:pane "Pane split")))

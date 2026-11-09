@@ -57,8 +57,12 @@ def run_workspace_cli(socket, directory, child_environment):
         [program, "-S", socket, "-N", "list-panes", "-s", "-t", "=declared",
          "-F", "#{window_index}\t#{window_name}"], env=cli_environment, text=True)
     assert sorted(rows.splitlines()) == ["2\tcode", "2\tcode", "5\tshell"]
+    raw_environment = subprocess.check_output(
+        [program, "-S", socket, "-N", "show-environment", "-t", "=declared", "APP_LABEL"],
+        env=cli_environment, text=True)
+    assert raw_environment == "APP_LABEL=declared\n"
     return {"entrypoint": "bin/libtmux-workspace", "responses": responses,
-            "live_topology": "PASS"}
+            "live_topology": "PASS", "session_environment": "PASS"}
 
 
 for mode in ("assertions", "tutorial"):

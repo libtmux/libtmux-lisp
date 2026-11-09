@@ -37,6 +37,10 @@
 
 ### Added
 
+- Accept explicit pane shell source, bounded session environment and custom
+  tmux layouts in native and JSON workspace declarations. Preserve creation
+  outcomes and topology-only reuse.
+
 - Add explicit control reconnection with a new client generation, fresh captured
   observations and a Lisp resource scope. Retain retired results/events and
   refuse stale origins without replaying queued commands.

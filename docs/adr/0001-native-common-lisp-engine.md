@@ -473,7 +473,16 @@ is a companion precedent for a workspace product over libtmux. The Lisp
 [workspace contract](../design/workspace-v1.md) defines its own narrower scope.
 Its native schema does not accept tmuxp documents. A displayed plan is a preview:
 apply captures and plans again. Topology reuse does not prove command, directory,
-layout or declaration provenance equality.
+layout or declaration provenance equality. Explicit pane shell source, session
+environment and custom layout inputs reuse core creation and layout operations.
+Environment belongs to the session: both
+[tmux 3.3a](https://github.com/tmux/tmux/blob/3.3a/cmd-new-session.c#L270-L294)
+and [tmux 3.8](https://github.com/tmux/tmux/blob/3.8/cmd-new-session.c#L281-L305)
+store `new-session -e` values before spawning the first pane. Describing those
+values as pane-local would hide inheritance by subsequent windows and panes.
+Custom layout source remains separate from observed geometry and pane IDs.
+Owned metadata, logical IDs, drift and explicit reconciliation remain required
+unfinished work; these creation inputs do not establish them.
 
 The optional [`:total-timeout` application budget](../workspaces.md#bound-application-time)
 is shared within one application and checked after planning. Each core call

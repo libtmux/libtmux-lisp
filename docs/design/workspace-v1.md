@@ -11,7 +11,8 @@ Version 1 creates or reuses one named session on an explicitly supplied
 [`libtmux:client`](../api.md#client-type). It manages the declared window and
 pane topology. It does not terminate sessions, windows, or panes; replace
 processes; run hooks; evaluate Lisp; or choose a
-default tmux endpoint. It does not evaluate command data as shell source.
+default tmux endpoint. Command argv stays literal; shell source requires the
+explicit `:shell-command` pane key.
 
 The public workflow is:
 
@@ -42,9 +43,9 @@ creation plan. It never retries a mutation.
 ```
 
 The root accepts only `:schema` and `:session`. A session accepts `:name`,
-`:cwd`, and `:windows`. A window accepts `:name`, optional `:index`, optional
-`:cwd`, optional `:layout`, and `:panes`. A pane accepts optional `:cwd` and
-optional `:command`. Unknown or duplicate keys are errors.
+`:cwd`, `:environment`, and `:windows`. A window accepts `:name`, optional
+`:index`, optional `:cwd`, optional `:layout`, and `:panes`. A pane accepts `:cwd` and
+optional `:command` or `:shell-command`. Unknown or duplicate keys are errors.
 
 Names are nonempty strings that tmux preserves exactly. Session names exclude
 periods and colons; all names exclude NUL, control characters and backslash.
@@ -58,8 +59,29 @@ the library does not reinterpret remote paths through the local filesystem.
 
 Session CWD is the default for windows and panes. Window CWD overrides it for
 that window. Pane CWD overrides both. Omitted commands use tmux's default shell.
-Layout names are limited to tmux's named layouts: `even-horizontal`,
+Named layouts are `even-horizontal`,
 `even-vertical`, `main-horizontal`, `main-vertical`, and `tiled`.
+Alternatively, `(:custom string)` supplies a literal tmux layout. The library
+owns the text; tmux validates its checksum and geometry during application.
+An invalid custom layout can fail after successful creation. Its condition
+retains the preceding outcomes. Tmux may normalize dimensions and pane IDs;
+custom text is a creation input, not a promise of byte-equal observed layout.
+
+`:shell-command` is a nonempty NUL-free string executed through tmux's shell
+command path. Supplying both command keys is an error, including an explicit
+`:command nil`. Omit both to use tmux's default shell. Neither constructor nor
+planner executes source. Applying an explicit shell command does.
+
+Session `:environment` is a finite list or vector of dotted `(name . value)`
+string pairs. Names are unique, nonempty and exclude NUL and `=`; values exclude
+NUL and may be empty. `:max-environment` bounds the pair count, defaults to 256,
+and may be zero. The first creation passes these raw values to
+[`new-session`](../api.md#new-session-function), which stores them in tmux's
+session environment. Later panes and windows inherit through tmux's ordinary
+environment rules. Attachment and `update-environment` can change that table;
+tmux also supplies or replaces values such as `TMUX_PANE`, `SHELL` and `PWD`.
+This is not an exact child-process environment. Omitted names stay inherited.
+Pane and window environment keys are unsupported. Reuse never converges values.
 
 Construction copies every retained list, vector, and string. `workspace-data`
 returns another defensive copy. Mutating either input or output cannot change
@@ -88,12 +110,20 @@ the workspace.
 }
 ```
 
+JSON additionally accepts session `"environment": {"APP_LABEL": "dev"}`, pane
+`"shell_command": "exec make watch"`, and window
+`"layout": {"custom": "tmux-layout-text"}`. Named layouts remain strings.
+Environment values must be strings; null, arrays and Boolean values are errors.
+These optional fields extend the alpha v1 grammar; older readers can reject
+documents that use them. Existing declarations retain their behavior.
+
 The JSON grammar is closed. Duplicate and unknown members are errors. External
 names are compared as strings and are not interned. Defaults bound UTF-8 input
 bytes, nesting, node count, string length, windows, panes per window, total
-panes, and argv length. `read-workspace` opens without blocking on special
-files, validates that same descriptor is a regular file, and bounds the bytes
-read. JSON null and floating-point numbers are not valid workspace values.
+panes, argv length and session environment pairs. `read-workspace` opens without
+blocking on special files, validates that same descriptor is a regular file,
+and bounds the bytes read. JSON null and floating-point numbers are not valid
+workspace values.
 
 ## Planning and reuse
 
@@ -116,8 +146,8 @@ an explicit index must match. Extra, missing, or duplicate windows and a pane
 count mismatch are conflicts. The planner does not infer process equality from
 `:pane/current-command`.
 
-CWD, command, and named layout are creation inputs. They are not converged after
-the session exists because tmux does not expose enough stable evidence to prove
+CWD, argv or shell source, environment and layout are creation inputs. They are
+not converged after the session exists because tmux does not expose enough stable evidence to prove
 their originating intent. A matching existing topology therefore produces a
 no-op even if a pane later changes process or directory. Applications that need
 process supervision should use explicit core operations.
@@ -164,7 +194,6 @@ uncertain and never triggers a retry.
 
 ## Explicit exclusions
 
-Version 1 has no YAML, plugins, lifecycle scripts, environment expansion,
-arbitrary Lisp reader input, shell command strings, deletion/reordering,
-automatic daemon startup, control-mode transport, or MCP integration. Those
-features require separate contracts and evidence.
+Version 1 has no YAML, plugins, lifecycle scripts, implicit shell expansion,
+arbitrary Lisp reader input, deletion/reordering, automatic daemon startup or
+control-mode transport. Those features require separate contracts and evidence.

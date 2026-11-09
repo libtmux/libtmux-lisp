@@ -77,6 +77,10 @@
         (assert (stringp text))
         (assert (eq :succeeded (libtmux:outcome-status outcome))))
       (let ((document (merge-pathnames "workspace.json" *load-truename*)))
+        (assert (equalp (libtmux.workspace:workspace-data
+                        (libtmux.examples:workspace-description))
+                       (libtmux.workspace:workspace-data
+                        (libtmux.workspace:read-workspace document))))
         (multiple-value-bind (steps result)
             (libtmux.examples:apply-workspace-document client document)
           (assert (equal '(:create-session :move-window :split-pane

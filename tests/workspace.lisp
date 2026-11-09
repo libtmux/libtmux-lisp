@@ -33,6 +33,49 @@
   (let ((symbol (find-symbol (string name) :libtmux.workspace)))
     (and symbol (typep condition symbol))))
 
+(defun workspace-creation-inputs ()
+  (let ((data (example-workspace-data)))
+    (setf (getf (getf data :session) :environment)
+          (vector (cons (copy-seq "APP_VALUE") (copy-seq "λ$; value"))
+                  (cons (copy-seq "EMPTY") (copy-seq ""))))
+    (let ((window (aref (getf (getf data :session) :windows) 0)))
+      (setf (getf window :layout) (list :custom (copy-seq "layout text"))
+            (aref (getf window :panes) 0)
+            (list :shell-command (copy-seq "exec cat \"$APP_VALUE\""))))
+    data))
+
+(test workspace-explicit-creation-inputs-own-data-and-plan-operands
+  (let* ((source (workspace-creation-inputs))
+         (workspace (workspace-call :make-workspace source))
+         (expected (workspace-call :workspace-data workspace))
+         (plan (workspace-call :plan-workspace workspace)))
+    (setf (char (cdr (aref (getf (getf source :session) :environment) 0)) 0) #\X)
+    (let ((window (aref (getf (getf source :session) :windows) 0)))
+      (setf (char (second (getf window :layout)) 0) #\X
+            (char (getf (aref (getf window :panes) 0) :shell-command) 0) #\X))
+    (let* ((data (workspace-call :workspace-data workspace))
+           (session (getf data :session))
+           (window (aref (getf session :windows) 0)))
+      (is (equalp expected data))
+      (is (typep (getf session :environment) 'simple-vector))
+      (setf (char (cdr (aref (getf session :environment) 0)) 0) #\X
+            (char (second (getf window :layout)) 0) #\X
+            (char (getf (aref (getf window :panes) 0) :shell-command) 0) #\X)
+      (is (equalp expected (workspace-call :workspace-data workspace))))
+    (let* ((steps (workspace-call :plan-steps plan))
+           (first (workspace-call :step-data (aref steps 0)))
+           (layout (workspace-call :step-data
+                                   (find :select-layout steps
+                                         :key (lambda (step)
+                                                (workspace-call :step-action step))))))
+      (is (string= "exec cat \"$APP_VALUE\"" (getf first :shell-command)))
+      (is (equalp #(("APP_VALUE" . "λ$; value") ("EMPTY" . ""))
+                  (getf first :environment)))
+      (is (equal '(:custom "layout text") (getf layout :layout)))
+      (setf (char (getf first :shell-command) 0) #\X)
+      (is (string= "exec cat \"$APP_VALUE\""
+                   (getf (workspace-call :step-data (aref steps 0)) :shell-command))))))
+
 (defmacro signals-workspace (name &body body)
   `(handler-case
        (progn ,@body (fail "Expected ~A" ,name))
@@ -538,3 +581,55 @@
                (workspace-call :apply-workspace client workspace :total-timeout invalid)))
            (is (zerop calls)))
       (libtmux:close-client client))))
+
+(defparameter +workspace-creation-json+
+  "{\"schema\":\"libtmux.lisp.workspace/1\",\"session\":{\"name\":\"workspace\",\"environment\":{\"APP_VALUE\":\"λ$; value\",\"EMPTY\":\"\"},\"windows\":[{\"name\":\"editor\",\"layout\":{\"custom\":\"layout text\"},\"panes\":[{\"shell_command\":\"exec cat \\\"$APP_VALUE\\\"\"}]}]}}")
+
+(test workspace-json-explicit-inputs-and-environment-limit
+  (let* ((workspace (workspace-call :parse-workspace +workspace-creation-json+))
+         (data (workspace-call :workspace-data workspace))
+         (session (getf data :session))
+         (window (aref (getf session :windows) 0)))
+    (is (equalp #(("APP_VALUE" . "λ$; value") ("EMPTY" . ""))
+                (getf session :environment)))
+    (is (equal '(:custom "layout text") (getf window :layout)))
+    (is (string= "exec cat \"$APP_VALUE\""
+                 (getf (aref (getf window :panes) 0) :shell-command))))
+  (handler-case
+      (progn
+        (workspace-call :parse-workspace +workspace-creation-json+ :max-environment 1)
+        (fail "An oversized session environment was accepted"))
+    (condition (condition)
+      (unless (workspace-condition-p condition :workspace-limit-exceeded)
+        (error condition))
+      (is (eq :max-environment (workspace-call :workspace-limit condition)))))
+  (dolist (environment '("[]" "null" "{\"A\":null}" "{\"A\":\"1\",\"A\":\"2\"}"))
+    (signals-workspace :invalid-workspace-document
+      (workspace-call :parse-workspace
+                      (format nil "{\"schema\":\"libtmux.lisp.workspace/1\",\"session\":{\"name\":\"s\",\"environment\":~A,\"windows\":[{\"name\":\"w\",\"panes\":[{}]}]}}"
+                              environment)))))
+
+(test workspace-native-creation-inputs-reject-ambiguity-and-invalid-pairs
+  (dolist (pairs '(#(("A" . "1") ("A" . "2")) #(("A=B" . "x"))
+                   #(("" . "x")) #(("A" "x")) #(("A" . 1))))
+    (let ((data (example-workspace-data)))
+      (setf (getf (getf data :session) :environment) pairs)
+      (signals-workspace :invalid-workspace (workspace-call :make-workspace data))))
+  (signals-workspace :invalid-workspace
+    (workspace-call :make-workspace (workspace-creation-inputs) :max-environment 1))
+  (dolist (pane '((:command #("/bin/cat") :shell-command "exec cat")
+                  (:command nil :shell-command "exec cat")
+                  (:shell-command nil) (:shell-command "")
+                  (:environment #(("A" . "x")))))
+    (let ((data (example-workspace-data)))
+      (setf (aref (getf (aref (getf (getf data :session) :windows) 0) :panes) 0)
+            pane)
+      (signals-workspace :invalid-workspace (workspace-call :make-workspace data))))
+  (let ((data (example-workspace-data)))
+    (setf (getf (getf data :session) :environment) #())
+    (is (typep (workspace-call :make-workspace data :max-environment 0)
+               (find-symbol "WORKSPACE" :libtmux.workspace))))
+  (dolist (layout '((:custom) (:custom "text" "extra") (:custom "") (:custom 3)))
+    (let ((data (example-workspace-data)))
+      (setf (getf (aref (getf (getf data :session) :windows) 0) :layout) layout)
+      (signals-workspace :invalid-workspace (workspace-call :make-workspace data)))))

@@ -5,7 +5,8 @@
                     (#:j #:libtmux.json)
                     (#:ws #:libtmux.workspace))
   (:export #:inspect-workspace #:create-workspace #:observed-value
-           #:apply-workspace-document #:terminate-owned-server #:configuration-report))
+           #:apply-workspace-document #:workspace-description
+           #:terminate-owned-server #:configuration-report))
 
 (in-package #:libtmux.examples)
 
@@ -175,6 +176,23 @@ The caller owns the isolated daemon; repeating this recipe there is an error."
     (values document
             (map 'vector #'tm:entity-data
                  (q:matching restored (tm:panes snapshot))))))
+;;; docs:end
+
+;;; docs:workspacenative
+(defun workspace-description ()
+  "Build the demo's declaration without I/O. Commands run only during apply.
+APP_LABEL seeds the session environment, inherited by subsequent panes."
+  (ws:make-workspace
+   '(:schema "libtmux.lisp.workspace/1"
+     :session
+     (:name "declared" :cwd "/tmp"
+      :environment #(("APP_LABEL" . "declared"))
+      :windows
+      #((:name "code" :index 2 :layout :tiled
+         :panes #((:shell-command "test \"$APP_LABEL\" = declared && exec /bin/cat")
+                  (:command #("/bin/cat"))))
+        (:name "shell" :index 5
+         :panes #((:command #("/bin/cat")))))))))
 ;;; docs:end
 
 ;;; docs:workspaceconfig
