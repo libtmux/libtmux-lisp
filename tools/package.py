@@ -94,6 +94,28 @@ with tempfile.TemporaryDirectory(prefix="libtmux-lisp-consumer-") as directory:
         "--eval", '(assert (not (find-package :cl-ppcre)))',
         "--eval", '(assert (not (find-package :com.inuoe.jzon)))',
         "--eval", '(assert (not (find-package :bt2)))',
+        "--eval", '(assert (not (fboundp (find-symbol "FEED-CONTROL-LINES" :libtmux.internal))))',
+    ], cwd=destination, env=environment, check=True)
+    control_consumer_check = (
+        '(let ((decoder (libtmux.internal::make-control-line-decoder))) '
+        '(assert (equalp #() (libtmux.internal::feed-control-lines decoder '
+        '(libtmux.internal::octet-vector #(65 255))))) '
+        '(assert (equalp #(#(65 255)) (libtmux.internal::feed-control-lines decoder '
+        '(libtmux.internal::octet-vector #(10))))) '
+        '(libtmux.internal::finish-control-lines decoder))'
+    )
+    subprocess.run([
+        "sbcl", "--noinform", "--no-sysinit", "--no-userinit", "--non-interactive",
+        "--load", str(Path(asdf) / "asdf.lisp"),
+        "--eval", '(require :asdf)',
+        "--eval", '(asdf:load-system "libtmux/control")',
+        "--eval", control_consumer_check,
+        "--eval", '(assert (equalp #(0 255) (libtmux.internal::decode-control-output-line '
+                  '(libtmux.internal::octet-vector #(37 111 117 116 112 117 116 32 37 49 32 '
+                  '92 48 48 48 255)))))',
+        "--eval", '(assert (not (find-package :cl-ppcre)))',
+        "--eval", '(assert (not (find-package :com.inuoe.jzon)))',
+        "--eval", '(assert (not (find-package :bt2)))',
     ], cwd=destination, env=environment, check=True)
     subprocess.run([
         "sbcl", "--noinform", "--no-sysinit", "--no-userinit", "--non-interactive",
@@ -174,6 +196,7 @@ evidence = {"artifact": archive.name, "sha256": hashlib.sha256(archive.read_byte
             "elapsed_seconds": round(time.monotonic() - started, 3),
             "core_consumer": "PASS", "query_consumer": "PASS",
             "regex_consumer": "PASS", "json_consumer": "PASS",
+            "control_codec_consumer": "PASS",
             "workspace_consumer": "PASS",
             "optional_source": "archive"}
 if arguments.examples:

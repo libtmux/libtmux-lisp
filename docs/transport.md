@@ -108,6 +108,7 @@ process's environment or working directory. A separate daemon owner can use
 that boundary without imposing the command locale on newly created panes;
 [managed daemon scopes](daemons.md) keep that environment and lifecycle separate.
 Use explicit tmux environment operations to change a running server's values.
+
 The private descriptor poll does not run application REPL
 handlers. The library does not install a process-wide subreaper.
 
@@ -118,3 +119,26 @@ reported as incomplete cleanup.
 
 See the [architecture decision](adr/0001-native-common-lisp-engine.md#supervise-subprocesses-with-explicit-scopes-and-bounded-outcomes)
 for launcher alternatives and saved-image limitations.
+
+## Private control byte codecs
+
+The optional `libtmux/control` system supplies private byte codecs only.
+It opens no connection and exposes no public control or subscription API.
+Its LF assembler accepts split octet chunks, preserves all bytes except the
+terminating LF, and returns owned line vectors. Separate limits bound each
+line, each feed's bytes and each returned batch's line count. Truncated EOF
+signals a decoding error. A resource failure, cancellation or escaping exit
+retires the decoder; it cannot resume after losing consumed input.
+
+The pane-output leaf decoder preserves NUL, invalid UTF-8 and all other bytes.
+It understands tmux's three-digit octal escapes and extended-output age and
+reserved fields. Encoded and decoded byte limits are separate. Neither codec
+owns request queues, workers, a persistent deadline or event backpressure.
+
+Command output can reproduce `%begin`, `%end`, `%error` or `%output` lines
+verbatim. Recognizing their syntax establishes no reply or notification
+authority. A future reply owner must validate each command's output schema
+before accepting completion. The private leaf decoder requires an established
+notification context; successful decoding does not establish that context.
+The [architecture record](adr/0001-native-common-lisp-engine.md#qualify-control-mode-and-source-filtering-before-exposing-them)
+retains initialization and live-transport qualification gates.

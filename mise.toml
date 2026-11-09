@@ -38,7 +38,7 @@ run = "qlot install --jobs 2"
 
 [tasks.check]
 description = "Run source checks and the unit suite (mid loop)"
-run = ["python3 tools/check-source.py", "python3 tools/options-catalog.py", "tools/lisp.sh tools/test.lisp unit query regex json workspace", "tools/lisp.sh tools/documentation.lisp artifact", "python3 tools/check-documentation-artifact.py", "python3 tools/doc-examples.py"]
+run = ["python3 tools/check-source.py", "python3 tools/options-catalog.py", "tools/lisp.sh tools/test.lisp unit query regex json control workspace", "tools/lisp.sh tools/documentation.lisp artifact", "python3 tools/check-documentation-artifact.py", "python3 tools/doc-examples.py"]
 
 [tasks.catalogs]
 description = "Regenerate native configuration catalogs from committed pinned source facts"
@@ -71,6 +71,10 @@ run = "tools/lisp.sh tools/test.lisp json"
 [tasks.workspace]
 description = "Run local workspace data and planning tests (inner loop)"
 run = "tools/lisp.sh tools/test.lisp workspace"
+
+[tasks.control]
+description = "Run private control byte-codec tests without a live transport (inner loop)"
+run = "tools/lisp.sh tools/test.lisp control"
 
 [tasks.integration]
 description = "Run isolated tmux integration tests (outer loop)"

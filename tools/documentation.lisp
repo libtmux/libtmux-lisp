@@ -711,7 +711,7 @@
               (or (asdf/component:component-description component)
                   (error "Missing module description: ~A" component))))
     (format out "~%## Separate systems~%~%| System | Source | Responsibility |~%| --- | --- | --- |~%")
-    (dolist (system-name '("libtmux/query" "libtmux/regex" "libtmux/json"
+    (dolist (system-name '("libtmux/query" "libtmux/regex" "libtmux/json" "libtmux/control"
                            "libtmux/workspace" "libtmux/workspace/cli"))
       (let ((system (asdf:find-system system-name)))
         (dolist (component (asdf:component-children system))

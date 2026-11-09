@@ -117,6 +117,24 @@
   :components ((:file "src/json"
                       :description "Closed versioned filter documents with bounded event decoding.")))
 
+(defsystem "libtmux/control"
+  :description "Private control byte codecs; live transport remains unqualified"
+  :depends-on ("libtmux")
+  :in-order-to ((test-op (test-op "libtmux/tests/control")))
+  :serial t
+  :components ((:file "src/control-codec"
+                      :description "Private bounded LF assembly and byte-preserving pane-output decoding; no reply attribution or live connection.")))
+
+(defsystem "libtmux/tests/control"
+  :description "Local control-output byte-codec tests; no tmux connection"
+  :depends-on ("libtmux/tests" "libtmux/control")
+  :serial t
+  :components ((:file "tests/control-codec"))
+  :perform (test-op (operation component)
+             (declare (ignore operation component))
+             (unless (uiop:symbol-call :libtmux.tests :run-suite :control)
+               (error "libtmux control codec tests failed"))))
+
 (defsystem "libtmux/workspace"
   :description "Owned workspace descriptions, pure plans and explicit application"
   :depends-on ("libtmux" "com.inuoe.jzon")

@@ -466,6 +466,20 @@ timeout/end/loss/cancellation results and callbacks outside the reader.
 Acknowledgment and operation-specific completion must remain distinct. Reconnect
 requires a new generation and recapture; it cannot imply replay.
 
+The optional `libtmux/control` system starts with private, bounded LF assembly
+and pane-output byte decoding. These pure codecs open no connection and do not
+attribute replies or events. tmux writes
+[command output](https://github.com/tmux/tmux/blob/3.8/server-client.c#L3216-L3256)
+and [error text](https://github.com/tmux/tmux/blob/3.8/cmd-queue.c#L839-L878)
+without escaping marker-looking lines. The
+[pane-output writer](https://github.com/tmux/tmux/blob/3.8/control.c#L801-L842)
+uses three-digit octal escapes for C0 bytes and backslash, leaving DEL and high
+bytes unchanged. The decoder therefore preserves octets and requires the
+caller to establish notification context. A later typed reply owner must prove
+its output schema; lexical guard recognition alone cannot prove completion.
+Per-feed limits do not bound future queues or retained replies. See the
+[codec boundary](../transport.md#private-control-byte-codecs).
+
 tmux's [`control_write_guard`](https://github.com/tmux/tmux/blob/3.8/control.c#L522-L548)
 defines reply guards. Older daemon initialization needs separate scrutiny:
 [`server_client_check_exit`](https://github.com/tmux/tmux/blob/3.3a/server-client.c#L2423-L2442)
