@@ -37,6 +37,10 @@
 
 ### Added
 
+- Prepare the private bounded workspace/2 declaration and record codec, with
+  canonical JSON, owned data and complete UTF-8 chunk validation. Public
+  workspace/2 acquisition and application remain unavailable.
+
 - Prepare private payload preconditions for owned workspace operations, retaining
   non-dispatch evidence when live state changes. Full workspace ownership and
   reconciliation remain unfinished.

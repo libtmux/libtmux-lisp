@@ -152,7 +152,9 @@
   :in-order-to ((test-op (test-op "libtmux/tests/workspace")))
   :serial t
   :components ((:file "src/workspace"
-                      :description "Closed workspace data, bounded JSON, pure topology plans and explicit apply.")))
+                      :description "Closed workspace data, bounded JSON, pure topology plans and explicit apply.")
+               (:file "src/workspace-owned"
+                      :description "Private bounded workspace/2 declarations and canonical ownership records.")))
 
 (defsystem "libtmux/workspace/cli"
   :description "Explicit-endpoint workspace command-line interface"
@@ -196,6 +198,7 @@
   :depends-on ("libtmux/tests" "libtmux/workspace/cli")
   :serial t
   :components ((:file "tests/workspace")
+               (:file "tests/workspace-owned")
                (:file "tests/workspace-cli"))
   :perform (test-op (operation component)
              (declare (ignore operation component))

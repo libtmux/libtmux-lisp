@@ -161,6 +161,22 @@ with tempfile.TemporaryDirectory(prefix="libtmux-lisp-consumer-") as directory:
         '(plan (libtmux.workspace:plan-workspace workspace))) '
         '(assert (= 5 (length (libtmux.workspace:plan-steps plan)))))'
     )
+    owned_codec_check = (
+        '(let* ((revision (make-string 32 :initial-element #\\A)) '
+        '(record (libtmux.workspace::make-owned-record :pending '
+        '(list :schema "libtmux.lisp.workspace.pending/1" :workspace "archive" '
+        ':base "0" :writer revision :declaration '
+        '(list :schema "libtmux.lisp.workspace/2" :id "archive" :session '
+        '(list :id "main" :name "archive" :windows '
+        '(vector (list :id "shell" :name "shell" :panes '
+        '(vector (list :id "shell" :command #("/bin/cat"))))))))))) '
+        '(multiple-value-bind (descriptor chunks) '
+        '(libtmux.workspace::encode-owned-record record) '
+        '(assert (string= (libtmux.workspace::owned-record-json record) '
+        '(libtmux.workspace::owned-record-json '
+        '(libtmux.workspace::decode-owned-record '
+        '"archive" :pending revision descriptor chunks))))))'
+    )
     cli_consumer_check = (
         f'(let ((stdout (make-string-output-stream)) '
         '(stderr (make-string-output-stream))) '
@@ -182,6 +198,7 @@ with tempfile.TemporaryDirectory(prefix="libtmux-lisp-consumer-") as directory:
         "--eval", f'(assert (equal (truename "{archive_asd}") (truename (asdf:system-source-file "libtmux/workspace"))))',
         "--eval", '(asdf:load-system "libtmux/workspace/cli")',
         "--eval", workspace_consumer_check,
+        "--eval", owned_codec_check,
         "--eval", cli_consumer_check,
     ], cwd=destination, env=environment, check=True)
     if arguments.examples:
@@ -203,6 +220,7 @@ evidence = {"artifact": archive.name, "sha256": hashlib.sha256(archive.read_byte
             "control_codec_consumer": "PASS",
             "control_public_consumer": "PASS",
             "workspace_consumer": "PASS",
+            "workspace_private_codec": "PASS",
             "optional_source": "archive"}
 if arguments.examples:
     evidence["archived_examples"] = "PASS"

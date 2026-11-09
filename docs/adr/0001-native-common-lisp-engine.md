@@ -488,7 +488,11 @@ schema, a permanent server-scoped control record and bounded immutable
 revisions. Publication ends the writer's mutations; the next claimed writer
 collects known garbage before domain changes. Local planning consumes explicit
 metadata acquisition rather than hiding reads in captured getters. Native
-mechanism probes do not qualify that consumer's implementation.
+mechanism probes do not qualify that consumer's implementation. Its private
+declaration/record codec now validates bounded IDs, canonical declarations,
+mapping consistency and complete UTF-8 chunks. These checks establish inert
+data, not live ownership. Public workspace/2 acquisition and application remain
+unavailable until the complete path is qualified.
 
 The optional [`:total-timeout` application budget](../workspaces.md#bound-application-time)
 is shared within one application and checked after planning. Each core call

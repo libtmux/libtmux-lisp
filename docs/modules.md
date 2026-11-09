@@ -55,4 +55,5 @@ These files implement the core `libtmux` system; their internal package is priva
 | `libtmux/control` | [src/control-reconnect](../src/control-reconnect.lisp) | Explicit control cutover, generation renewal and fresh captured observations. |
 | `libtmux/control` | [src/control](../src/control.lisp) | Public CLOS control resources, cancellation, conditions and lexical cleanup scopes. |
 | `libtmux/workspace` | [src/workspace](../src/workspace.lisp) | Closed workspace data, bounded JSON, pure topology plans and explicit apply. |
+| `libtmux/workspace` | [src/workspace-owned](../src/workspace-owned.lisp) | Private bounded workspace/2 declarations and canonical ownership records. |
 | `libtmux/workspace/cli` | [src/workspace-cli](../src/workspace-cli.lisp) | Validate, plan and apply workspace documents with bounded JSON summaries. |
