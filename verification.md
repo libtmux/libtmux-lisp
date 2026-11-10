@@ -48,13 +48,21 @@ local package or integration success does not establish a hosted CI result.
 
 The [native matrix record](data/native-compatibility.json) identifies the exact
 source revision, native source/binary identities, runtime and per-group results.
-On 2026-11-09, the existing native integration suite at
-[0e1a6f3](https://github.com/libtmux/libtmux-lisp/tree/0e1a6f3eed926b5470692e098414f1b91acf7466)
-passed on all twelve
+On 2026-11-10 UTC, the eleven native integration groups, including owned
+workspace application, publication, races and the public API/CLI, passed on all twelve
 supported releases: 3.3a, 3.4, 3.5, 3.5a, 3.6, 3.6a, 3.6b, 3.7, 3.7a, 3.7b,
-3.7c and 3.8. The two-cell local sweep took 236.28 seconds, including startup.
-All cells checked owned-process cleanup. Eleven control cases are explicitly
-skipped below the optional feature's 3.8 floor; older-daemon refusal is tested.
+3.7c and 3.8. The native sources and Lisp fixtures at
+[07969d0](https://github.com/libtmux/libtmux-lisp/tree/07969d0ab3475cc2f41c060d16897fc00f6fb87c)
+are identical at the example-harness correction
+[0df49e4](https://github.com/libtmux/libtmux-lisp/tree/0df49e43c1f728e122d907287d55b3f4953024f3).
+Each row records its actual revision and executor. Ten intermediate releases
+ran in five local two-cell shards, each under 102 seconds including startup.
+The [hosted endpoint run](https://github.com/libtmux/libtmux-lisp/actions/runs/42762903411)
+passed on 3.3a and 3.8, including extracted examples and cleanup.
+
+Every cell checked owned-process cleanup. Optional control cases are explicitly
+skipped below their 3.8 floor; older-daemon refusal is tested. The record retains
+each group's actual check, pass and skip counts.
 
 This record covers the implemented native integration surface at its pinned
 revision. It does not establish completion of the unfinished suite. CI continues

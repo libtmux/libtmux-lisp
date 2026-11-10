@@ -1,390 +1,933 @@
 {
   "kind": "native-integration-checkpoint",
-  "recorded_at": "2026-11-09T09:52:19.400228+00:00",
+  "recorded_at": "2026-11-10T05:46:30.796556+00:00",
   "repository": "libtmux/libtmux-lisp",
-  "tested_revision": "0e1a6f3eed926b5470692e098414f1b91acf7466",
-  "scope": "Existing native integration cases, not the entire unfinished suite or every native emitter policy",
+  "tested_revision": "0df49e43c1f728e122d907287d55b3f4953024f3",
+  "native_source_revision": "07969d0ab3475cc2f41c060d16897fc00f6fb87c",
+  "scope": "Eleven current native integration groups across all twelve supported releases; not the entire unfinished product suite or source-filtering admission.",
   "status": "PASS",
   "command": [
     "mise",
     "run",
     "integration"
   ],
-  "program_selection": "LIBTMUX_TEST_TMUX selects each pinned native binary",
   "runtime": {
     "sbcl": "2.6.10",
     "asdf_uiop": "3.3.7",
     "qlfile_lock_sha256": "950687d213c3e21af68a9f54246b9b8c49028b39e6e9bdc346cee4e8b62ff1d2",
-    "host": {
-      "system": "Linux",
-      "machine": "x86_64",
-      "kernel": "6.18.54.1-microsoft-standard-WSL2"
-    },
-    "compiler": "cc (Ubuntu 15.2.0-16ubuntu1) 15.2.0",
-    "libraries": {
-      "libevent": "2.1.12-stable",
-      "ncurses": "6.6.20251231"
-    }
+    "host": "Recorded per row; hosted endpoints and local intermediate releases use different Linux hosts."
   },
   "groups": [
-    "transport-integration",
-    "integration",
-    "control-integration",
-    "configuration-integration",
-    "workspace-integration"
+    "TRANSPORT-INTEGRATION",
+    "INTEGRATION",
+    "CONTROL-INTEGRATION",
+    "CONFIGURATION-INTEGRATION",
+    "WORKSPACE-INTEGRATION",
+    "WORKSPACE-INSPECTION-INTEGRATION",
+    "WORKSPACE-WRITER-INTEGRATION",
+    "WORKSPACE-APPLY-INTEGRATION",
+    "WORKSPACE-PUBLICATION-INTEGRATION",
+    "WORKSPACE-APPLY-RACE-INTEGRATION",
+    "WORKSPACE-PUBLIC-INTEGRATION"
   ],
-  "registered_cases": 100,
-  "parallel_cells": 2,
-  "whole_command_seconds": 236.28,
-  "cell_elapsed_seconds_sum_is_not_wall_time": true,
   "ci_versions": [
     "3.3a",
     "3.8"
   ],
   "optional_control_minimum": "3.8",
   "owned_process_cleanup": "PASS in every cell",
+  "source_identity": {
+    "native_sources_and_lisp_fixtures_identical_between_revisions": true,
+    "note": "Earlier local cells ran 07969d0; later cells and hosted endpoints ran 0df49e4. The intervening commit changes example supervision and documentation, with identical native Lisp sources, Lisp fixtures and dependency pins. Each row retains its actual revision.",
+    "sha256": {
+      ".tool-versions": "4358fba4f71cee09deebd6dfc6e3f5c220748d01c1ee6da2d05cd4b78be26c0c",
+      "libtmux.asd": "072edd6bc5ffba204dac0006f591bd23b0177cf8b7e167cbf133205ed864fcdb",
+      "qlfile": "e8971e89a372cd712cd72b3ba052dd34c9eac84604d9eb7d634ade3d0b8d8a9f",
+      "qlfile.lock": "950687d213c3e21af68a9f54246b9b8c49028b39e6e9bdc346cee4e8b62ff1d2",
+      "src/backend-sbcl.lisp": "50cf025093f8a0cc1d9449ea5885736f1131c64f485d1ad903be323129436ab7",
+      "src/buffers.lisp": "9780f7d7b752f2d5060c17b46a4da842bcc78e89d698715465d796c35d8b6280",
+      "src/capture.lisp": "11395529a9d163843f56a8a66c5962762f773fe95ee36e4f291ce3ffab07d4e9",
+      "src/client-operations.lisp": "d7016fc6fbd208129ba2a537237cb3466a7663db8f5bbae864c874eaa70fce86",
+      "src/client.lisp": "cc131e1ca096ba22135a058936b6a6475d1f87d581834f7d10d02b8c4eb32e00",
+      "src/command-encoding.lisp": "9f318f1cd9b3305f1344f7e9824b73356e296aac1ca724d4521071649c12b0d4",
+      "src/command-policy.lisp": "2858a47e7dfae75dd60f6878c1aeb2ad2539570ad2a76a1f2cbee8e303ec719d",
+      "src/conditions.lisp": "da64f16c565705503948e138f84900cfda248c141665d62661c9e12512c6c11b",
+      "src/configuration-acquisition.lisp": "34f586139992b3397c69ef8e3a06120ab902431b4e00f0f89156253aca307328",
+      "src/configuration-codec.lisp": "cfdeabfc6f0647b3b64f3b24bbbd55e06b11f983cc94033ccf549f8e615c8c91",
+      "src/configuration-operations.lisp": "d0fa012efd91fab9ebd8fa3b54e39bf31ec785ff0abac88a055dac706d44e8cd",
+      "src/configuration-options.lisp": "2751fa1db4d8e65943e08b6634940d280c951ff3cccb9e4a93f8e08ccae439c2",
+      "src/configuration-registry.lisp": "309891a4eef1ab0db3ea91d549e263dbdbe83de8623e107a1d73d9b0074a2da5",
+      "src/control-codec.lisp": "59ef8cb67a9c717dd78bff05971a7844856829b77830b462b1a216c6580deba6",
+      "src/control-peer.lisp": "f5eeba9ab181eb3b323f2e33aaaff6be080a14bdb82403d977c32341b7d04036",
+      "src/control-reconnect.lisp": "50d4a8cb3463ad4061aacb36bc26d8c4cbbedc223100b34ba3b41f81b94f00d7",
+      "src/control.lisp": "1c41cd13562cd46a4884747322d1e72638a2292769f93ddf8b832169c5d41c32",
+      "src/creation.lisp": "ffd1974ed74a6c2c109cecabd2aa32130c1eca433a1521b93caf2a6562a64aa4",
+      "src/daemon-sbcl.lisp": "8caed4b4b396ad305e855cd2b3698a301fe70055eba8003049e1c48983993ec6",
+      "src/daemon.lisp": "0e8a46340c2cf4dd1cfd0fa32bcf1f5fedf2841d4be8cb9885827ada82d932ac",
+      "src/dispatch.lisp": "ca5ce6c7fb77b23b0e8139314d25c6d9084566016fec04055959beafa57747fd",
+      "src/geometry.lisp": "e42bd9db5c6622bb0be8af9f3b3d7baa2b7ca96d515320033614ea54010dd2ea",
+      "src/graph.lisp": "834525d51cc9a27a9825a728628a1038aa0c7644dfb21131c3d4ca2ebdb12371",
+      "src/json.lisp": "7e150f6e444b1442038876d571e39b4ecb044b4628293f34e1079712ce60e022",
+      "src/key-bindings.lisp": "1f31bd4c35814dc4a9148238bc11966cf16a09bc9adfce4a40c8f20fcd3da9c9",
+      "src/model.lisp": "023bedb185e21a055791154471238c2b8d683a18518a22e331424ff253240400",
+      "src/operations.lisp": "b43e9ed34c077b8d7923f1bc1dd16ac932c5d7ee4c30f89dc724ca5e593c3164",
+      "src/options-catalog.lisp": "533a6d516533b8f68cc19fdef4e1ffd65d4dc246531c42aa7786def597180608",
+      "src/package.lisp": "e85f5703ba781e6a14b7383f085b3a67f668f811cb85ddbd1755d40f52bf640f",
+      "src/placement.lisp": "02448dfd39fd8efbb5c71a5c2756098990f614538232f7697e934d333ca7b1b0",
+      "src/process-operations.lisp": "aeb98fb595e892efc16843967115d011e30555a46f9412119e1670ddc8f3a806",
+      "src/process-sbcl.lisp": "38086686cdc72a1d04540b168af2f6b9f230451d65c4f6c58af8e1900268325b",
+      "src/query.lisp": "280e8518de27368d12463a076c1fc9bd922456ae46e025eccacef6609357112a",
+      "src/records.lisp": "8385bd722ec57035dd314ff26cf3fb341f3139ce6bd6dd573aa4c58563734d63",
+      "src/regex.lisp": "4c7e0c014b5da0e11142e6b00df8fc9726cb6babb96497492216980e4f2f13f0",
+      "src/registry.lisp": "75c2c5e2f7ee7f76ae05586fadfbb036dff6b2d648452e59105ac0881c3f419f",
+      "src/selection.lisp": "09ea8529a693d18536c70a2c97ef1b0e7d51ba99251baf5ca38582c1fab16741",
+      "src/server-operations.lisp": "799b14c63b2ee3a08c1afb78c43dccc5d4e027666d874c40a38f824bdbcbd8c0",
+      "src/terminal-operations.lisp": "4014261a3de439b8390560500d753bb9f41cd33e51493f33081a531b6f0771ac",
+      "src/termination.lisp": "51eb12f82b8afe1ceeb482d41c009eb5a992aec722170d5ed6c64a5d1faf9535",
+      "src/transport.lisp": "150dd6b0377b72d6d39de9132fd1d6b6a8564226871c753bddb867b7a9d34d36",
+      "src/witness-sbcl.lisp": "a36ecdb0918adfc8a7df66dad9c30f5be1efb75df9b0e9c16d1f1727b148ecb3",
+      "src/workspace-api.lisp": "ec61436c00a55e5bc69c962188a0161c74cc1a849b7f205bbb5a760fdf3b0bd2",
+      "src/workspace-apply.lisp": "16d0d48d6fec1599f9fe850810da598c1f2479c509ee3a954b89ac67c5e6c260",
+      "src/workspace-cli.lisp": "f553411d6fa8f04b7584dd253bdb9f3351fdd224fc7aa3a8dc71d13ad0970156",
+      "src/workspace-geometry.lisp": "2a6ac72eb7ec1c5cb7bcb7c60aa3100b45db60bbcab23281bd5e6dbba9831ea7",
+      "src/workspace-inspection.lisp": "9c2847872dd65d1faf878c44019c1c03250f44f6640dccc753e1ae4de2a3e827",
+      "src/workspace-owned.lisp": "2c8b5fa3a5d36708d140a4b41c4d6c7903853cfd7b31700aa6efdf82a846eebc",
+      "src/workspace-plan.lisp": "7e384ce5e63962e268c43ae430ad7afab585f0ae19310e334ca5f2f13f870948",
+      "src/workspace-state.lisp": "3db4eb6f0de97074a92f4f7497a8ded801a3cee875db4c7c584b8011bd7af775",
+      "src/workspace-writer.lisp": "a1ebeb5f79e32e66055792f0768ba41e37b05052fcb0f9eb730594ef9911f1e1",
+      "src/workspace.lisp": "a315a15ad3753ae01745a05fdbdf1c30f8961d3fc24dd010d776ec864de27ce8",
+      "tests/buffers.lisp": "4459891ffc8569d5f8a52d73882e49f858e089b9fb14f11b0729fac43969ac84",
+      "tests/capture.lisp": "2329d21f97db357f17d1bd005c332f3d1c2e1e70f87571fc299e3acdf5577513",
+      "tests/client-operations.lisp": "fbf6103e0bcddbeebf5df4ffb4fc13a3e75f4af98e885d4e8f8554117d1e363f",
+      "tests/configuration-acquisition.lisp": "8507d4a7c79b0f43527bed805d85dba7d7098af0be65b2dfaa5dc80c5a13ac11",
+      "tests/configuration-codec.lisp": "4512004d7749a7335e7309804e412b9147fc0d627d06b115438f3905f58a0c17",
+      "tests/configuration-options.lisp": "50d0c0ccdcea20f852ccb1f8a2f1dd2dc1f0b153fdab640419407b335da8c9eb",
+      "tests/configuration-reads.lisp": "f8cb52d0d5bbaf9958d081aa818b67ac3348ff05d2768f59becc192b3190c101",
+      "tests/configuration-registry.lisp": "37cf0d8c9d130928d5d390f3a7a0a8a0c793ce9ab50006815f08d2f60626fff4",
+      "tests/control-codec.lisp": "eeb06424d76c9dd3ad7f690c7d1dcc22071940c018c81b3e133f529c32576435",
+      "tests/control-peer.lisp": "3ee47277ecbdb397cc8297a41d460aa0081422734ece3417b4dcbfedadc949e5",
+      "tests/control-state.lisp": "2b2dd6a282e7f3d26a45fc0aedfc8ecb3ccc348cfea872456b06ccdab012a158",
+      "tests/control.lisp": "139672101f23b90c1c340b537f42a624e97f7c9ba42e4a2a694d24162f94b278",
+      "tests/creation.lisp": "4d51411a69269840316b84b7bf9bfcbc9e2ad557a71f4ca19642f3d49ccbf35f",
+      "tests/daemon.lisp": "325d703bba9b9b29595210c76a3c04b4f28b936c94d950a64205d3f1810db9e3",
+      "tests/fixture.lisp": "87e3af5af2fc2260c93c979950f0f22f3f50a46338ebbe8cd6a400d4736e38fb",
+      "tests/geometry.lisp": "233a0de44c6c8ccb8eebafd68dffd777c5f26ed88c9571bd932cbbfa69a313f2",
+      "tests/json.lisp": "e1e35ba4195ad00498719a5ef4e7ae103f1d665d0944880d961f366706dd134e",
+      "tests/key-bindings.lisp": "bffa79f030e7741d012d2a897221d36c54afeeee0988d0739d530f357478372a",
+      "tests/model.lisp": "a80d812e7e49c33a1fa278f8cfb1fb2c3369445bb97f15c215838c476437eabc",
+      "tests/operations.lisp": "6be7d222fd4e11db9899bc053380321526e1fe2f113ba49a752384a3e4015615",
+      "tests/package.lisp": "c2a8dc71d0f02da7fc01c9f04bbc264403dd164e03c9ea60254d01fb8a323b43",
+      "tests/pane-processes.lisp": "1f5a77a434c7f1b5c56604e9f6d6ef10f5f3b6b941e7d7fe8815eeb05e431a9c",
+      "tests/placement.lisp": "b25e1735d5d33931d2b0eb984b40bd13a4e0ce3eea6a926aa025919867b7f8ad",
+      "tests/process.lisp": "9a177e562d26d23bccb039d0032e5b7b82e86bc8a009fb424debbc7508be36f8",
+      "tests/query.lisp": "cc8195995c5c5cf7fe272c0db30dc3ae6715197b6c6cc58b21ffea70eb6fc81e",
+      "tests/records.lisp": "b80716cbcf2e7b884c675f0947661328e8fc659c244775b15f0c8826c79d433a",
+      "tests/regex.lisp": "71cad5daa0e3d12a9dff2a1f346dc3859b3161e7c81d87b1ff28a1a67c12c335",
+      "tests/resources.lisp": "5b34ec7f698e08ac3c1ea6d462cf0ad110e8e86758f08d8d5c517e11e08e65fe",
+      "tests/server-operations.lisp": "1a3bfbf5421f4e1f041f47a1ac5f9832265030feee98a358fab397bd83f8523e",
+      "tests/termination.lisp": "b7d4375541fcfae2cde65cb61ec5c5286b067c6bd43c278376d52a09039d9d57",
+      "tests/workspace-apply-integration.lisp": "12ee9fc0d255408a4db2969e1d57a3bfdd8e08dc4595879fa9dd36e138898973",
+      "tests/workspace-apply-race-integration.lisp": "1639b1d9aea20c16d5525e1ac7b7e5807c660d4ce826649d8190933113286ab7",
+      "tests/workspace-cli.lisp": "a08d69a73572dcfd201052319fbcb3dcbd25b3cd5452745581a824aad47f02b6",
+      "tests/workspace-geometry-integration.lisp": "0ca039b8bd5580a2a669c2838752a0366b6d14be435d175824682801b0d2caa6",
+      "tests/workspace-geometry.lisp": "b87b8f50a1bde8cbda2cb580aeb70aac8561cf88de4c79ac41f68d90c97ee3a6",
+      "tests/workspace-inspection-integration.lisp": "9628234af38aff81a2215edb2861feae60c70b565e21b16b89e74995e22b2013",
+      "tests/workspace-integration.lisp": "d36fd66da96ade864e18d0624c633e151ab69b9043dc842a9862398638285fb6",
+      "tests/workspace-owned.lisp": "aa64f12382c2220cde1e38eee73f9d21bcef57e06ccad7d1dbd6fa1bb43d734d",
+      "tests/workspace-plan.lisp": "77ba4846423b2747317055845fbe6cb824d6236054d77b9ff15ec202340610a8",
+      "tests/workspace-public-integration.lisp": "78ed74706a7f6558ad5e937b71d4604407ba356af7525039925369b93bd335da",
+      "tests/workspace-public.lisp": "52d89711bed5f58ce9e1dd7cd4d55f3afb86a67fb2c44cd9901ec15eaf80b5ea",
+      "tests/workspace-publication-integration.lisp": "818a61e7077bd6c21e62ce87c9b4298f7a24d30aaf02ec07f0f0570e15dc1872",
+      "tests/workspace-state-integration.lisp": "d2ac4a7c0bfecda3ce9957318f15e0395615a5a43488393332f4905306dee8c1",
+      "tests/workspace-state.lisp": "73dfd9374df7499433652d20b17e63b2575ff3d762aa0b9143054d9478cd5ce5",
+      "tests/workspace-writer-integration.lisp": "37d8a04ad53081ff956d8e421c9e064fda0369f854349dfb6553edc281adb109",
+      "tests/workspace.lisp": "03e31d1ac253cdef25384565b5e1a2b9247e1324e262366a4a51ace9489ad391"
+    }
+  },
+  "local_shards": [
+    {
+      "versions": [
+        "3.4",
+        "3.5"
+      ],
+      "tested_revision": "07969d0ab3475cc2f41c060d16897fc00f6fb87c",
+      "parallel_cells": 2,
+      "whole_command_seconds": 90.897
+    },
+    {
+      "versions": [
+        "3.5a",
+        "3.6"
+      ],
+      "tested_revision": "07969d0ab3475cc2f41c060d16897fc00f6fb87c",
+      "parallel_cells": 2,
+      "whole_command_seconds": 101.703
+    },
+    {
+      "versions": [
+        "3.6a",
+        "3.6b"
+      ],
+      "tested_revision": "07969d0ab3475cc2f41c060d16897fc00f6fb87c",
+      "parallel_cells": 2,
+      "whole_command_seconds": 96.223
+    },
+    {
+      "versions": [
+        "3.7",
+        "3.7a"
+      ],
+      "tested_revision": "0df49e43c1f728e122d907287d55b3f4953024f3",
+      "parallel_cells": 2,
+      "whole_command_seconds": 95.316
+    },
+    {
+      "versions": [
+        "3.7b",
+        "3.7c"
+      ],
+      "tested_revision": "0df49e43c1f728e122d907287d55b3f4953024f3",
+      "parallel_cells": 2,
+      "whole_command_seconds": 95.719
+    }
+  ],
+  "hosted_run": "https://github.com/libtmux/libtmux-lisp/actions/runs/42762903411",
   "rows": [
     {
       "tmux": "3.3a",
       "status": "PASS",
+      "tested_revision": "0df49e43c1f728e122d907287d55b3f4953024f3",
       "source_commit": "0b355ae8114511e1ff6359272b164f1cdf718e80",
-      "binary_sha256": "f79c5c92701867c851ef0d40cb865751f2cbb3d1571d06a4eee7b8c43df94d08",
-      "seconds": 34.563,
+      "binary_sha256": "97f942cf0bcc98db3bd7b4aeaf24525d976cfc8a3e129776412e17dcc5ca9388",
+      "command": [
+        "mise",
+        "run",
+        "integration"
+      ],
+      "seconds": 118.47,
       "checks": [
         227,
-        481,
+        509,
         20,
         48,
-        17
+        78,
+        55,
+        86,
+        55,
+        36,
+        40,
+        82
       ],
       "passes": [
         227,
-        481,
+        509,
         9,
         48,
-        17
+        76,
+        55,
+        86,
+        55,
+        36,
+        39,
+        82
       ],
       "skips": [
         0,
         0,
         11,
         0,
+        2,
+        0,
+        0,
+        0,
+        0,
+        1,
         0
-      ]
+      ],
+      "owned_process_cleanup": "PASS",
+      "executor": "GitHub Actions ubuntu-26.04",
+      "host": {
+        "system": "Linux",
+        "machine": "x86_64",
+        "kernel": "7.0.0-1019-azure"
+      },
+      "run_url": "https://github.com/libtmux/libtmux-lisp/actions/runs/42762903411",
+      "job_url": "https://github.com/libtmux/libtmux-lisp/actions/runs/42762903411/job/129652565836",
+      "archive_sha256": "b84bd3e5e010d6e54e071f686f33085243161eefde651eb1e71da84b5c5bd527",
+      "archive_examples_seconds": 46.638,
+      "example_groups": {
+        "core": {
+          "status": "PASS",
+          "elapsed_seconds": 17.131
+        },
+        "owned-workspace": {
+          "status": "PASS",
+          "elapsed_seconds": 29.332
+        }
+      }
     },
     {
       "tmux": "3.4",
       "status": "PASS",
+      "tested_revision": "07969d0ab3475cc2f41c060d16897fc00f6fb87c",
       "source_commit": "9ae69c3795ab5ef6b4d760f6398cd9281151f632",
       "binary_sha256": "df07a7b4c2e9f8afc03ab8ec7245db99285f709581216b48be0df1f3175f3dfe",
-      "seconds": 34.661,
+      "command": [
+        "mise",
+        "run",
+        "integration"
+      ],
+      "seconds": 90.833,
       "checks": [
         227,
-        478,
+        506,
         20,
         48,
-        17
+        78,
+        55,
+        86,
+        55,
+        36,
+        40,
+        82
       ],
       "passes": [
         227,
-        478,
+        506,
         9,
         48,
-        17
+        76,
+        55,
+        86,
+        55,
+        36,
+        39,
+        82
       ],
       "skips": [
         0,
         0,
         11,
         0,
+        2,
+        0,
+        0,
+        0,
+        0,
+        1,
         0
-      ]
+      ],
+      "owned_process_cleanup": "PASS",
+      "executor": "Local Linux x86-64",
+      "host": {
+        "system": "Linux",
+        "machine": "x86_64",
+        "kernel": "6.18.58.1-microsoft-standard-WSL2"
+      }
     },
     {
       "tmux": "3.5",
       "status": "PASS",
+      "tested_revision": "07969d0ab3475cc2f41c060d16897fc00f6fb87c",
       "source_commit": "ac44566c9c7e3e94d23be6def4c7ae83472543f5",
       "binary_sha256": "64fc45ff57a0b624180e5437e68ddbe53125b51f485dbb3881f06436830d4735",
-      "seconds": 36.99,
+      "command": [
+        "mise",
+        "run",
+        "integration"
+      ],
+      "seconds": 90.883,
       "checks": [
         227,
-        478,
+        506,
         20,
         48,
-        17
+        78,
+        55,
+        86,
+        55,
+        36,
+        40,
+        82
       ],
       "passes": [
         227,
-        478,
+        506,
         9,
         48,
-        17
+        76,
+        55,
+        86,
+        55,
+        36,
+        39,
+        82
       ],
       "skips": [
         0,
         0,
         11,
         0,
+        2,
+        0,
+        0,
+        0,
+        0,
+        1,
         0
-      ]
+      ],
+      "owned_process_cleanup": "PASS",
+      "executor": "Local Linux x86-64",
+      "host": {
+        "system": "Linux",
+        "machine": "x86_64",
+        "kernel": "6.18.58.1-microsoft-standard-WSL2"
+      }
     },
     {
       "tmux": "3.5a",
       "status": "PASS",
+      "tested_revision": "07969d0ab3475cc2f41c060d16897fc00f6fb87c",
       "source_commit": "549c35b06165f6ae023115eb76f83f2cbf945395",
       "binary_sha256": "0b259a033399cdd7a7e3db6659dcead362dc5ebf5ab9a4b59bfe99ccca347517",
-      "seconds": 36.847,
+      "command": [
+        "mise",
+        "run",
+        "integration"
+      ],
+      "seconds": 101.676,
       "checks": [
         227,
-        478,
+        506,
         20,
         48,
-        17
+        78,
+        55,
+        86,
+        55,
+        36,
+        40,
+        82
       ],
       "passes": [
         227,
-        478,
+        506,
         9,
         48,
-        17
+        76,
+        55,
+        86,
+        55,
+        36,
+        39,
+        82
       ],
       "skips": [
         0,
         0,
         11,
         0,
+        2,
+        0,
+        0,
+        0,
+        0,
+        1,
         0
-      ]
+      ],
+      "owned_process_cleanup": "PASS",
+      "executor": "Local Linux x86-64",
+      "host": {
+        "system": "Linux",
+        "machine": "x86_64",
+        "kernel": "6.18.58.1-microsoft-standard-WSL2"
+      }
     },
     {
       "tmux": "3.6",
       "status": "PASS",
+      "tested_revision": "07969d0ab3475cc2f41c060d16897fc00f6fb87c",
       "source_commit": "0dac7fe434d029a4f0b819cba8eb7963df291990",
       "binary_sha256": "8ff0f401a0290576d81a5f1167cf455fecd9557548f916087dc6a2afb0e4edb3",
-      "seconds": 45.328,
+      "command": [
+        "mise",
+        "run",
+        "integration"
+      ],
+      "seconds": 100.836,
       "checks": [
         227,
-        479,
+        507,
         20,
         48,
-        17
+        78,
+        55,
+        86,
+        55,
+        36,
+        40,
+        82
       ],
       "passes": [
         227,
-        479,
+        507,
         9,
         48,
-        17
+        76,
+        55,
+        86,
+        55,
+        36,
+        39,
+        82
       ],
       "skips": [
         0,
         0,
         11,
         0,
+        2,
+        0,
+        0,
+        0,
+        0,
+        1,
         0
-      ]
+      ],
+      "owned_process_cleanup": "PASS",
+      "executor": "Local Linux x86-64",
+      "host": {
+        "system": "Linux",
+        "machine": "x86_64",
+        "kernel": "6.18.58.1-microsoft-standard-WSL2"
+      }
     },
     {
       "tmux": "3.6a",
       "status": "PASS",
+      "tested_revision": "07969d0ab3475cc2f41c060d16897fc00f6fb87c",
       "source_commit": "cc117b5048f77a4842820f8ebbe3a86e5c077224",
       "binary_sha256": "1116ae8d7da327c97193a1d288a4220a76a3aed40f878bf3e2b4241a149e19af",
-      "seconds": 45.332,
+      "command": [
+        "mise",
+        "run",
+        "integration"
+      ],
+      "seconds": 95.956,
       "checks": [
         227,
-        479,
+        507,
         20,
         48,
-        17
+        78,
+        55,
+        86,
+        55,
+        36,
+        40,
+        82
       ],
       "passes": [
         227,
-        479,
+        507,
         9,
         48,
-        17
+        76,
+        55,
+        86,
+        55,
+        36,
+        39,
+        82
       ],
       "skips": [
         0,
         0,
         11,
         0,
+        2,
+        0,
+        0,
+        0,
+        0,
+        1,
         0
-      ]
+      ],
+      "owned_process_cleanup": "PASS",
+      "executor": "Local Linux x86-64",
+      "host": {
+        "system": "Linux",
+        "machine": "x86_64",
+        "kernel": "6.18.58.1-microsoft-standard-WSL2"
+      }
     },
     {
       "tmux": "3.6b",
       "status": "PASS",
+      "tested_revision": "07969d0ab3475cc2f41c060d16897fc00f6fb87c",
       "source_commit": "0623d1e968423ad0c192e0d8debf1258671063d5",
       "binary_sha256": "e782b0e824481cf7c8e8a314773edaea020057354b0c45c35e960a34ec5543fc",
-      "seconds": 37.125,
+      "command": [
+        "mise",
+        "run",
+        "integration"
+      ],
+      "seconds": 96.208,
       "checks": [
         227,
-        479,
+        507,
         20,
         48,
-        17
+        78,
+        55,
+        86,
+        55,
+        36,
+        40,
+        82
       ],
       "passes": [
         227,
-        479,
+        507,
         9,
         48,
-        17
+        76,
+        55,
+        86,
+        55,
+        36,
+        39,
+        82
       ],
       "skips": [
         0,
         0,
         11,
         0,
+        2,
+        0,
+        0,
+        0,
+        0,
+        1,
         0
-      ]
+      ],
+      "owned_process_cleanup": "PASS",
+      "executor": "Local Linux x86-64",
+      "host": {
+        "system": "Linux",
+        "machine": "x86_64",
+        "kernel": "6.18.58.1-microsoft-standard-WSL2"
+      }
     },
     {
       "tmux": "3.7",
       "status": "PASS",
+      "tested_revision": "0df49e43c1f728e122d907287d55b3f4953024f3",
       "source_commit": "81f88f8517c9fc5371b56cf117530c6b477c96ac",
       "binary_sha256": "579d3918f3f8f9f73cfd218f158c821346415834788c318ba8be1a50ddb7f87b",
-      "seconds": 37.991,
+      "command": [
+        "mise",
+        "run",
+        "integration"
+      ],
+      "seconds": 95.298,
       "checks": [
         227,
-        484,
+        512,
         20,
         48,
-        17
+        83,
+        55,
+        86,
+        55,
+        36,
+        45,
+        82
       ],
       "passes": [
         227,
-        484,
+        512,
         9,
         48,
-        17
+        82,
+        55,
+        86,
+        55,
+        36,
+        45,
+        82
       ],
       "skips": [
         0,
         0,
         11,
         0,
+        1,
+        0,
+        0,
+        0,
+        0,
+        0,
         0
-      ]
+      ],
+      "owned_process_cleanup": "PASS",
+      "executor": "Local Linux x86-64",
+      "host": {
+        "system": "Linux",
+        "machine": "x86_64",
+        "kernel": "6.18.58.1-microsoft-standard-WSL2"
+      }
     },
     {
       "tmux": "3.7a",
       "status": "PASS",
+      "tested_revision": "0df49e43c1f728e122d907287d55b3f4953024f3",
       "source_commit": "0e418b62d259ce8da8970f75732cc6632ee4c3a0",
       "binary_sha256": "c529ac58976f8ffe9bb6e0b83309791415219bd4e729fb8e2924445e4fec1f67",
-      "seconds": 39.819,
+      "command": [
+        "mise",
+        "run",
+        "integration"
+      ],
+      "seconds": 95.204,
       "checks": [
         227,
-        480,
+        508,
         20,
         48,
-        17
+        83,
+        55,
+        86,
+        55,
+        36,
+        45,
+        82
       ],
       "passes": [
         227,
-        480,
+        508,
         9,
         48,
-        17
+        82,
+        55,
+        86,
+        55,
+        36,
+        45,
+        82
       ],
       "skips": [
         0,
         0,
         11,
         0,
+        1,
+        0,
+        0,
+        0,
+        0,
+        0,
         0
-      ]
+      ],
+      "owned_process_cleanup": "PASS",
+      "executor": "Local Linux x86-64",
+      "host": {
+        "system": "Linux",
+        "machine": "x86_64",
+        "kernel": "6.18.58.1-microsoft-standard-WSL2"
+      }
     },
     {
       "tmux": "3.7b",
       "status": "PASS",
+      "tested_revision": "0df49e43c1f728e122d907287d55b3f4953024f3",
       "source_commit": "e802909de06012a4df6209d55e86487c56223163",
       "binary_sha256": "16d302cd3ba9434dd8b18c73a2f050b10914b978a370759976cd70f5c2b643d0",
-      "seconds": 39.976,
+      "command": [
+        "mise",
+        "run",
+        "integration"
+      ],
+      "seconds": 95.7,
       "checks": [
         227,
-        480,
+        508,
         20,
         48,
-        17
+        83,
+        55,
+        86,
+        55,
+        36,
+        45,
+        82
       ],
       "passes": [
         227,
-        480,
+        508,
         9,
         48,
-        17
+        82,
+        55,
+        86,
+        55,
+        36,
+        45,
+        82
       ],
       "skips": [
         0,
         0,
         11,
         0,
+        1,
+        0,
+        0,
+        0,
+        0,
+        0,
         0
-      ]
+      ],
+      "owned_process_cleanup": "PASS",
+      "executor": "Local Linux x86-64",
+      "host": {
+        "system": "Linux",
+        "machine": "x86_64",
+        "kernel": "6.18.58.1-microsoft-standard-WSL2"
+      }
     },
     {
       "tmux": "3.7c",
       "status": "PASS",
+      "tested_revision": "0df49e43c1f728e122d907287d55b3f4953024f3",
       "source_commit": "e476c1230b958df0cb12977517d24b3dc931375b",
       "binary_sha256": "982e995bd4a81216319bd8a8a77099e0db96ef02d6f812fff543684a27a65997",
-      "seconds": 39.327,
+      "command": [
+        "mise",
+        "run",
+        "integration"
+      ],
+      "seconds": 95.004,
       "checks": [
         227,
-        480,
+        508,
         20,
         48,
-        17
+        83,
+        55,
+        86,
+        55,
+        36,
+        45,
+        82
       ],
       "passes": [
         227,
-        480,
+        508,
         9,
         48,
-        17
+        82,
+        55,
+        86,
+        55,
+        36,
+        45,
+        82
       ],
       "skips": [
         0,
         0,
         11,
         0,
+        1,
+        0,
+        0,
+        0,
+        0,
+        0,
         0
-      ]
+      ],
+      "owned_process_cleanup": "PASS",
+      "executor": "Local Linux x86-64",
+      "host": {
+        "system": "Linux",
+        "machine": "x86_64",
+        "kernel": "6.18.58.1-microsoft-standard-WSL2"
+      }
     },
     {
       "tmux": "3.8",
       "status": "PASS",
+      "tested_revision": "0df49e43c1f728e122d907287d55b3f4953024f3",
       "source_commit": "7f2a35ad3321f9ba57a1062ca73b1f3ff26aca53",
-      "binary_sha256": "b50e93aa2316f562f51a915e73b4c99ac0b17af75ea9d583a62531036b056ff3",
-      "seconds": 41.229,
+      "binary_sha256": "e5d9c6cfcbd1f0f0852de58043464111295dc6fc27004b9527d73fc4c38d5fd5",
+      "command": [
+        "mise",
+        "run",
+        "integration"
+      ],
+      "seconds": 142.28,
       "checks": [
         227,
-        494,
-        147,
+        517,
+        149,
         50,
-        17
+        86,
+        55,
+        86,
+        55,
+        36,
+        51,
+        82
       ],
       "passes": [
         227,
-        494,
-        147,
+        516,
+        149,
         50,
-        17
+        86,
+        55,
+        86,
+        55,
+        36,
+        51,
+        82
       ],
       "skips": [
+        0,
+        1,
+        0,
+        0,
+        0,
+        0,
         0,
         0,
         0,
         0,
         0
-      ]
+      ],
+      "owned_process_cleanup": "PASS",
+      "executor": "GitHub Actions ubuntu-26.04",
+      "host": {
+        "system": "Linux",
+        "machine": "x86_64",
+        "kernel": "7.0.0-1019-azure"
+      },
+      "run_url": "https://github.com/libtmux/libtmux-lisp/actions/runs/42762903411",
+      "job_url": "https://github.com/libtmux/libtmux-lisp/actions/runs/42762903411/job/129652565759",
+      "archive_sha256": "b84bd3e5e010d6e54e071f686f33085243161eefde651eb1e71da84b5c5bd527",
+      "archive_examples_seconds": 64.385,
+      "example_groups": {
+        "core": {
+          "status": "PASS",
+          "elapsed_seconds": 24.966
+        },
+        "owned-workspace": {
+          "status": "PASS",
+          "elapsed_seconds": 39.191
+        }
+      }
     }
-  ],
-  "limitations": [
-    "Archive/installed consumers and complete examples were separately verified on CI endpoints; this record does not repeat them for intermediate versions",
-    "Larger graph/query/stream/retention benchmarks are separate",
-    "Source filtering and full workspace reconciliation remain unfinished",
-    "Shared docs build/publication are separate gates"
   ]
 }
