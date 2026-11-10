@@ -27,6 +27,12 @@ only when it exists, and check that it reaches the intended symbol and version.
 Registry installation and source-checkout setup are different reader paths.
 Do not invent a package release, documentation deployment or capability badge.
 
+Give each non-test secondary ASDF system a README entry point. Use the shared
+centered Common Lisp logo header with relative asset links; link source setup,
+dependencies, runnable examples, API references and caller-visible limits.
+These systems share one distribution and changelog. Do not imply independent
+package releases or copy source into documentation directories.
+
 Shared conventions govern observable behavior, evidence and terminology.
 Keep Common Lisp's API, ASDF systems, FiveAM workflow and documentation layout.
 An open or closed-unmerged proposal is not an accepted cross-port rule.

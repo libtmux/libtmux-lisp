@@ -9,7 +9,11 @@ write = sys.argv[1:] == ["write"]
 source = "\n".join(path.read_text() for path in sorted((root / "examples").glob("*.lisp")))
 snippets = dict(re.findall(r"^;;; docs:(\w+)\n(.*?)^;;; docs:end$", source, re.M | re.S))
 errors = []
-for path in [root / "README.md", *sorted(path for path in (root / "docs").rglob("*.md") if "_build" not in path.relative_to(root / "docs").parts)]:
+system_readmes = [root / name / "README.md" for name in
+                  ("query", "regex", "json", "control", "workspace", "workspace/cli")]
+guides = sorted(path for path in (root / "docs").rglob("*.md")
+                if "_build" not in path.relative_to(root / "docs").parts)
+for path in [root / "README.md", *system_readmes, *guides]:
     text = path.read_text()
     def replace(match):
         name = match.group(1)
@@ -23,6 +27,10 @@ for path in [root / "README.md", *sorted(path for path in (root / "docs").rglob(
             text = expected
         else:
             errors.append(f"Stale example excerpt: {path.relative_to(root)}")
+    for target in re.findall(r'(?:src|srcset)="([^"]+)"', text):
+        if "://" not in target and not target.startswith("data:"):
+            if not (path.parent / target).is_file():
+                errors.append(f"Broken local image in {path.relative_to(root)}: {target}")
     for target in re.findall(r"(?<!!)\[[^\]]+\]\(([^)]+)\)", text):
         if "://" in target or target.startswith("mailto:"):
             continue

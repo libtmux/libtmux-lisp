@@ -26,6 +26,8 @@ sources += sorted((root / "src").rglob("*.lisp"))
 sources += sorted((root / "tests").rglob("*.lisp"))
 sources += sorted((root / "tests").rglob("*.py"))
 sources += sorted((root / "docs").rglob("*.md"))
+sources += [root / name / "README.md" for name in
+            ("query", "regex", "json", "control", "workspace", "workspace/cli")]
 sources += sorted((root / "data").glob("*.json"))
 sources += sorted(path for path in (root / "docs/assets").rglob("*") if path.is_file())
 sources += sorted(path for path in (root / "examples").iterdir() if path.is_file())

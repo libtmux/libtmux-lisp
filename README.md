@@ -13,7 +13,7 @@
 
 </div>
 
-Capture and automate tmux workspaces in native Common Lisp. Acquire a CLOS
+libtmux-lisp is a native Common Lisp tmux client library. Acquire a CLOS
 object graph once, process its panes with ordinary sequences, and make
 mutations through an explicit client.
 
@@ -93,6 +93,25 @@ regex and JSON selection, declarative workspace, false/presence, ownership,
 refresh, bytes, capture, close, terminate`. Core and query loading need ASDF/UIOP only; optional
 regex/JSON use the locked CL-PPCRE/Jzon systems. The example runner also needs
 Python 3. No Java runtime is involved.
+
+## Choose an ASDF system
+
+All systems share this source distribution, version and [changelog](CHANGELOG.md).
+Load only the systems your application uses. Each system has its own README:
+
+| System | Use it for | Additional dependencies |
+| --- | --- | --- |
+| `libtmux` | Captures, CLOS objects and explicit tmux operations | ASDF/UIOP |
+| [`libtmux/query`](query/README.md) | Native predicates, relations and eager QuerySets | Core |
+| [`libtmux/regex`](regex/README.md) | CL-PPCRE search and full-match filters | Query, CL-PPCRE |
+| [`libtmux/json`](json/README.md) | Bounded query document interchange | Query, Jzon |
+| [`libtmux/control`](control/README.md) | Queued requests, output streams and reconnection on tmux 3.8+ | Core |
+| [`libtmux/workspace`](workspace/README.md) | Native declarations, topology previews and explicit apply | Core, Jzon |
+| [`libtmux/workspace/cli`](workspace/cli/README.md) | Workspace validation, previews and explicit-endpoint apply | Workspace |
+
+These directories provide system documentation. ASDF definitions remain in
+[`libtmux.asd`](libtmux.asd); source stays in `src/`. Secondary systems are
+optional parts of one library release.
 
 ## Start an isolated daemon
 
@@ -325,10 +344,14 @@ names. See [optional query interchange](docs/query-interchange.md).
 | Rerun FiveAM tests at the REPL or inspect CI coverage | [Testing](docs/testing.md) · [Verification](verification.md) |
 | Navigate all documentation | [Guide index](docs/index.md) |
 
-Public calls block. Each client accepts one external operation at a time;
-concurrent reuse signals `client-busy`. Internal nonblocking pipe service does
-not provide an asynchronous application API. Closing a client releases its
-resources and leaves tmux running. [`kill-server`](docs/api.md#kill-server-function)
+Core subprocess calls block. Each client accepts one external operation at a
+time; concurrent reuse signals `client-busy`. Optional control
+[`submit-command`](docs/control-api.md#submit-command-function) queues a request
+without awaiting its reply; use
+[`await-request`](docs/control-api.md#await-request-function) or
+[`next-event`](docs/control-api.md#next-event-function) for bounded waits.
+Closing a client releases its resources and leaves tmux running.
+[`kill-server`](docs/api.md#kill-server-function)
 is a separate explicit operation that proves the daemon accepted during its
 preflight exited. [Daemon scopes](docs/daemons.md) separately own a new private
 daemon; the tutorial also documents explicit tmux setup and cleanup.

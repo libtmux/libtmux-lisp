@@ -4,6 +4,10 @@ Start with the [REPL tutorial](tutorial.md): install, acquire, inspect the
 graph, filter locally, build linked workspaces and inspect operation outcomes.
 All examples use the native SBCL implementation.
 
+Choose optional dependencies through the
+[ASDF system directory](../README.md#choose-an-asdf-system). Each secondary
+system has a README covering loading, examples and its execution boundary.
+
 | Guide | Purpose |
 | --- | --- |
 | [Tutorial and recipes](tutorial.md) | Runnable workflows and expected results |
