@@ -53,4 +53,33 @@
               (libtmux:resize-pane client (aref (libtmux:panes window) 0) :width 10001))
             (signals libtmux:invalid-argument
               (libtmux:select-layout client window "even-horizontal"))
+            (signals libtmux:invalid-argument
+              (libtmux:select-layout client window '(:custom "not-a-layout")))
             (is (zerop calls))))))))
+
+(test json-layout-capability-uses-live-daemon-instead-of-executable-version
+  (with-tmux-fixture (fixture)
+    (with-fixture-client (client fixture)
+      (let* ((window (aref (libtmux:fetch-windows client) 0))
+             (actual (getf (libtmux:provenance window) :server/version))
+             (cached (slot-value client 'libtmux::version)) (prepared 0))
+        (if (libtmux.internal::version-at-least-p actual "3.8")
+            (skip "Live-daemon refusal requires a daemon older than 3.8")
+            (unwind-protect
+                 (let ((libtmux.internal::*dispatch-context-check*
+                         (lambda (current witness targets)
+                           (declare (ignore current witness targets))
+                           (incf prepared)
+                           (error 'libtmux:invalid-argument :message "JSON reached payload preparation"))))
+                   (setf (slot-value client 'libtmux::version) "3.8")
+                   (handler-case
+                       (progn (libtmux:select-layout client window '(:custom "{\"V\":2,\"L\":{}}"))
+                              (fail "JSON layout reached an older daemon"))
+                     (libtmux:unsupported-capability (condition)
+                       (is (eq :json-layout (libtmux:error-feature condition)))
+                       (is (string= actual (libtmux:error-actual-version condition)))
+                       (is (string= "3.8" (libtmux:error-required-version condition)))
+                       (is (eq :not-dispatched (libtmux:outcome-status (libtmux:error-outcome condition))))
+                       (is (eq :preflight (libtmux:outcome-phase (libtmux:error-outcome condition))))))
+                   (is (= 0 prepared)))
+              (setf (slot-value client 'libtmux::version) cached)))))))

@@ -1754,9 +1754,16 @@ Signals INVALID-ARGUMENT or an operational condition.
 
 Apply LAYOUT to physical WINDOW; return an outcome and optional replacement.
 LAYOUT is :EVEN-HORIZONTAL, :EVEN-VERTICAL, :MAIN-HORIZONTAL, :MAIN-VERTICAL,
-:TILED, or (:CUSTOM string) containing a tmux layout description. Custom text
-is literal and tmux validates its checksum and geometry. This unzooms the
-window. Signals INVALID-ARGUMENT, STALE-TARGET or an operational condition.
+:TILED, or (:CUSTOM string) containing a tmux layout description. Legacy custom
+text requires four ASCII hex digits, a comma and a nonempty body; JSON-object
+layouts require a live tmux daemon at least 3.8. Header checks precede I/O;
+the existing target preflight checks the daemon version before dispatch.
+Text is literal; tmux validates its checksum, JSON and geometry. This unzooms
+the window. Signals INVALID-ARGUMENT, UNSUPPORTED-CAPABILITY, STALE-TARGET or
+an operational condition. Does not change earlier captured values.
+
+
+See also: [next-layout](#next-layout-function), [outcome-value](#outcome-value-function), [previous-layout](#previous-layout-function).
 
 [Source](../src/geometry.lisp)
 

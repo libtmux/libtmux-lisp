@@ -21,16 +21,29 @@
          (append (list command "-t" (physical-target target model)) flags)
          :observe (when observe (observe-target client target)) options))
 
+(defun custom-layout-text (text)
+  "Validate the layout header; leave checksum, JSON and geometry validation to tmux."
+  (let* ((text (text-argument text "Custom layout" nil))
+         (start (position-if-not (lambda (character) (find (char-code character) '(9 10 11 12 13 32))) text))
+         (json-p (and start (char= (char text start) #\{))))
+    ;; Tmux 3.3a leaves its error pointer unset when legacy header scanning fails.
+    (unless (or json-p
+                (and (> (length text) 5) (char= (char text 4) #\,)
+                     (loop for index below 4 always (find (char text index) "0123456789abcdefABCDEF"))))
+      (invalid-argument "Custom layout needs four ASCII hex digits, a comma and a body, or a JSON object"))
+    (values text json-p)))
+
 (defun layout-argument (layout)
-  (or (cdr (assoc layout '((:even-horizontal . "even-horizontal")
-                          (:even-vertical . "even-vertical")
-                          (:main-horizontal . "main-horizontal")
-                          (:main-vertical . "main-vertical") (:tiled . "tiled"))))
-      (when (consp layout)
-        (let ((parts (finite-vector layout "Custom layout")))
-          (when (and (= 2 (length parts)) (eq :custom (aref parts 0)))
-            (text-argument (aref parts 1) "Custom layout" nil))))
-      (invalid-argument "Layout must be a supported keyword or (:custom string)")))
+  (let ((named (cdr (assoc layout '((:even-horizontal . "even-horizontal")
+                                    (:even-vertical . "even-vertical")
+                                    (:main-horizontal . "main-horizontal")
+                                    (:main-vertical . "main-vertical") (:tiled . "tiled"))))))
+    (when named (return-from layout-argument (values named nil)))
+    (when (consp layout)
+      (let ((parts (finite-vector layout "Custom layout")))
+        (when (and (= 2 (length parts)) (eq :custom (aref parts 0)))
+          (return-from layout-argument (custom-layout-text (aref parts 1))))))
+    (invalid-argument "Layout must be a supported keyword or (:custom string)")))
 
 (in-package #:libtmux)
 
@@ -63,12 +76,20 @@ condition. Observation failure is retained separately from mutation success."
 (defun select-layout (client window layout &key (observe t) cancel-token timeout output-limit)
   "Apply LAYOUT to physical WINDOW; return an outcome and optional replacement.
 LAYOUT is :EVEN-HORIZONTAL, :EVEN-VERTICAL, :MAIN-HORIZONTAL, :MAIN-VERTICAL,
-:TILED, or (:CUSTOM string) containing a tmux layout description. Custom text
-is literal and tmux validates its checksum and geometry. This unzooms the
-window. Signals INVALID-ARGUMENT, STALE-TARGET or an operational condition."
-  (libtmux.internal::operate-on-target
-   client window :window "select-layout" (list "--" (libtmux.internal::layout-argument layout))
-   observe (list :cancel-token cancel-token :timeout timeout :output-limit output-limit)))
+:TILED, or (:CUSTOM string) containing a tmux layout description. Legacy custom
+text requires four ASCII hex digits, a comma and a nonempty body; JSON-object
+layouts require a live tmux daemon at least 3.8. Header checks precede I/O;
+the existing target preflight checks the daemon version before dispatch.
+Text is literal; tmux validates its checksum, JSON and geometry. This unzooms
+the window. Signals INVALID-ARGUMENT, UNSUPPORTED-CAPABILITY, STALE-TARGET or
+an operational condition. Does not change earlier captured values.
+
+See also: NEXT-LAYOUT, PREVIOUS-LAYOUT, OUTCOME-VALUE."
+  (multiple-value-bind (argument json-p) (libtmux.internal::layout-argument layout)
+    (libtmux.internal::operate-on-target
+     client window :window "select-layout" (list "--" argument) observe
+     (append (list :cancel-token cancel-token :timeout timeout :output-limit output-limit)
+             (when json-p '(:minimum-version "3.8" :feature :json-layout))))))
 
 (defun next-layout (client window &key (observe t) cancel-token timeout output-limit)
   "Cycle WINDOW to tmux's next layout; return an outcome and optional replacement.

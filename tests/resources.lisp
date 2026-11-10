@@ -94,6 +94,23 @@
   (signals libtmux:invalid-argument (libtmux.internal::octet-vector #(0 256)))
   (signals libtmux:invalid-argument (libtmux.internal::check-limits -1 100)))
 
+(test custom-layout-headers-fail-before-dispatch
+  (let ((libtmux.internal::*process-launched-hook*
+          (lambda (job) (declare (ignore job)) (error "Layout validation contacted tmux"))))
+    (dolist (text '("not-a-layout" "" "FFFF" "FFFF," "FFF,80x24,0,0,0" " FFFF,80x24,0,0,0"))
+      (signals libtmux:invalid-argument (libtmux.internal::layout-argument (list :custom text))))
+    (is (string= "0000,80x24,0,0,0"
+                 (libtmux.internal::layout-argument '(:custom "0000,80x24,0,0,0"))))
+    (multiple-value-bind (text json-p) (libtmux.internal::layout-argument '(:custom "{\"V\":2,\"L\":{}}"))
+      (is (string= "{\"V\":2,\"L\":{}}" text))
+      (is-true json-p))
+    (let* ((source (copy-seq "0000,80x24,0,0,0"))
+           (argument (libtmux.internal::layout-argument (list :custom source))))
+      (setf (char source 0) #\F)
+      (is (char= #\0 (char argument 0))))
+    (let ((json (concatenate 'string (string #\Newline) " {\"V\":2,\"L\":{}}")))
+      (is (string= json (libtmux.internal::layout-argument (list :custom json)))))))
+
 (test wait-channel-validation-precedes-io
   (let ((calls 0))
     (let ((libtmux.internal::*process-started-hook*

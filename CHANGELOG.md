@@ -4,6 +4,10 @@
 
 ### Fixed
 
+- Reject malformed custom-layout headers before dispatch. Named layout calls
+  preserve canonical legacy headers and require tmux 3.8+ for JSON layouts;
+  tmux still validates checksums and geometry.
+
 - Require tmux 3.8 for persistent control so native notifications remain separate
   from command replies. Reject live 3.7-series daemons even when a client caches
   a newer version; core compatibility remains 3.3a through 3.8.

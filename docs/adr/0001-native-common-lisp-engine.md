@@ -280,7 +280,7 @@ operation. Captured objects remain useful after closure.
 The synchronous backend services input and both output streams concurrently
 through nonblocking descriptors. One operation owns a client at a time;
 independent operations use independent clients. Deadlines, combined byte caps
-and cancellation govern supervised work. Public calls block their caller.
+and cancellation govern supervised work. Core subprocess calls block their caller.
 
 SBCL creates the process group for redirected stdin; see its
 [`setpgrp` launch path](https://github.com/sbcl/sbcl/blob/sbcl-2.6.10/src/runtime/run-program.c#L327-L346).
@@ -328,6 +328,19 @@ tmux arguments literal: for example,
 format-expands its name. Named operations use tested encoders for the relevant
 boundary. Arbitrary captured terminal output remains bytes unless decoding is
 explicitly requested.
+
+Named [layout selection](../api.md#select-layout-function) checks its input
+header before I/O. Tmux 3.3a's
+[`layout_parse`](https://github.com/tmux/tmux/blob/3.3a/layout-custom.c#L155-L170)
+can reject a malformed header without setting the error cause consumed by
+[`cmd_select_layout_exec`](https://github.com/tmux/tmux/blob/3.3a/cmd-select-layout.c#L125-L132).
+Require a canonical four-hex-digit header and body, or a JSON-object prefix.
+JSON uses the existing target preflight's fresh daemon witness to require
+tmux 3.8+, whose
+[`layout_construct`](https://github.com/tmux/tmux/blob/3.8/layout-custom.c#L1103-L1115)
+selects that format. Preserve the text; tmux still validates its checksum,
+JSON and geometry. This checks the named API's input grammar rather than
+implementing another layout parser. Raw command execution remains explicit.
 
 The [configuration text inspectors](../operations.md#configuration-inspection)
 return native printer output with its command outcome. They preserve escaping,
