@@ -1254,7 +1254,9 @@ NAME, WINDOW-NAME and CWD are literal. WIDTH/HEIGHT are positive initial cell
 dimensions through 65535. ENVIRONMENT, COMMAND and SHELL-COMMAND follow
 NEW-WINDOW. OUTCOME-VALUE supplies the created session; acquisition failure is
 retained separately. This operation requires an existing daemon and never
-silently starts or replaces one. A separate bootstrap path remains in development.
+silently starts or replaces one.
+
+See also: [new-window](#new-window-function), [start-daemon](#start-daemon-function), [with-daemon](#with-daemon-function).
 
 [Source](../src/creation.lisp)
 

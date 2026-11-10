@@ -69,7 +69,8 @@ NAME, WINDOW-NAME and CWD are literal. WIDTH/HEIGHT are positive initial cell
 dimensions through 65535. ENVIRONMENT, COMMAND and SHELL-COMMAND follow
 NEW-WINDOW. OUTCOME-VALUE supplies the created session; acquisition failure is
 retained separately. This operation requires an existing daemon and never
-silently starts or replaces one. A separate bootstrap path remains in development."
+silently starts or replaces one.
+See also: START-DAEMON, WITH-DAEMON, NEW-WINDOW."
   (libtmux.internal::perform-command
    client nil
    (append '("new-session" "-d" "-P" "-F" "#{session_id}")
