@@ -14,9 +14,52 @@ import time
 
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument("--source-root", type=Path, default=Path(__file__).resolve().parents[1])
+parser.add_argument("--group", choices=("core", "owned-workspace"), help=argparse.SUPPRESS)
+parser.add_argument("--evidence", type=Path, help=argparse.SUPPRESS)
 args = parser.parse_args()
 root = args.source_root.resolve()
 started = time.monotonic()
+
+
+def source_hashes():
+    return {str(path.relative_to(root)): hashlib.sha256(path.read_bytes()).hexdigest()
+            for path in [*sorted((root / "examples").iterdir()),
+                         root / "README.md", root / "docs/tutorial.md", root / "docs/workspace-owned.md",
+                         root / "tools/examples.py", root / "tools/stop-example.py", root / "tools/test-processes.py",
+                         root / "bin/libtmux-workspace", root / "tools/workspace-cli.lisp"] if path.is_file()}
+
+
+if args.group is None:
+    output = Path(__file__).resolve().parents[1] / "dist"
+    output.mkdir(exist_ok=True)
+    combined = output / "examples-evidence.json"
+    combined.unlink(missing_ok=True)
+    expected_sources = source_hashes()
+    records = {}
+    with tempfile.TemporaryDirectory(prefix="libtmux-lisp-example-evidence-") as directory:
+        for group in ("core", "owned-workspace"):
+            path = Path(directory) / (group + ".json")
+            subprocess.run([sys.executable, str(root / "tools/test-processes.py"),
+                            sys.executable, str(Path(__file__).resolve()),
+                            "--source-root", str(root), "--group", group, "--evidence", str(path)], check=True)
+            record = json.loads(path.read_text())
+            assert record["status"] == "PASS" and record["daemon_cleanup"] == "PASS"
+            assert record["group"] == group and record["source_sha256"] == expected_sources
+            records[group] = record
+    assert source_hashes() == expected_sources
+    assert all(records["core"][key] == records["owned-workspace"][key]
+               for key in ("tmux", "tmux_program_sha256", "sbcl"))
+    evidence = records["core"].copy()
+    evidence.pop("group")
+    for key in ("owned_workspace_cli", "owned_workspace_program"):
+        evidence[key] = records["owned-workspace"][key]
+    evidence["elapsed_seconds"] = round(time.monotonic() - started, 3)
+    evidence["groups"] = {group: {"status": row["status"], "elapsed_seconds": row["elapsed_seconds"]}
+                          for group, row in records.items()}
+    combined.write_text(json.dumps(evidence, indent=2) + "\n")
+    print(json.dumps(evidence))
+    raise SystemExit(0)
+
 program = shutil.which(os.environ.get("LIBTMUX_TEST_TMUX", "tmux"))
 if program is None:
     raise SystemExit("Install tmux or set LIBTMUX_TEST_TMUX to a native binary")
@@ -140,7 +183,7 @@ def run_owned_workspace_cli(socket, directory, child_environment):
             "failed_apply_and_inspection": "PASS"}
 
 
-for mode in ("assertions", "tutorial"):
+for mode in (("assertions", "tutorial") if args.group == "core" else ()):
     with tempfile.TemporaryDirectory(prefix="libtmux-lisp-example-") as directory:
         tutorial_terminated = False
         socket = str(Path(directory) / "tmux.sock")
@@ -220,71 +263,89 @@ for mode in ("assertions", "tutorial"):
                                  stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=2)
         if stopped.returncode == 0:
             raise RuntimeError("Example daemon survived cleanup")
-with tempfile.TemporaryDirectory(prefix="libtmux-lisp-quickstart-") as directory:
-    socket = str(Path(directory) / "tmux.sock")
-    command = [program, "-S", socket]
-    subprocess.run(command + ["-f", "/dev/null", "new-session", "-d", "-s", "demo",
-                              "-n", "editor", "-x", "80", "-y", "24", "--", "/bin/cat"],
-                   env=environment, check=True, timeout=10)
-    try:
-        quickstart_environment = environment.copy()
-        quickstart_environment["LIBTMUX_SOURCE"] = str(root)
-        quickstart_environment["LIBTMUX_PROGRAM"] = program
-        quickstart_environment["LIBTMUX_EXAMPLE_SOCKET"] = socket
-        subprocess.run([
-            "sbcl", "--noinform", "--no-sysinit", "--no-userinit",
-            "--load", str(Path(asdf) / "asdf.lisp"),
-            "--script", str(root / "examples/quickstart.lisp"),
-        ], cwd=directory, env=quickstart_environment, check=True, timeout=20)
+if args.group == "core":
+    with tempfile.TemporaryDirectory(prefix="libtmux-lisp-quickstart-") as directory:
+        socket = str(Path(directory) / "tmux.sock")
+        command = [program, "-S", socket]
+        subprocess.run(command + ["-f", "/dev/null", "new-session", "-d", "-s", "demo",
+                                  "-n", "editor", "-x", "80", "-y", "24", "--", "/bin/cat"],
+                       env=environment, check=True, timeout=10)
+        try:
+            quickstart_environment = environment.copy()
+            quickstart_environment["LIBTMUX_SOURCE"] = str(root)
+            quickstart_environment["LIBTMUX_PROGRAM"] = program
+            quickstart_environment["LIBTMUX_EXAMPLE_SOCKET"] = socket
+            subprocess.run([
+                "sbcl", "--noinform", "--no-sysinit", "--no-userinit",
+                "--load", str(Path(asdf) / "asdf.lisp"),
+                "--script", str(root / "examples/quickstart.lisp"),
+            ], cwd=directory, env=quickstart_environment, check=True, timeout=20)
+            stopped = subprocess.run(command + ["-N", "has-session"], env=environment,
+                                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                                     timeout=2)
+            if stopped.returncode == 0:
+                raise RuntimeError("Quickstart daemon survived its termination call")
+            socket = str(Path(directory) / "workspace.sock")
+            command = [program, "-S", socket]
+            subprocess.run(command + ["-f", "/dev/null", "new-session", "-d", "-s", "fixture",
+                                      "-x", "120", "-y", "40", "--", "/bin/cat"],
+                           env=environment, check=True, timeout=10)
+            workspace_cli = run_workspace_cli(socket, directory, quickstart_environment)
+        finally:
+            subprocess.run(command + ["-N", "kill-server"], env=environment,
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                           timeout=2)
         stopped = subprocess.run(command + ["-N", "has-session"], env=environment,
                                  stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                                  timeout=2)
         if stopped.returncode == 0:
-            raise RuntimeError("Quickstart daemon survived its termination call")
-        socket = str(Path(directory) / "workspace.sock")
+            raise RuntimeError("Quickstart daemon survived cleanup")
+if args.group == "core":
+    with tempfile.TemporaryDirectory(prefix="libtmux-lisp-managed-") as directory:
+        managed_environment = environment.copy()
+        managed_environment["LIBTMUX_PROGRAM"] = program
+        subprocess.run([
+            "sbcl", "--noinform", "--no-sysinit", "--no-userinit",
+            "--load", str(Path(asdf) / "asdf.lisp"),
+            "--script", str(root / "examples/managed-daemon.lisp"),
+        ], cwd=directory, env=managed_environment, check=True, timeout=20)
+if args.group == "owned-workspace":
+    with tempfile.TemporaryDirectory(prefix="libtmux-lisp-owned-cli-") as directory:
+        socket = str(Path(directory) / "tmux.sock")
         command = [program, "-S", socket]
         subprocess.run(command + ["-f", "/dev/null", "new-session", "-d", "-s", "fixture",
                                   "-x", "120", "-y", "40", "--", "/bin/cat"],
                        env=environment, check=True, timeout=10)
-        workspace_cli = run_workspace_cli(socket, directory, quickstart_environment)
-        owned_workspace_cli = run_owned_workspace_cli(socket, directory, quickstart_environment)
-    finally:
-        subprocess.run(command + ["-N", "kill-server"], env=environment,
-                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                       timeout=2)
-    stopped = subprocess.run(command + ["-N", "has-session"], env=environment,
-                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                             timeout=2)
-    if stopped.returncode == 0:
-        raise RuntimeError("Quickstart daemon survived cleanup")
-with tempfile.TemporaryDirectory(prefix="libtmux-lisp-managed-") as directory:
-    managed_environment = environment.copy()
-    managed_environment["LIBTMUX_PROGRAM"] = program
-    subprocess.run([
-        "sbcl", "--noinform", "--no-sysinit", "--no-userinit",
-        "--load", str(Path(asdf) / "asdf.lisp"),
-        "--script", str(root / "examples/managed-daemon.lisp"),
-    ], cwd=directory, env=managed_environment, check=True, timeout=20)
-with tempfile.TemporaryDirectory(prefix="libtmux-lisp-owned-workspace-") as directory:
-    owned_environment = environment.copy()
-    owned_environment["LIBTMUX_PROGRAM"] = program
-    subprocess.run([
-        "sbcl", "--noinform", "--no-sysinit", "--no-userinit",
-        "--load", str(Path(asdf) / "asdf.lisp"),
-        "--load", str(Path(os.environ.get("LIBTMUX_QLOT_SETUP", root / ".qlot/setup.lisp"))),
-        "--script", str(root / "examples/owned-workspace.lisp"),
-    ], cwd=directory, env=owned_environment, check=True, timeout=20)
+        try:
+            owned_workspace_cli = run_owned_workspace_cli(socket, directory, environment)
+        finally:
+            subprocess.run(command + ["-N", "kill-server"], env=environment,
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=2)
+        stopped = subprocess.run(command + ["-N", "has-session"], env=environment,
+                                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=2)
+        if stopped.returncode == 0:
+            raise RuntimeError("Owned workspace CLI daemon survived cleanup")
+    with tempfile.TemporaryDirectory(prefix="libtmux-lisp-owned-workspace-") as directory:
+        owned_environment = environment.copy()
+        owned_environment["LIBTMUX_PROGRAM"] = program
+        subprocess.run([
+            "sbcl", "--noinform", "--no-sysinit", "--no-userinit",
+            "--load", str(Path(asdf) / "asdf.lisp"),
+            "--load", str(Path(os.environ.get("LIBTMUX_QLOT_SETUP", root / ".qlot/setup.lisp"))),
+            "--script", str(root / "examples/owned-workspace.lisp"),
+        ], cwd=directory, env=owned_environment, check=True, timeout=20)
 control_example = "SKIP: requires tmux 3.8 or newer"
-with tempfile.TemporaryDirectory(prefix="libtmux-lisp-configuration-") as directory:
-    configuration_environment = environment.copy()
-    configuration_environment["LIBTMUX_PROGRAM"] = program
-    subprocess.run([
-        "sbcl", "--noinform", "--no-sysinit", "--no-userinit",
-        "--load", str(Path(asdf) / "asdf.lisp"),
-        "--script", str(root / "examples/configuration.lisp"),
-    ], cwd=directory, env=configuration_environment, check=True, timeout=20)
+if args.group == "core":
+    with tempfile.TemporaryDirectory(prefix="libtmux-lisp-configuration-") as directory:
+        configuration_environment = environment.copy()
+        configuration_environment["LIBTMUX_PROGRAM"] = program
+        subprocess.run([
+            "sbcl", "--noinform", "--no-sysinit", "--no-userinit",
+            "--load", str(Path(asdf) / "asdf.lisp"),
+            "--script", str(root / "examples/configuration.lisp"),
+        ], cwd=directory, env=configuration_environment, check=True, timeout=20)
 control_version = re.fullmatch(r"tmux ([0-9]+)\.([0-9]+)([a-z]?)", version)
-if control_version and tuple(map(int, control_version.group(1, 2))) >= (3, 8):
+if args.group == "core" and control_version and tuple(map(int, control_version.group(1, 2))) >= (3, 8):
     control_environment = environment.copy()
     control_environment["LIBTMUX_PROGRAM"] = program
     subprocess.run([
@@ -293,27 +354,24 @@ if control_version and tuple(map(int, control_version.group(1, 2))) >= (3, 8):
         "--script", str(root / "examples/control.lisp"),
     ], cwd=root, env=control_environment, check=True, timeout=10)
     control_example = "PASS"
-evidence = {"status": "PASS", "tmux": version,
+evidence = {"status": "PASS", "group": args.group, "tmux": version,
+            "tmux_program_sha256": hashlib.sha256(Path(program).read_bytes()).hexdigest(),
             "sbcl": subprocess.check_output(["sbcl", "--version"], text=True).strip(),
             "elapsed_seconds": round(time.monotonic() - started, 3),
-            "source_sha256": {str(path.relative_to(root)): hashlib.sha256(path.read_bytes()).hexdigest()
-                              for path in [*sorted((root / "examples").iterdir()),
-                                           root / "README.md", root / "docs/tutorial.md", root / "docs/workspace-owned.md",
-                                           root / "tools/examples.py", root / "tools/stop-example.py",
-                                           root / "bin/libtmux-workspace",
-                                           root / "tools/workspace-cli.lisp"] if path.is_file()},
-            "daemon_cleanup": "PASS",
-            "optional_libraries_loaded": ["cl-ppcre", "com.inuoe.jzon"],
-            "optional_systems_loaded": ["libtmux/regex", "libtmux/json", "libtmux/workspace"]}
-evidence["tutorial_lisp_blocks"] = len(forms)
-evidence["tutorial_console_setup_cleanup"] = "PASS"
-evidence["workspace_cli"] = workspace_cli
-evidence["owned_workspace_cli"] = owned_workspace_cli
-evidence["owned_workspace_program"] = "PASS"
-evidence["managed_daemon"] = "PASS"
-evidence["decoded_configuration"] = "PASS"
-evidence["persistent_control"] = control_example
+            "source_sha256": source_hashes(), "daemon_cleanup": "PASS",
+            "optional_libraries_loaded": ["cl-ppcre", "com.inuoe.jzon"] if args.group == "core" else ["com.inuoe.jzon"],
+            "optional_systems_loaded": ["libtmux/regex", "libtmux/json", "libtmux/workspace"] if args.group == "core" else ["libtmux/workspace"]}
+if args.group == "core":
+    evidence["tutorial_lisp_blocks"] = len(forms)
+    evidence["tutorial_console_setup_cleanup"] = "PASS"
+    evidence["workspace_cli"] = workspace_cli
+    evidence["managed_daemon"] = "PASS"
+    evidence["decoded_configuration"] = "PASS"
+    evidence["persistent_control"] = control_example
+else:
+    evidence["owned_workspace_cli"] = owned_workspace_cli
+    evidence["owned_workspace_program"] = "PASS"
 output = Path(__file__).resolve().parents[1] / "dist"
 output.mkdir(exist_ok=True)
-(output / "examples-evidence.json").write_text(json.dumps(evidence, indent=2) + "\n")
+(args.evidence or output / ("examples-evidence-" + args.group + ".json")).write_text(json.dumps(evidence, indent=2) + "\n")
 print(json.dumps(evidence))

@@ -4,6 +4,11 @@
 
 ### Fixed
 
+- Run core and owned workspace examples in separate bounded child processes.
+  Require both groups for passing source/archive evidence, preserving the
+  60-second child cap and descendant cleanup checks. Negative tutorial tests
+  require successful supervision of the expected child failure.
+
 - Reject malformed custom-layout headers before dispatch. Named layout calls
   preserve canonical legacy headers and require tmux 3.8+ for JSON layouts;
   tmux still validates checksums and geometry.

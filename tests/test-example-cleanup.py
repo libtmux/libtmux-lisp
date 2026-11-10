@@ -23,4 +23,6 @@ if "Injected tutorial failure before termination" not in result.stderr:
     raise RuntimeError("The tutorial runner replaced the injected failure")
 if "Cleanup also failed" in result.stderr:
     raise RuntimeError("The tutorial runner did not clean up after the injected failure")
+if result.stderr.count("Owned child exited 1; descendant cleanup: PASS") != 1:
+    raise RuntimeError("The tutorial failure lacks successful descendant-cleanup evidence")
 print("Tutorial failure cleanup and original error retention: PASS")

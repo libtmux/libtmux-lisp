@@ -49,4 +49,7 @@ finally:
     if leaked:
         print(f"FAIL: {len(leaked)} owned descendants survived the test image", file=sys.stderr)
         result = 1
+if result and not leaked:
+    # Negative tests must distinguish their child failure from supervisor failure.
+    print(f"Owned child exited {result}; descendant cleanup: PASS", file=sys.stderr)
 sys.exit(result)

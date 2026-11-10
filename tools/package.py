@@ -225,8 +225,7 @@ with tempfile.TemporaryDirectory(prefix="libtmux-lisp-consumer-") as directory:
                            cwd=root, env=environment, check=True)
         subprocess.run(["python3", str(extracted / "tools/doc-examples.py")],
                        cwd=extracted, env=environment, check=True)
-        subprocess.run(["python3", str(extracted / "tools/test-processes.py"), "python3",
-                        str(extracted / "tools/examples.py")],
+        subprocess.run(["python3", str(extracted / "tools/examples.py")],
                        cwd=root, env=environment, check=True)
         shutil.copyfile(extracted / "dist/examples-evidence.json", output / "examples-evidence.json")
 evidence = {"artifact": archive.name, "sha256": hashlib.sha256(archive.read_bytes()).hexdigest(),

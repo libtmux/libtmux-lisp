@@ -80,7 +80,11 @@ links. Regenerate those pages with
 `mise run docs` after a source documentation or registry change.
 `mise run examples` executes the shipped recipes and every tutorial Lisp block
 on owned tmux servers. `mise run package-examples` repeats that from an isolated
-source archive; neither task belongs in the inner or mid loop.
+source archive. Core recipes and the complete owned workspace workflow run in
+separate child processes, each with the same 60-second cap and descendant
+cleanup check. Combined evidence requires both groups from the same invocation
+and identical source/runtime identities. Neither task belongs in the inner or
+mid loop.
 [verification.md](../verification.md) lists the separate integration,
 package and installed-consumer checks and their present coverage.
 Use the [FiveAM testing guide](../docs/testing.md) for focused REPL work,

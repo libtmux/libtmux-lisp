@@ -86,7 +86,7 @@ run = "python3 tools/package.py"
 
 [tasks.examples]
 description = "Run shipped Lisp examples on an owned tmux server (outer loop)"
-run = "python3 tools/test-processes.py python3 tools/examples.py"
+run = "python3 tools/examples.py"
 
 [tasks.package-examples]
 description = "Run the shipped examples from an isolated source archive (outer loop)"

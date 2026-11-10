@@ -75,6 +75,10 @@ The artifact includes its setup pins, tools, guides and executable examples.
 `package-examples` checks its local links and runs its own copy of the example
 runner with an isolated core registry. `dist/examples-evidence.json` records
 the runtime versions, source hashes, tutorial block count and cleanup result.
+The runner reaps core recipes and the complete owned workspace workflow in
+separate children, each capped at 60 seconds. It writes combined passing
+evidence only after both current groups pass with matching source and runtime
+identities; an earlier invocation cannot supply a missing group.
 The installed workspace entry point reads both shipped schemas. Legacy `/1`
 checks create the declared topology and report zero mutations on repeat apply.
 Owned `/2` checks create recorded physical identities, preview and apply explicit
