@@ -41,39 +41,20 @@
 
 ### Added
 
-- Prepare private workspace writer claims, guarded retirement of known obsolete
-  records and absent-only pending bundles. Exact readback and retained outcomes
-  distinguish successful writes from failed observation. Interrupted writers
-  cannot resume. Public workspace/2 application remains pending.
-  Private domain calls reuse native core operations while preserving the original
-  client context, busy token, step guards and required creation observations.
-  A private executor prototype resolves complete plans by physical identity,
-  verifies mappings and publishes the committed revision once. Failed
-  observation retains the selected record, candidate and publication outcome.
+- Add owned workspace/2 construction, bounded file loading, explicit state
+  acquisition and local previews. Stable logical IDs map to recorded physical
+  entities; legacy workspace/1 keeps its topology-only reuse contract.
 
-- Inspect private incomplete workspace metadata explicitly, retaining separate
-  read attempts, partial records, captured graphs, causes and native outcomes.
-  Inspection does not admit a workspace for planning or retry its mutations.
+- Apply explicit additive, rename and layout reconciliation through guarded
+  native operations. Retain per-step outcomes and publication evidence; never
+  adopt unowned work, steal busy claims or replay interrupted mutations.
 
-- Prepare private local owned-workspace plans with separate declaration and
-  captured drift reports, logical pane insertion and explicit reconciliation
-  refusals. Public workspace/2 application remains unavailable.
+- Inspect stopped work through separate read evidence, including attempts,
+  partial records, captured observations and original causes. The CLI exposes
+  preview, apply, `--reconcile` and read-only inspection as bounded JSON.
 
-- Acquire private workspace geometry facts explicitly, distinguishing zoomed,
-  floating and modal panes before future insertion or layout plans. Retain
-  complete captured facts and shared read budgets; workspace/2 remains private.
-
-- Prepare private owned-workspace state acquisition with bounded metadata,
-  captured mappings, shared retry budgets and retained read outcomes. Public
-  workspace/2 planning and application remain unavailable.
-
-- Prepare the private bounded workspace/2 declaration and record codec, with
-  canonical JSON, owned data and complete UTF-8 chunk validation. Public
-  workspace/2 acquisition and application remain unavailable.
-
-- Prepare private payload preconditions for owned workspace operations, retaining
-  non-dispatch evidence when live state changes. Full workspace ownership and
-  reconciliation remain unfinished.
+- Ship a complete native workspace program and equivalent JSON declaration,
+  with source-derived documentation and extracted API/CLI consumer checks.
 
 - Accept explicit pane shell source, bounded session environment and custom
   tmux layouts in native and JSON workspace declarations. Preserve creation

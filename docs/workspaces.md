@@ -1,5 +1,10 @@
 # Declarative workspaces
 
+This guide describes schema `libtmux.lisp.workspace/1`, which preserves the
+original topology-only creation/reuse API. For logical IDs, ownership records,
+drift reports and explicit reconciliation, start with
+[owned workspaces](workspace-owned.md).
+
 `libtmux/workspace` validates a closed workspace description, produces an
 inspectable plan without I/O, and creates a missing session through the core
 library. Reapplying an exact topology dispatches no mutations. A conflict fails

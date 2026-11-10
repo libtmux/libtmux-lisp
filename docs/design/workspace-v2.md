@@ -1,26 +1,26 @@
 # Owned workspace design
 
-The accepted design for workspace/2 adds logical IDs, durable ownership records,
-drift inspection and explicit additive reconciliation. **Public workspace/2 is
-not yet available.** The current constructor, file loader and CLI implement the
-[workspace/1 contract](workspace-v1.md), including topology-only reuse.
-This document records the implementation target and its remaining gates.
+Workspace/2 provides logical IDs, durable ownership records, drift inspection
+and explicit additive reconciliation. The [public guide](../workspace-owned.md)
+teaches the native constructor, bounded file loader, ready-state acquisition,
+local previews, application, incomplete inspection and CLI. The separate
+[workspace/1 contract](workspace-v1.md) retains topology-only reuse.
 
-The private implementation includes inert declarations and records, explicit
-ready and incomplete acquisition, local planning, and metadata writer
-primitives and an executor prototype. The writer claims once, retires only known
+The implementation keeps inert declarations and records, explicit ready and
+incomplete acquisition, local planning, metadata writer primitives and an
+executor behind the public API. The writer claims once, retires only known
 obsolete records and writes a complete immutable pending bundle. It retains
 partial outcomes and refuses reuse after an admitted step fails or exits
-nonlocally. Complete executor qualification and the public workspace/2
-constructor, loader and CLI remain unfinished.
+nonlocally. The public wrapper preserves its original conditions, outcomes,
+captured observations and publication evidence.
 
 A private domain-call boundary reuses existing core operations with the busy
 token, generated step guards and original client context. It returns retained
 creation observations for physical-ID resolution and stops after failed or
 missing required observations. The private executor uses that boundary for
 complete logical-ID plans, verifies replacement captures, writes a candidate
-revision and publishes once. This path remains subject to independent review
-and endpoint/archive qualification before public admission.
+revision and publishes once. Native and extracted-consumer checks exercise the
+public path separately from mechanism probes.
 
 ## Identity and declarations
 
@@ -161,13 +161,13 @@ session through explicit core operations, then retire only inspected known keys.
 If an uncertain creation cannot be identified or absence cannot be established,
 recovery remains refused. The library never repeats an uncertain mutation.
 
-## Remaining qualification
+## Implementation and qualification
 
 The private declaration and record codec implements logical ID validation,
 canonical data, bounded chunks and declaration/mapping consistency. It preserves
 JSON null, false and container distinctions. These pure data checks do not prove
-that a graph exists or that a client may operate on its IDs. The current public
-constructor and CLI still refuse workspace/2.
+that a graph exists or that a client may operate on its IDs. Construction and
+parsing remain local; the public API exposes acquisition explicitly.
 
 The private state reader now acquires the namespace, referenced bundles, graph,
 session-group facts and complete geometry facts explicitly. One operation owner,
@@ -213,8 +213,11 @@ checks. Geometry repair compares captured layouts with stored realized text;
 declared layout source remains separate. These are local previews, not proof
 that the planned effects occurred.
 
-The core now has a private dispatch-precondition adapter; workspace guard
-composition remains required. Other gates are creation/publication/reconciliation,
-installed CLI/examples and complete native compatibility. The main
+The executor composes the core's private dispatch-precondition adapter with
+ownership, physical mapping and geometry checks. Native and installed-consumer
+checks cover creation, publication, reconciliation, stopped-work inspection
+and CLI use. Keep their recorded source identities and compatibility scope in
+[verification](../../verification.md); endpoint checks do not establish the
+entire library's twelve-version qualification. The main
 [architecture decision](../adr/0001-native-common-lisp-engine.md#keep-optional-systems-and-consumer-policy-explicit)
 keeps this consumer separate from core and preserves unfinished acceptance.

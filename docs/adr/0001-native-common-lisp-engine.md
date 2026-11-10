@@ -494,14 +494,13 @@ and [tmux 3.8](https://github.com/tmux/tmux/blob/3.8/cmd-new-session.c#L281-L305
 store `new-session -e` values before spawning the first pane. Describing those
 values as pane-local would hide inheritance by subsequent windows and panes.
 Custom layout source remains separate from observed geometry and pane IDs.
-Owned metadata, logical IDs, drift and explicit reconciliation remain required
-unfinished work; these creation inputs do not establish them. The separately
-reviewed [owned workspace design](../design/workspace-v2.md) uses a distinct
+The separately reviewed [owned workspace design](../design/workspace-v2.md)
+uses a distinct
 schema, a permanent server-scoped control record and bounded immutable
 revisions. Publication ends the writer's mutations; the next claimed writer
 collects known garbage before domain changes. Local planning consumes explicit
 metadata acquisition rather than hiding reads in captured getters. Native
-mechanism probes do not qualify that consumer's implementation. Its private
+mechanism probes do not qualify that consumer's implementation. The native
 declaration/record codec now validates bounded IDs, canonical declarations,
 mapping consistency and complete UTF-8 chunks. These checks establish inert
 data, not live ownership. Its private state reader separately acquires complete
@@ -541,19 +540,29 @@ the executor separately invokes the committed-record and publication helpers.
 The private domain boundary reuses core operations and rechecks the original
 client after preflight, including targetless creation. It retains successful
 effects separately from failed observations and composes busy and step guards.
-The private executor prototype applies complete logical-ID plans through that
+The native executor applies complete logical-ID plans through that
 boundary, retains returned physical identities and verifies fresh captures
 before writing the candidate record. Conditional publication is its final
 mutation; later work only observes. Its result/error data distinguishes the
 selected baseline, unpublished candidate, latest observed metadata and known
-or uncertain publication outcome. Complete executor review and endpoint/archive
-qualification remain required before public admission.
+or uncertain publication outcome.
 Geometry guards compare physical pane IDs with their captured indexes, using
 the source-qualified iteration order. From
 [tmux 3.6](https://github.com/tmux/tmux/blob/3.6/format.c#L4618-L4630), a bare
 `P` loop follows creation order, so its output alone cannot prove pane position.
-Public workspace/2 acquisition and application remain unavailable until the
-complete path is qualified.
+The [public owned-workspace API](../workspace-owned.md) delegates to these
+components. Construction and bounded JSON loading select schema `/1` or `/2`
+explicitly. Ready state and incomplete inspection have separate public types;
+their readers expose local owned data, retained observations, causes and
+outcomes. Planning over matching acquired state remains local after client
+close; applying a preview never transfers authority. Application takes an
+explicit client and reacquires before planning and guarded effects.
+
+The CLI requires an explicit endpoint for owned preview, apply and inspection.
+Its JSON distinguishes false, empty arrays, absent optional values and
+publication state without recursively serializing captured handles. Native and
+extracted examples verify the constructor/file/CLI path; their scope does not
+replace complete native compatibility or the suite's remaining qualification.
 
 The optional [`:total-timeout` application budget](../workspaces.md#bound-application-time)
 is shared within one application and checked after planning. Each core call

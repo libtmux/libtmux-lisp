@@ -166,14 +166,16 @@
                (:file "src/workspace-writer"
                       :description "Private writer metadata, guarded core operations and retained outcomes.")
                (:file "src/workspace-apply"
-                      :description "Private exact-ID application, live predicates, committed records and final publication.")))
+                      :description "Private exact-ID application, live predicates, committed records and final publication.")
+               (:file "src/workspace-api"
+                      :description "Public workspace schema dispatch and native consumer boundary.")))
 
 (defsystem "libtmux/workspace/cli"
   :description "Explicit-endpoint workspace command-line interface"
   :depends-on ("libtmux/workspace")
   :serial t
   :components ((:file "src/workspace-cli"
-                      :description "Validate, plan and apply workspace documents with bounded JSON summaries.")))
+                      :description "Validate, preview, apply and inspect workspace documents with retained JSON evidence.")))
 
 (defsystem "libtmux/tests/query"
   :description "Local native-query semantic tests"
@@ -214,6 +216,7 @@
                (:file "tests/workspace-state")
                (:file "tests/workspace-geometry")
                (:file "tests/workspace-plan")
+               (:file "tests/workspace-public")
                (:file "tests/workspace-cli"))
   :perform (test-op (operation component)
              (declare (ignore operation component))
@@ -222,7 +225,7 @@
 
 (defsystem "libtmux/tests/integration"
   :description "Owned tmux fixtures and external-operation tests"
-  :depends-on ("libtmux/tests" "libtmux/workspace" "libtmux/control")
+  :depends-on ("libtmux/tests" "libtmux/workspace/cli" "libtmux/control")
   :serial t
   :components ((:file "tests/fixture")
                (:file "tests/process")
@@ -247,9 +250,10 @@
                (:file "tests/workspace-writer-integration")
                (:file "tests/workspace-apply-integration")
                (:file "tests/workspace-publication-integration")
-               (:file "tests/workspace-apply-race-integration"))
+               (:file "tests/workspace-apply-race-integration")
+               (:file "tests/workspace-public-integration"))
   :perform (test-op (operation component)
              (declare (ignore operation component))
-             (dolist (suite '(:transport-integration :integration :control-integration :configuration-integration :workspace-integration :workspace-inspection-integration :workspace-writer-integration :workspace-apply-integration :workspace-publication-integration :workspace-apply-race-integration))
+             (dolist (suite '(:transport-integration :integration :control-integration :configuration-integration :workspace-integration :workspace-inspection-integration :workspace-writer-integration :workspace-apply-integration :workspace-publication-integration :workspace-apply-race-integration :workspace-public-integration))
                (unless (uiop:symbol-call :libtmux.tests :run-suite suite)
                  (error "libtmux ~A tests failed" suite)))))

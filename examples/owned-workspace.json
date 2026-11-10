@@ -1,0 +1,23 @@
+{
+  "schema": "libtmux.lisp.workspace/2",
+  "id": "demo-workspace",
+  "session": {
+    "id": "main",
+    "name": "owned-demo",
+    "environment": {"DEMO_LABEL": "hello from Common Lisp"},
+    "windows": [
+      {
+        "id": "code",
+        "name": "code",
+        "index": 2,
+        "layout": "tiled",
+        "panes": [
+          {"id": "shell", "command": ["/bin/cat"]},
+          {"id": "repl", "command": ["/bin/cat"]}
+        ]
+      },
+      {"id": "logs", "name": "logs", "index": 5,
+       "panes": [{"id": "tail", "command": ["/bin/cat"]}]}
+    ]
+  }
+}

@@ -13,7 +13,11 @@ data. Conflicts fail before mutation, and partial application retains evidence."
    #:workspace-path #:workspace-limit #:failed-step
    #:make-workspace #:workspace-data #:parse-workspace #:read-workspace
    #:plan-workspace #:plan-steps #:step-action #:step-data
-   #:apply-workspace #:result-snapshot #:result-outcomes #:result-created-p))
+   #:apply-workspace #:result-snapshot #:result-outcomes #:result-created-p
+   #:workspace-state #:workspace-state-error #:workspace-inspection #:workspace-inspection-error
+   #:fetch-workspace-state #:inspect-workspace #:state-data #:state-snapshot #:state-outcomes #:state-causes
+   #:inspection-data #:inspection-snapshots #:inspection-outcomes #:inspection-causes
+   #:inspection-evidence #:inspection-terminal #:plan-data #:result-data #:result-causes))
 
 (in-package #:libtmux.workspace)
 
@@ -50,8 +54,9 @@ See also: STEP-ACTION, PLAN-STEPS."))
 
 (defgeneric plan-steps (plan)
   (:documentation "Return PLAN's ordered steps as a fresh simple vector. No I/O.
+An owned plan with no domain steps can still require metadata publication.
 
-See also: PLAN-WORKSPACE, STEP-ACTION, STEP-DATA."))
+See also: PLAN-WORKSPACE, PLAN-DATA, STEP-ACTION, STEP-DATA."))
 
 (defgeneric result-snapshot (result)
   (:documentation "Return the final captured SNAPSHOT retained by RESULT. No I/O.
@@ -76,7 +81,8 @@ See also: RESULT-SNAPSHOT, RESULT-OUTCOMES, APPLY-WORKSPACE."))
 (define-condition invalid-workspace (workspace-error) ()
   (:documentation "Native workspace data violates the closed workspace grammar."))
 
-(define-condition workspace-conflict (workspace-error) ()
+(define-condition workspace-conflict (workspace-error)
+  ((data :initarg :data :initform nil))
   (:documentation "Captured topology conflicts with the declared workspace."))
 
 (define-condition invalid-workspace-document (invalid-workspace) ()
@@ -87,7 +93,10 @@ See also: RESULT-SNAPSHOT, RESULT-OUTCOMES, APPLY-WORKSPACE."))
 
 (define-condition workspace-apply-failed (workspace-error)
   ((step :initarg :step :initform nil)
-   (outcomes :initarg :outcomes :initform #()))
+   (outcomes :initarg :outcomes :initform #())
+   (snapshot :initarg :snapshot :initform nil)
+   (data :initarg :data :initform nil)
+   (causes :initarg :causes :initform #()))
   (:documentation "Workspace application stopped with retained partial outcomes."))
 
 (define-condition workspace-deadline-exceeded (workspace-error) ()
@@ -122,7 +131,8 @@ See also: APPLY-WORKSPACE, WORKSPACE-LIMIT, RESULT-OUTCOMES."))
 
 (defclass workspace ()
   ((session :initarg :session)
-   (data :initarg :data))
+   (data :initarg :data)
+   (owned :initarg :owned :initform nil))
   (:documentation "An immutable-by-contract, owned workspace description."))
 
 (defclass workspace-step ()
@@ -131,13 +141,14 @@ See also: APPLY-WORKSPACE, WORKSPACE-LIMIT, RESULT-OUTCOMES."))
   (:documentation "One inspectable, inert workspace operation in execution order."))
 
 (defclass workspace-plan ()
-  ((steps :initarg :steps))
-  (:documentation "A finite local plan; an empty step vector is a proven no-op."))
+  ((steps :initarg :steps) (data :initarg :data :initform nil))
+  (:documentation "A finite local preview, with separate owned publication metadata."))
 
 (defclass workspace-result ()
   ((snapshot :initarg :snapshot :reader result-snapshot)
    (outcomes :initarg :outcomes)
-   (created-p :initarg :created-p :reader result-created-p))
+   (created-p :initarg :created-p :reader result-created-p)
+   (data :initarg :data :initform nil) (causes :initarg :causes :initform #()))
   (:documentation "Retained workspace application evidence and final captured topology."))
 
 (defun deep-copy (value)
@@ -160,7 +171,8 @@ See also: STEP-ACTION, PLAN-STEPS."
 (defmethod plan-steps ((plan workspace-plan))
   "Return PLAN's steps as a fresh simple vector in execution order. No I/O.
 Step objects are immutable-by-contract and may be shared; each STEP-DATA call
-returns owned data. An empty vector represents a proven no-op.
+returns owned data. An empty vector has no domain steps; owned metadata can
+still require publication, as reported by PLAN-DATA.
 
 See also: PLAN-WORKSPACE, STEP-ACTION, STEP-DATA."
   (copy-seq (slot-value plan 'steps)))
@@ -195,6 +207,7 @@ See also: RESULT-SNAPSHOT, RESULT-CREATED-P, APPLY-WORKSPACE."
     (or length 0)))
 
 (defun closed-plist (value allowed path description)
+  "Check finite unique keyword pairs; ALLOWED T checks structure before schema dispatch."
   (let ((length (finite-list-length value path description))
         (seen nil))
     (unless (evenp length)
@@ -202,7 +215,7 @@ See also: RESULT-SNAPSHOT, RESULT-CREATED-P, APPLY-WORKSPACE."
                       :path path))
     (loop for cursor on value by #'cddr
           for key = (first cursor)
-          do (unless (member key allowed :test #'eq)
+          do (unless (and (keywordp key) (or (eq allowed t) (member key allowed :test #'eq)))
                (fail-workspace (format nil "Unknown key in ~A" description)
                                :path (path+ path :unknown-key)))
              (when (member key seen :test #'eq)
@@ -373,7 +386,7 @@ See also: RESULT-SNAPSHOT, RESULT-CREATED-P, APPLY-WORKSPACE."
                 (list :windows (map 'simple-vector #'window-data
                                     (session-spec-windows session))))))
 
-(defun make-workspace (data &key (max-windows 100) (max-panes 1000) (max-argv 256)
+(defun %make-v1-workspace (data &key (max-windows 100) (max-panes 1000) (max-argv 256)
                                 (max-environment 256))
   "Validate closed native DATA and return an owned WORKSPACE without I/O.
 DATA is a keyword plist in schema libtmux.lisp.workspace/1. Lists and vectors
@@ -581,7 +594,7 @@ See also: MAKE-WORKSPACE, PLAN-WORKSPACE."
                  (conflict "A declared window has a different captured pane count"
                            (vector :session :windows position :panes)))))))
 
-(defun plan-workspace (workspace &optional snapshot)
+(defun %plan-v1-workspace (workspace &optional snapshot)
   "Return a finite local WORKSPACE-PLAN, optionally against captured SNAPSHOT.
 Without SNAPSHOT, return the deterministic creation plan. With SNAPSHOT, return
 that plan when the named session is absent, an empty proven no-op when topology
@@ -931,42 +944,8 @@ See also: PLAN-STEPS, WORKSPACE-DATA, APPLY-WORKSPACE."
                  (setf (aref windows index) native)
               finally (return windows)))))))
 
-(defun parse-workspace
-    (source
-     &key
-       (max-input-bytes +default-max-input-bytes+)
-       (max-depth +default-max-depth+)
-       (max-nodes +default-max-nodes+)
-       (max-string-length +default-max-string-length+)
-       (max-windows +default-max-windows+)
-       (max-panes +default-max-panes+)
-       (max-argv +default-max-argv+)
-       (max-environment +default-max-environment+)
-       (max-integer-digits +default-max-integer-digits+))
-  "Parse one bounded libtmux.lisp.workspace/1 JSON string into a WORKSPACE.
-The complete document uses a closed grammar, rejects duplicate members, and
-never interns or evaluates external names. Limits bound UTF-8 bytes, nesting,
-nodes, strings, windows, total panes, argv length, session environment pairs
-(MAX-ENVIRONMENT, default 256), and integer token digits. Pane shell_command is
-explicit shell source; window layout accepts a named string or a custom object.
-Input and retained values are copied. Signals INVALID-WORKSPACE-DOCUMENT or
-WORKSPACE-LIMIT-EXCEEDED with WORKSPACE-PATH and WORKSPACE-LIMIT diagnostics.
-
-See also: READ-WORKSPACE, MAKE-WORKSPACE, WORKSPACE-DATA."
-  (unless (stringp source)
-    (fail-document "PARSE-WORKSPACE requires a complete JSON string"))
-  (checked-limit max-input-bytes :max-input-bytes 1)
-  (checked-limit max-depth :max-depth 1)
-  (checked-limit max-nodes :max-nodes 1)
-  (checked-limit max-string-length :max-string-length 1)
-  (checked-limit max-windows :max-windows 1)
-  (checked-limit max-panes :max-panes 1)
-  (checked-limit max-argv :max-argv 0)
-  (checked-limit max-environment :max-environment 0)
-  (checked-limit max-integer-digits :max-integer-digits 0)
-  (bounded-utf-8-size source max-input-bytes)
-  (validate-json-integers source max-integer-digits)
-  (let ((document (parse-json-events source max-depth max-nodes max-string-length)))
+(defun workspace-from-v1-document (document max-windows max-panes max-argv max-environment)
+  "Decode an already bounded v1 JSON tree through the original closed grammar."
     (closed-object document '("schema" "session") #() "Workspace")
     (let ((schema (required-member document "schema" #())))
       (unless (and (stringp schema) (string= schema +schema+))
@@ -983,7 +962,7 @@ See also: READ-WORKSPACE, MAKE-WORKSPACE, WORKSPACE-DATA."
           (invalid-workspace-document (condition) (error condition))
           (invalid-workspace (cause)
             (fail-document "The workspace document violates the native workspace contract"
-                           :cause cause)))))))
+                           :cause cause))))))
 
 (defun read-workspace
     (path
@@ -1214,7 +1193,7 @@ See also: PARSE-WORKSPACE, WORKSPACE-DATA."
         result)
       options))
 
-(defun apply-workspace
+(defun %apply-v1-workspace
     (client workspace
      &key cancel-token (timeout nil timeout-p) (output-limit nil output-limit-p)
        (total-timeout nil total-timeout-p))
@@ -1264,7 +1243,7 @@ WORKSPACE-DEADLINE-EXCEEDED."
          (steps (plan-steps (plan-workspace workspace initial))))
     (check-workspace-deadline client deadline)
     (when (zerop (length steps))
-      (return-from apply-workspace
+      (return-from %apply-v1-workspace
         (make-instance 'workspace-result :snapshot initial
                                          :outcomes #() :created-p nil)))
     (let ((state nil) (outcomes nil) (started-p nil))

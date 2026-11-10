@@ -13,6 +13,7 @@
                                             ("workspace-apply-integration" . :workspace-apply-integration)
                                             ("workspace-publication-integration" . :workspace-publication-integration)
                                             ("workspace-apply-race-integration" . :workspace-apply-race-integration)
+                                            ("workspace-public-integration" . :workspace-public-integration)
                                             ("control-integration" . :control-integration)
                                             ("configuration-integration" . :configuration-integration)
                                             ("workspace" . :workspace)
@@ -20,7 +21,7 @@
                       (error "Unknown test suite: ~A" argument)))
                 arguments)))
   (unless suites
-    (error "Expected unit, query, regex, json, control, transport-integration, control-integration, configuration-integration, workspace-integration, workspace-inspection-integration, workspace-writer-integration, workspace-apply-integration, workspace-publication-integration, workspace-apply-race-integration, workspace or integration"))
+    (error "Expected unit, query, regex, json, control, transport-integration, control-integration, configuration-integration, workspace-integration, workspace-inspection-integration, workspace-writer-integration, workspace-apply-integration, workspace-publication-integration, workspace-apply-race-integration, workspace-public-integration, workspace or integration"))
   (dolist (suite suites)
     (asdf:load-system (ecase suite
                         (:unit "libtmux/tests")
@@ -32,7 +33,8 @@
                         ((:transport-integration :integration :control-integration
                           :configuration-integration :workspace-integration :workspace-inspection-integration
                           :workspace-writer-integration :workspace-apply-integration
-                          :workspace-publication-integration :workspace-apply-race-integration) "libtmux/tests/integration")))
+                          :workspace-publication-integration :workspace-apply-race-integration
+                          :workspace-public-integration) "libtmux/tests/integration")))
     (format t "~&SBCL ~A; ASDF ~A; UIOP ~A~%"
             (lisp-implementation-version) (asdf:asdf-version)
             (asdf:component-version (asdf:find-system "uiop")))

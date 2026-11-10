@@ -20,8 +20,8 @@ mutations through an explicit client.
 **Implemented:** captured sessions, physical windows, window links and panes;
 bounded subprocess transport; cancellation; named operations, byte buffers,
 validated native queries, eager QuerySets, optional regex and bounded JSON;
-[bounded declarative workspaces](docs/workspaces.md) with pure plans, explicit
-apply and an explicit-endpoint CLI;
+[owned declarative workspaces](docs/workspace-owned.md) with local previews,
+explicit reconciliation and an explicit-endpoint CLI;
 [decoded configuration reads](docs/configuration.md),
 [printer inspection](docs/operations.md#configuration-inspection) and
 [typed option, hook and environment mutations](docs/operations.md#configuration-mutations)
@@ -106,7 +106,7 @@ Load only the systems your application uses. Each system has its own README:
 | [`libtmux/regex`](regex/README.md) | CL-PPCRE search and full-match filters | Query, CL-PPCRE |
 | [`libtmux/json`](json/README.md) | Bounded query document interchange | Query, Jzon |
 | [`libtmux/control`](control/README.md) | Queued requests, output streams and reconnection on tmux 3.8+ | Core |
-| [`libtmux/workspace`](workspace/README.md) | Native declarations, topology previews and explicit apply | Core, Jzon |
+| [`libtmux/workspace`](workspace/README.md) | Owned declarations, drift previews and explicit reconciliation | Core, Jzon |
 | [`libtmux/workspace/cli`](workspace/cli/README.md) | Workspace validation, previews and explicit-endpoint apply | Workspace |
 
 These directories provide system documentation. ASDF definitions remain in
@@ -259,32 +259,47 @@ links to physical windows and panes, then uses the eager local QuerySet:
 
 ## Declare and apply a workspace
 
-The optional `libtmux/workspace` ASDF system reads a closed, bounded JSON
-document, plans locally, and applies only through an explicit client. The
-shipped [`workspace.json`](examples/workspace.json) creates two windows and
-three panes from argv arrays. This tested function returns both the inspectable
-plan and retained application evidence:
+Load the optional `libtmux/workspace` system. This pure constructor function
+from the [complete program](examples/owned-workspace.lisp) declares two windows
+and three panes using ordinary Lisp data:
 
-<!-- example:workspaceconfig -->
+<!-- example:owneddeclaration -->
 ```lisp
-(defun apply-workspace-document (client pathname)
-  "Plan and apply one bounded workspace document through explicit CLIENT.
-Return the preview steps and application result as two values. Application
-shares a 30-second budget; file loading and the preview precede that budget."
-  (let* ((workspace (ws:read-workspace pathname))
-         (snapshot (tm:fetch-snapshot client))
-         (plan (ws:plan-workspace workspace snapshot)))
-    (values (ws:plan-steps plan)
-            (ws:apply-workspace client workspace :total-timeout 30))))
+(defun owned-description ()
+  "Describe two windows and three panes without contacting tmux."
+  (libtmux.workspace:make-workspace
+   '(:schema "libtmux.lisp.workspace/2" :id "demo-workspace"
+     :session
+     (:id "main" :name "owned-demo"
+      :environment #(("DEMO_LABEL" . "hello from Common Lisp"))
+      :windows
+      #((:id "code" :name "code" :index 2 :layout :tiled
+         :panes #((:id "shell" :command #("/bin/cat"))
+                  (:id "repl" :command #("/bin/cat"))))
+        (:id "logs" :name "logs" :index 5
+         :panes #((:id "tail" :command #("/bin/cat")))))))))
 ```
 <!-- /example -->
 
-An exact second apply returns an empty plan and no command outcomes. A conflict
-fails before dispatch. A partial failure retains the failed step and every core
-outcome; no mutation is retried or rolled back. The CLI's `validate` and `plan`
-modes need no daemon, while `apply` requires `--socket-path`. Read the
-[workspace guide](docs/workspaces.md) and
-[generated workspace API](docs/workspace-api.md).
+The equivalent [JSON file](examples/owned-workspace.json) is bounded and
+versioned. Acquisition is explicit; a local preview separates declaration
+changes from captured drift. Apply reacquires state, preserves physical IDs,
+and requires `:reconcile t` for permitted additions, renames and layouts.
+Unowned sessions and busy claims are refused.
+
+Run the complete program on its own daemon:
+
+```console
+$ mise exec -- tools/lisp.sh examples/owned-workspace.lisp
+```
+
+It checks file/native equivalence, printed shell output, retained observations,
+stable IDs after reconciliation and an unchanged second apply. A deliberate
+bad-checksum layout demonstrates failed-step evidence and explicit incomplete
+inspection. No mutation is retried or rolled back. Read the
+[owned workspace guide](docs/workspace-owned.md) and
+[API reference](docs/workspace-api.md); legacy
+[topology-only reuse](docs/workspaces.md) remains available under schema `/1`.
 
 ## Add regex and a versioned filter document
 
@@ -333,7 +348,7 @@ names. See [optional query interchange](docs/query-interchange.md).
 | Filter with `loop`, handle false/absence, export plists | [Local data recipes](docs/tutorial.md#select-and-project-locally) |
 | Compile typed filters, traverse relations and compose QuerySets | [Native queries](docs/queries.md) · [Query API](docs/query-api.md) |
 | Add CL-PPCRE or exchange bounded filter documents | [Query interchange](docs/query-interchange.md) · [JSON API](docs/json-api.md) |
-| Validate, plan or explicitly apply a declarative workspace | [Workspaces](docs/workspaces.md) · [Workspace API](docs/workspace-api.md) |
+| Create, inspect or explicitly reconcile an owned workspace | [Owned workspaces](docs/workspace-owned.md) · [Workspace API](docs/workspace-api.md) |
 | Rename, resize, move, send input, capture, use buffers or terminate explicit targets | [Operation contracts](docs/operations.md) |
 | Read typed options, hooks and environment | [Decoded configuration](docs/configuration.md) |
 | Inspect native option, hook and environment output | [Configuration inspection](docs/operations.md#configuration-inspection) |

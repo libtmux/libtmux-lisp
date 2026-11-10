@@ -13,8 +13,8 @@
 
 </div>
 
-Describe a tmux workspace with native Lisp data or bounded JSON, preview its
-topology locally, then apply it through an explicit client. This optional ASDF
+Describe an owned tmux workspace with native Lisp data or bounded JSON, preview
+changes and drift locally, then apply through an explicit client. This optional ASDF
 system consumes core `libtmux` and Jzon; core does not load it automatically.
 
 ## Load and use
@@ -26,17 +26,18 @@ the locked optional dependencies, then load:
 (asdf:load-system "libtmux/workspace")
 ```
 
-Start with the [native constructor](../docs/workspaces.md#describe-a-topology),
-then [preview and apply](../docs/workspaces.md#plan-locally-then-apply-explicitly).
-The [shipped declaration](../examples/workspace.json) and its
-[native equivalent](../examples/workspace.lisp) create two windows and three
-panes. The complete example compares both declarations, applies one and checks
-that reapplying its exact topology dispatches no mutations.
+Start with the [native constructor](../docs/workspace-owned.md#start-with-native-data),
+then [preview and apply](../docs/workspace-owned.md#acquire-preview-and-apply).
+The [shipped declaration](../examples/owned-workspace.json) and its
+[native equivalent](../examples/owned-workspace.lisp) create two windows and three
+panes. The complete program checks native/file equivalence, printed output,
+reconciliation with stable physical IDs, no-op reapplication and explicit
+stopped-work inspection.
 
 Run it from the checkout root on an owned daemon:
 
 ```console
-$ mise run examples
+$ mise exec -- tools/lisp.sh examples/owned-workspace.lisp
 ```
 
 ## Application boundary
@@ -46,12 +47,16 @@ fresh state and can partially complete; retain
 [`result-outcomes`](../docs/workspace-api.md#result-outcomes-function) and
 failure evidence. A preview is not an executable transaction.
 
-The public v1 format describes topology reuse. It does not establish that
-existing commands, directories, environment or layout match a declaration,
-and does not accept tmuxp documents. Literal argv and explicit shell source
-have separate fields. Use `:total-timeout` for a shared application budget;
-per-operation timeouts and output limits retain their own meaning.
+Schema `/2` uses logical IDs and durable ownership records; `:reconcile t`
+permits qualified additions, renames, layout and metadata changes. It preserves
+unrelated entities and refuses busy, unowned or invalid ownership. Inspect
+stopped work explicitly; never replay an uncertain apply automatically.
 
-[Workspace guide](../docs/workspaces.md) · [API](../docs/workspace-api.md) ·
-[v1 contract](../docs/design/workspace-v1.md) ·
+Legacy `/1` retains [topology-only reuse](../docs/workspaces.md). Neither schema
+accepts tmuxp documents. Literal argv and explicit shell source have separate
+fields. Use `:total-timeout` for a shared application budget; per-operation
+timeouts and output limits retain their own meaning.
+
+[Workspace guide](../docs/workspace-owned.md) · [API](../docs/workspace-api.md) ·
+[Ownership contract](../docs/design/workspace-v2.md) ·
 [CLI system](cli/README.md) · [Changelog](../CHANGELOG.md) · [MIT](../LICENSE)

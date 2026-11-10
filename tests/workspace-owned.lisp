@@ -95,7 +95,7 @@
     (setf (getf (aref (getf (aref windows 1) :panes) 0) :id) "first")
     (signals-workspace :invalid-workspace (workspace-call :make-owned-declaration data)))
   (signals-workspace :invalid-workspace
-    (workspace-call :make-workspace (owned-description)))
+    (workspace-call :%make-v1-workspace (owned-description)))
   (let* ((data (owned-description)) (windows (getf (getf data :session) :windows)))
     (setf (getf (aref windows 0) :id) "first")
     (is (stringp (workspace-call :owned-declaration-json

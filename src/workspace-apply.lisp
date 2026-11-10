@@ -10,7 +10,8 @@
   (:documentation "Private completed application evidence, with local defensive inspection."))
 
 (define-condition owned-apply-error (workspace-error)
-  ((data :initarg :data) (snapshot :initarg :snapshot) (outcomes :initarg :outcomes))
+  ((data :initarg :data) (snapshot :initarg :snapshot) (outcomes :initarg :outcomes)
+   (step :initarg :step :initform nil))
   (:documentation "Private application stopped with retained mappings, capture and outcomes."))
 
 (defun owned-result-data (result) (deep-copy (slot-value result 'data)))
@@ -19,6 +20,7 @@
 (defun owned-apply-error-data (condition) (deep-copy (slot-value condition 'data)))
 (defun owned-apply-error-snapshot (condition) (slot-value condition 'snapshot))
 (defun owned-apply-error-outcomes (condition) (copy-seq (slot-value condition 'outcomes)))
+(defun owned-apply-error-step (condition) (slot-value condition 'step))
 
 (defun owned-observation-error-data (condition)
   (loop for cause = condition then (libtmux:error-cause cause)
@@ -492,6 +494,7 @@
              (setf (owned-application-status application) :failed)
              (when (owned-application-writer application) (setf (slot-value (owned-application-writer application) 'stage) :failed))
              (error 'owned-apply-error :client client :cause cause
+                    :step (owned-application-step application)
                     :outcome (when (typep cause 'libtmux:libtmux-error) (libtmux:error-outcome cause))
                     :data (owned-application-data application cause) :snapshot (owned-application-snapshot application)
                     :outcomes (owned-application-outcomes application cause)

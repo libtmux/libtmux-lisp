@@ -4,6 +4,12 @@
 
 (in-package #:libtmux.tests)
 
+(defun public-workspace-function (name)
+  (multiple-value-bind (symbol visibility) (find-symbol (string name) :libtmux.workspace)
+    (unless (and (eq visibility :external) (fboundp symbol))
+      (error "Workspace function is not public and defined: ~A" name))
+    (symbol-function symbol)))
+
 (def-suite unit)
 (def-suite query)
 (def-suite regex)
@@ -18,6 +24,7 @@
 (def-suite workspace-apply-integration :description "Complete owned application and publication require isolated live tmux fixtures.")
 (def-suite workspace-publication-integration :description "Publication failures and changed observations require isolated live tmux fixtures.")
 (def-suite workspace-apply-race-integration :description "Application refusal and live dispatch races require owned tmux fixtures.")
+(def-suite workspace-public-integration :description "Public owned acquisition, preview and application require isolated live tmux fixtures.")
 (def-suite control-integration)
 (def-suite configuration-integration)
 
@@ -35,6 +42,7 @@
           (:workspace-apply-integration 'workspace-apply-integration)
           (:workspace-publication-integration 'workspace-publication-integration)
           (:workspace-apply-race-integration 'workspace-apply-race-integration)
+          (:workspace-public-integration 'workspace-public-integration)
           (:control-integration 'control-integration)
           (:configuration-integration 'configuration-integration)
           (:workspace 'workspace)

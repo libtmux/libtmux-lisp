@@ -6,7 +6,7 @@ Provisioning uses the network; verification does not install dependencies.
 `mise run integration` runs transport, core operations, control, decoded
 configuration and workspace groups in separate serialized child processes. Each
 retains the same 60-second cap and owned-process cleanup checks. ASDF test-op
-includes all five groups too.
+includes the named integration groups too.
 
 | Command | Tier | Current coverage |
 | --- | --- | --- |
@@ -22,7 +22,7 @@ includes all five groups too.
 | `mise run integration` | Outer | Bounded transport, cancellation/cleanup, managed daemon startup/shutdown and failure recovery, linked graphs, attached clients, daemon replacement, named operations, typed configuration reads/mutations, exact target/server termination and tutorial failure cleanup |
 | `mise run package` | Outer | Source archive plus isolated core/query/regex/JSON/control consumers and dependency-boundary checks |
 | `mise run examples` | Outer | Shipped Lisp recipes, all tutorial Lisp blocks, literal console setup/cleanup, worker consumption signals, optional control streaming and owned daemon cleanup |
-| `mise run package-examples` | Outer | Archive-local links, examples, and the installed workspace CLI's validate/plan/apply/reapply workflow |
+| `mise run package-examples` | Outer | Archive-local links, examples, and the installed workspace CLI's validation, preview, apply, reconciliation and stopped-work inspection |
 | `mise run docs` | Maintenance | Regenerate API signatures/docstrings, condition hierarchy, applicable models, fields, modules and executable excerpts |
 
 Performance uses a separate tier: `mise run benchmark` compares identical native
@@ -35,7 +35,7 @@ These commands exercise the implemented native core; they do not establish
 full-suite compatibility. New operation tests extend the integration suite as
 those APIs are implemented. `check` detects generated-document drift without
 rewriting files. `docs` deliberately rewrites generated pages and excerpts.
-Complete catalog reads exercise many native commands. Each of the five
+Complete catalog reads exercise many native commands. Each of the named
 integration processes retains the same 60-second ceiling; the outer task runs
 every group and cleanup checks.
 No formatting tool is prescribed for Common Lisp; source checks and SBCL
@@ -75,10 +75,14 @@ The artifact includes its setup pins, tools, guides and executable examples.
 `package-examples` checks its local links and runs its own copy of the example
 runner with an isolated core registry. `dist/examples-evidence.json` records
 the runtime versions, source hashes, tutorial block count and cleanup result.
-The installed workspace entry point reads the shipped JSON file, creates its
-declared live topology, and reports zero retained mutations on repeat apply.
-These checks qualify the implemented v1 behavior; full ownership metadata,
-drift inspection and explicit reconciliation remain separate unfinished work.
+The installed workspace entry point reads both shipped schemas. Legacy `/1`
+checks create the declared topology and report zero mutations on repeat apply.
+Owned `/2` checks create recorded physical identities, preview and apply explicit
+reconciliation, preserve those identities, and inspect stopped work without
+repeating it. The complete native constructor program also verifies shell
+output, environment values, retained observations and an unrelated session.
+These endpoint checks qualify their recorded inputs; they do not establish
+the entire suite's current twelve-release qualification or product completion.
 The [tutorial](docs/tutorial.md) explains the recipes and expected values.
 
 Select a tmux binary explicitly when exercising a compatibility cell:

@@ -13,8 +13,8 @@
 
 </div>
 
-Validate workspace files, print local topology previews and explicitly apply
-them to a selected tmux endpoint. This ASDF system depends on
+Validate workspace files, inspect ownership, preview changes and explicitly
+apply them to a selected tmux endpoint. This ASDF system depends on
 [`libtmux/workspace`](../README.md) and adds no external library.
 
 ## Run from source
@@ -23,23 +23,31 @@ Complete the root [source setup](../../README.md#install-from-source), including
 locked dependencies. Run the shipped entry point from the checkout root:
 
 ```console
-$ bin/libtmux-workspace validate examples/workspace.json
+$ bin/libtmux-workspace validate examples/owned-workspace.json
 ```
 
-Success is a JSON object with `"status":"valid"`, two windows and three panes.
-Validation reads the bounded document without contacting tmux. Preview the
-creation steps locally:
+Success reports `"status":"valid"`, schema `libtmux.lisp.workspace/2`, two
+windows and three panes. Validation reads the bounded document without
+contacting tmux. Display the command grammar:
 
 ```console
-$ bin/libtmux-workspace plan examples/workspace.json
+$ bin/libtmux-workspace --help
 ```
 
-Application requires `--socket-path`; pass `--program` when tmux is not the
-native binary selected by `PATH`. See the
-[CLI guide](../../docs/workspaces.md#use-the-cli-without-an-implicit-server)
-for complete setup and endpoint selection. The
-[example runner](../../tools/examples.py) executes validation, preview, apply
-and zero-mutation reapplication on its owned server.
+Owned plan, apply and inspect require `--socket-path`; pass `--program` when
+tmux is not the native binary selected by `PATH`. The standalone `--reconcile`
+flag permits owned plan/apply changes; a preview grants no execution authority.
+Legacy `/1` files also support an offline plan without a daemon.
+
+See the [CLI guide](../../docs/workspace-owned.md#use-the-cli) for result and
+failure contracts. The [example runner](../../tools/examples.py) executes cold
+validation, preview, apply, no-op reapplication, reconciliation and stopped-work
+inspection through this entry point on its owned server. Run the complete
+checks from the checkout root:
+
+```console
+$ mise run examples
+```
 
 ## Embed and handle results
 
@@ -52,8 +60,9 @@ Load the command-line adapter explicitly:
 [`main`](../../docs/workspace-api.md#main-function) returns an exit code
 without terminating the Lisp image or closing caller-owned streams. Success
 uses code 0, invalid usage code 2 and document or operational failure code 1.
-Failures write structured JSON to stderr and retain command evidence. Do not
-automatically retry an uncertain apply.
+Failures write structured JSON to stderr and retain command evidence. Completed
+inspection returns 0 even for busy or invalid ownership; read completion differs
+from readiness. Do not automatically retry an uncertain apply.
 
 [Workspace library](../README.md) · [CLI API](../../docs/workspace-api.md#command-line-adapter) ·
 [Changelog](../../CHANGELOG.md) · [MIT](../../LICENSE)

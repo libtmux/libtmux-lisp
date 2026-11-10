@@ -218,7 +218,8 @@ with tempfile.TemporaryDirectory(prefix="libtmux-lisp-consumer-") as directory:
                         str(root / "tools/lisp.sh"), str(extracted / "tools/test.lisp"),
                         "workspace-writer-integration"],
                        cwd=root, env=environment, check=True)
-        for suite in ("workspace-apply-integration", "workspace-publication-integration", "workspace-apply-race-integration"):
+        for suite in ("workspace-apply-integration", "workspace-publication-integration", "workspace-apply-race-integration",
+                      "workspace-public-integration"):
             subprocess.run(["python3", str(root / "tools/test-processes.py"),
                             str(root / "tools/lisp.sh"), str(extracted / "tools/test.lisp"), suite],
                            cwd=root, env=environment, check=True)
@@ -246,6 +247,7 @@ if arguments.examples:
     evidence["archived_workspace_inspection_integration"] = "PASS"
     evidence["archived_workspace_writer_integration"] = "PASS"
     evidence["archived_workspace_apply_integration"] = "PASS"
+    evidence["archived_workspace_public_integration"] = "PASS"
     evidence["archived_workspace_publication_integration"] = "PASS"
     evidence["archived_workspace_apply_race_integration"] = "PASS"
 (output / "package-evidence.json").write_text(json.dumps(evidence, indent=2) + "\n")

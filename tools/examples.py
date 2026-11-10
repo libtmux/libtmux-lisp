@@ -65,6 +65,81 @@ def run_workspace_cli(socket, directory, child_environment):
             "live_topology": "PASS", "session_environment": "PASS"}
 
 
+def run_owned_workspace_cli(socket, directory, child_environment):
+    """Check the installed entry point's complete owned-document workflow."""
+    cli_environment = child_environment.copy()
+    cli_environment["LIBTMUX_ASDF"] = str(Path(asdf) / "asdf.lisp")
+    cli_environment["LIBTMUX_QLOT_SETUP"] = str(child_environment.get(
+        "LIBTMUX_QLOT_SETUP", root / ".qlot/setup.lisp"))
+    cli_environment["ASDF_OUTPUT_TRANSLATIONS"] = (
+        f'(:output-translations (t "{directory}/owned-cli-fasl/") :ignore-inherited-configuration)'
+    )
+    document = root / "examples/owned-workspace.json"
+    summaries = []
+
+    def invoke(command, path=document, *, reconcile=False, expected=0):
+        arguments = [command, str(path)]
+        if command != "validate":
+            arguments.extend(["--socket-path", socket, "--program", program])
+        if reconcile:
+            arguments.append("--reconcile")
+        result = subprocess.run([str(root / "bin/libtmux-workspace"), *arguments],
+                                cwd=directory, env=cli_environment, capture_output=True,
+                                text=True, timeout=20)
+        if result.returncode != expected:
+            raise RuntimeError(f"Owned CLI {command}: expected {expected}, got {result.returncode}: {result.stderr}")
+        payload, unused = (result.stdout, result.stderr) if expected == 0 else (result.stderr, result.stdout)
+        assert not unused, f"Owned CLI {command} wrote to both result streams"
+        data = json.loads(payload)
+        summaries.append({"command": command, "reconcile": reconcile,
+                          "exit_code": result.returncode, "status": data["status"]})
+        return data
+
+    validated = invoke("validate")
+    assert validated["schema"] == "libtmux.lisp.workspace/2" and validated["id"] == "demo-workspace"
+    assert (validated["windows"], validated["panes"]) == (2, 3)
+    assert invoke("plan")["data"]["publish-p"] is True
+    first = invoke("apply")["data"]
+    assert first["status"] == "published" and first["publication-status"] == "succeeded"
+    original = first["record"]
+    again = invoke("apply")["data"]
+    assert again["status"] == "unchanged" and again["publication-status"] is None
+    assert again["plan"]["publish-p"] is False
+    assert again["record"]["revision"] == original["revision"]
+
+    changed = json.loads(document.read_text())
+    changed["session"]["name"] = "owned-cli-renamed"
+    window = changed["session"]["windows"][0]
+    window.update(name="editors", layout="even-vertical")
+    window["panes"].append({"id": "extra", "command": ["/bin/cat"]})
+    path = Path(directory) / "owned-cli.json"
+    path.write_text(json.dumps(changed))
+    refusal = invoke("plan", path, expected=1)
+    assert refusal["condition"] == "workspace-conflict" and refusal["plan"]["changes"]
+    assert invoke("plan", path, reconcile=True)["data"]["publish-p"] is True
+    after = invoke("apply", path, reconcile=True)["data"]["record"]
+    assert after["session"]["physical-id"] == original["session"]["physical-id"]
+    assert after["windows"][0]["physical-id"] == original["windows"][0]["physical-id"]
+    assert after["windows"][0]["panes"][0]["physical-id"] == original["windows"][0]["panes"][0]["physical-id"]
+    assert len(after["windows"][0]["panes"]) == 3
+    inspection = invoke("inspect")["data"]
+    assert inspection["complete-p"] is True and inspection["status"] == "idle"
+
+    window["layout"] = {"custom": "0000,80x24,0,0,0"}
+    path.write_text(json.dumps(changed))
+    failed = invoke("apply", path, reconcile=True, expected=1)
+    assert failed["condition"] == "workspace-apply-failed"
+    assert failed["failedStep"]["action"] == "select-layout"
+    assert failed["outcomes"] and failed["causes"]
+    assert failed["data"]["publication-status"] is None
+    assert failed["data"]["record"]["revision"] == after["revision"]
+    incomplete = invoke("inspect", path)["data"]
+    assert incomplete["complete-p"] is True and incomplete["status"] == "busy"
+    return {"entrypoint": "bin/libtmux-workspace", "schema": validated["schema"],
+            "cold_validation": "PASS", "operations": summaries, "stable_ids": "PASS",
+            "failed_apply_and_inspection": "PASS"}
+
+
 for mode in ("assertions", "tutorial"):
     with tempfile.TemporaryDirectory(prefix="libtmux-lisp-example-") as directory:
         tutorial_terminated = False
@@ -172,6 +247,7 @@ with tempfile.TemporaryDirectory(prefix="libtmux-lisp-quickstart-") as directory
                                   "-x", "120", "-y", "40", "--", "/bin/cat"],
                        env=environment, check=True, timeout=10)
         workspace_cli = run_workspace_cli(socket, directory, quickstart_environment)
+        owned_workspace_cli = run_owned_workspace_cli(socket, directory, quickstart_environment)
     finally:
         subprocess.run(command + ["-N", "kill-server"], env=environment,
                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
@@ -189,6 +265,15 @@ with tempfile.TemporaryDirectory(prefix="libtmux-lisp-managed-") as directory:
         "--load", str(Path(asdf) / "asdf.lisp"),
         "--script", str(root / "examples/managed-daemon.lisp"),
     ], cwd=directory, env=managed_environment, check=True, timeout=20)
+with tempfile.TemporaryDirectory(prefix="libtmux-lisp-owned-workspace-") as directory:
+    owned_environment = environment.copy()
+    owned_environment["LIBTMUX_PROGRAM"] = program
+    subprocess.run([
+        "sbcl", "--noinform", "--no-sysinit", "--no-userinit",
+        "--load", str(Path(asdf) / "asdf.lisp"),
+        "--load", str(Path(os.environ.get("LIBTMUX_QLOT_SETUP", root / ".qlot/setup.lisp"))),
+        "--script", str(root / "examples/owned-workspace.lisp"),
+    ], cwd=directory, env=owned_environment, check=True, timeout=20)
 control_example = "SKIP: requires tmux 3.8 or newer"
 with tempfile.TemporaryDirectory(prefix="libtmux-lisp-configuration-") as directory:
     configuration_environment = environment.copy()
@@ -213,7 +298,7 @@ evidence = {"status": "PASS", "tmux": version,
             "elapsed_seconds": round(time.monotonic() - started, 3),
             "source_sha256": {str(path.relative_to(root)): hashlib.sha256(path.read_bytes()).hexdigest()
                               for path in [*sorted((root / "examples").iterdir()),
-                                           root / "README.md", root / "docs/tutorial.md",
+                                           root / "README.md", root / "docs/tutorial.md", root / "docs/workspace-owned.md",
                                            root / "tools/examples.py", root / "tools/stop-example.py",
                                            root / "bin/libtmux-workspace",
                                            root / "tools/workspace-cli.lisp"] if path.is_file()},
@@ -223,6 +308,8 @@ evidence = {"status": "PASS", "tmux": version,
 evidence["tutorial_lisp_blocks"] = len(forms)
 evidence["tutorial_console_setup_cleanup"] = "PASS"
 evidence["workspace_cli"] = workspace_cli
+evidence["owned_workspace_cli"] = owned_workspace_cli
+evidence["owned_workspace_program"] = "PASS"
 evidence["managed_daemon"] = "PASS"
 evidence["decoded_configuration"] = "PASS"
 evidence["persistent_control"] = control_example

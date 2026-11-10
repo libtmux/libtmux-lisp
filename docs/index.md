@@ -14,7 +14,8 @@ system has a README covering loading, examples and its execution boundary.
 | [Captures and identity](captures.md) | Object graph, relations, presence, ownership and refresh |
 | [Native queries](queries.md) | Typed forms, relations, QuerySets, limits and cardinality |
 | [Query interchange](query-interchange.md) | Optional regex and bounded versioned JSON documents |
-| [Declarative workspaces](workspaces.md) | Bounded documents, pure plans, explicit apply and CLI |
+| [Owned workspaces](workspace-owned.md) | Logical IDs, native/file declarations, local previews, reconcile, inspection and CLI |
+| [Legacy workspace topology](workspaces.md) | Schema /1 creation and topology-only reuse |
 | [Decoded configuration](configuration.md) | Typed values, inheritance, hooks, environment state and failure evidence |
 | [Explicit operations](operations.md) | Creation, placement, input, buffers and mutation outcomes |
 | [Transport](transport.md) | Client lifecycle, limits, cancellation and failure evidence |
