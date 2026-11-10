@@ -71,8 +71,9 @@ Loading this package adds no transport dependency and performs no tmux I/O.")
   "Return a fresh bounded vector of safe selected-item summaries."
   (libtmux.internal::owned-data (slot-value condition 'sample)))
 
-(defstruct (query-node (:constructor make-query-node (operator function &key field operand children)))
-  operator function field operand children)
+(defstruct (query-node (:constructor make-query-node
+                         (operator function &key field descriptor operand children)))
+  operator function field descriptor operand children)
 
 (defstruct (execution-context (:constructor make-execution-context (model limit &key checker)))
   model limit (visits 0) checker)
@@ -443,7 +444,7 @@ Loading this package adds no transport dependency and performs no tmux I/O.")
                        (:contains (not (null (search operand value :test #'char=))))
                        (:starts-with (and (<= (length operand) (length value))
                                           (string= operand value :end2 (length operand))))))))
-            :field key :operand operand))))
+            :field key :descriptor field :operand operand))))
       (:in
        (unless (= 3 (length form))
          (fail-filter model form "Operator :IN expects a field and finite sequence"))

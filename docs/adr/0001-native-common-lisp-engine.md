@@ -651,6 +651,19 @@ row. Bounded syntax alone does not prevent host scheduling delays or an inner
 failure from producing an apparently Boolean result. Pruning remains unqualified
 until both complete relationships and failure-aware evaluation are established.
 
+A private inspection compiler prepares whole expressions from required Boolean
+and bounded integer fields, or reports a local-fallback reason. It retains the
+local compiler's exact descriptor and checks capture/registry identity before
+using a format name. Numeric comparisons use native
+[`e` expressions](https://github.com/tmux/tmux/blob/3.3a/format.c#L4029-L4132);
+ordinary [format comparisons](https://github.com/tmux/tmux/blob/3.8/format.c#L6470-L6500)
+are lexical. Balanced Boolean syntax is limited by emitted
+bytes, prepared-node visits and recursive format depth. The depth bound controls
+the native recursive loop counter; it does not prevent elapsed-time failure.
+Unsupported expressions return no partial source. This compiler performs no
+I/O and admits no acquisition execution or pruning. Public explanation continues
+to report local execution and unavailable source filtering.
+
 A private whole-expression compiler and fixed-fixture comparisons can establish
 a bounded scalar subset without changing acquisition. Native numeric `e`
 expressions use floating-point parsing, so their exact field/operand domain must

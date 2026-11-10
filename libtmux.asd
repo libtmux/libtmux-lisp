@@ -102,7 +102,9 @@
   :in-order-to ((test-op (test-op "libtmux/tests/query")))
   :serial t
   :components ((:file "src/query"
-                      :description "Owned expressions, relation traversal, eager query sets and strict cardinality.")))
+                      :description "Owned expressions, relation traversal, eager query sets and strict cardinality.")
+               (:file "src/query-source"
+                      :description "Private bounded tmux-format inspection without acquisition or row pruning.")))
 
 (defsystem "libtmux/regex"
   :description "Optional CL-PPCRE operators for native captured queries"

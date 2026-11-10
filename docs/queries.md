@@ -191,6 +191,11 @@ does not alter the compiled filter. `fields` returns fresh registry metadata for
 one of `:session`, `:window`, `:pane`, `:window-link` or `:client`. Here
 `:client` means a captured attached tmux client, not the connection object.
 
+[`explain`](query-api.md#explain-function) reports `:execution :local` and
+`:source-filtering :unavailable`. Acquisition does not execute query filters.
+The [source-execution decision](adr/0001-native-common-lisp-engine.md#qualify-control-mode-and-source-filtering-before-exposing-them)
+records the relationship and native-evaluation guarantees still required.
+
 ## Select strictly before mutation
 
 `one` requires exactly one item. `one-or-none` returns two values so an empty

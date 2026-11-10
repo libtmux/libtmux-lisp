@@ -11,6 +11,101 @@
 (test query-package-is-separately-loadable
   (is (find-package :libtmux.query)))
 
+(test source-format-inspection-keeps-local-execution-and-owns-results
+  (let* ((libtmux.internal::*process-launched-hook*
+           (lambda (job)
+             (declare (ignore job))
+             (error "Source-format inspection attempted acquisition")))
+         (filter (libtmux.query:compile-filter :pane '(:< :pane/width 100)))
+         (compiler #'libtmux.query::compile-tmux-filter))
+    (is (functionp compiler))
+    (multiple-value-bind (source metadata) (funcall compiler filter "3.3a")
+      (is (string= "#{e|<:#{pane_width},100}" source))
+      (is (eq :supported (getf metadata :source-inspection)))
+      (is (eq :unavailable (getf metadata :acquisition-execution)))
+      (is (eq :local (getf metadata :execution)))
+      (is (null (getf metadata :acquires-p)))
+      (setf (char source 0) #\x
+            (aref (getf metadata :required-fields) 0) :changed)
+      (multiple-value-bind (again details) (funcall compiler filter "3.3a")
+        (is (char= #\# (char again 0)))
+        (is (equalp #(:pane/width) (getf details :required-fields)))))
+    (is (eq :unavailable
+            (getf (libtmux.query:explain filter) :source-filtering)))))
+
+(test source-format-inspection-refuses-the-whole-unsupported-expression
+  (dolist (entry '(((:= :pane/title "editor") :unsupported-field-kind)
+                   ((:= :pane/pid 1) :optional-field)
+                   ((:= :pane/width 4294967296) :integer-domain)
+                   ((:in :pane/width (80 120)) :unsupported-operator)
+                   ((:present :pane/width) :unsupported-operator)
+                   ((:is :pane/window (:and)) :unsupported-operator)))
+    (multiple-value-bind (source metadata)
+        (libtmux.query::compile-tmux-filter
+         (libtmux.query:compile-filter
+          :pane (list :and '(:= :pane/active nil) (first entry)))
+         "3.8")
+      (is (null source))
+      (is (eq (second entry) (getf metadata :fallback-reason)))))
+  (dolist (entry '(("3.3" :unsupported-profile)
+                   ("3.9" :unsupported-profile)
+                   ("3.3a" :listing-filter-unavailable)))
+    (multiple-value-bind (source metadata)
+        (libtmux.query::compile-tmux-filter
+         (libtmux.query:compile-filter :client '(:= :client/control-mode nil))
+         (first entry))
+      (is (null source))
+      (is (eq (second entry) (getf metadata :fallback-reason))))))
+
+(test source-format-inspection-requires-the-original-capture-descriptor
+  (let* ((original (gethash :pane/width libtmux.internal::*field-registry*))
+         (filter (libtmux.query:compile-filter :pane '(:>= :pane/width 100))))
+    (unwind-protect
+         (progn
+           (setf (gethash :pane/width libtmux.internal::*field-registry*)
+                 (libtmux.internal::copy-field-spec original))
+           (dolist (candidate
+                    (list filter
+                          (libtmux.query:compile-filter
+                           :pane '(:>= :pane/width 100))))
+             (multiple-value-bind (source metadata)
+                 (libtmux.query::compile-tmux-filter candidate "3.8")
+               (is (null source))
+               (is (eq :registry-mismatch (getf metadata :fallback-reason))))))
+      (setf (gethash :pane/width libtmux.internal::*field-registry*) original))
+    (is (stringp (libtmux.query::compile-tmux-filter filter "3.8")))))
+
+(test source-format-inspection-bounds-the-emitted-grammar
+  (dolist (entry '(((:and) "1") ((:or) "0")
+                   ((:= :pane/active nil) "#{e|==:#{pane_active},0}")))
+    (let* ((filter (libtmux.query:compile-filter :pane (first entry)))
+           (expected (copy-seq (second entry)))
+           (source (libtmux.query::compile-tmux-filter filter "3.8")))
+      (is (string= expected source))
+      (setf (char source 0) #\x)
+      (is (string= expected
+                   (libtmux.query::compile-tmux-filter filter "3.8")))))
+  (let ((deep '(:and)))
+    (dotimes (index 10) (setf deep (list :not deep)))
+    (dolist (entry
+             (list (list :pane deep :source-depth)
+                   (list :pane (cons :and (make-list 128 :initial-element '(:and)))
+                         :source-nodes)
+                   (list :session
+                         (cons :and
+                               (make-list 127 :initial-element
+                                          '(:>= :session/window-link-count -4294967295)))
+                         :source-bytes)))
+      (multiple-value-bind (source metadata)
+          (libtmux.query::compile-tmux-filter
+           (libtmux.query:compile-filter (first entry) (second entry)) "3.8")
+        (is (null source))
+        (is (eq (third entry) (getf metadata :fallback-reason)))
+        (is (null (getf metadata :source-bytes)))
+        (let ((visits (getf metadata :attempted-node-visits)))
+          (is (integerp visits))
+          (when (integerp visits) (is (plusp visits))))))))
+
 (test scalar-filter-preserves-false-and-absence
   (let* ((panes (libtmux:panes (synthetic-snapshot)))
          (result
