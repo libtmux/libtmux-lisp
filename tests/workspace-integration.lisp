@@ -193,14 +193,15 @@ sys.stdin.buffer.read()
                client (libtmux.workspace:make-workspace
                        '(:schema "libtmux.lisp.workspace/1"
                          :session (:name "bad-custom"
-                                   :windows #((:name "main" :layout (:custom "invalid")
+                                   :windows #((:name "main" :layout (:custom "0000,80x24,0,0,0")
                                                :panes #((:command #("/bin/cat")))))))))
-              (fail "Tmux accepted an invalid custom layout"))
+              (fail "Tmux accepted a custom layout with an incorrect checksum"))
           (libtmux.workspace:workspace-apply-failed (condition)
             (let ((outcomes (libtmux.workspace:result-outcomes condition)))
               (is (= 2 (length outcomes)))
               (is (eq :succeeded (libtmux:outcome-status (aref outcomes 0))))
               (is (not (eq :succeeded (libtmux:outcome-status (aref outcomes 1)))))
+              (is (zerop (nth-value 2 (fixture-command fixture "-N" "has-session" "-t" "=fixture"))))
               (is (eq :select-layout
                       (libtmux.workspace:step-action
                        (libtmux.workspace:failed-step condition)))))))))))
