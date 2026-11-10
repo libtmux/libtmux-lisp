@@ -105,6 +105,10 @@ Incomplete-workspace read and race scenarios run in the separate
 it with the same 60-second child cap as the other live groups.
 Writer contention, immutable metadata and interrupted-progress scenarios run in
 the separate `workspace-writer-integration` group under that same cap.
+Complete owned application, publication failures and live dispatch races run in
+`workspace-apply-integration`, `workspace-publication-integration` and
+`workspace-apply-race-integration`. Both native and extracted-archive tasks run
+each group as a separate child; the 60-second cap applies to each group.
 
 Keep network access, installs, production builds, browser launches, sleeps,
 and broad corpus scans out of inner and mid loops. Investigate any timeout

@@ -40,9 +40,12 @@
 - Prepare private workspace writer claims, guarded retirement of known obsolete
   records and absent-only pending bundles. Exact readback and retained outcomes
   distinguish successful writes from failed observation. Interrupted writers
-  cannot resume. Domain application and workspace/2 publication remain pending.
+  cannot resume. Public workspace/2 application remains pending.
   Private domain calls reuse native core operations while preserving the original
   client context, busy token, step guards and required creation observations.
+  A private executor prototype resolves complete plans by physical identity,
+  verifies mappings and publishes the committed revision once. Failed
+  observation retains the selected record, candidate and publication outcome.
 
 - Inspect private incomplete workspace metadata explicitly, retaining separate
   read attempts, partial records, captured graphs, causes and native outcomes.

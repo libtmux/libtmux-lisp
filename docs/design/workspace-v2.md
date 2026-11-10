@@ -8,16 +8,19 @@ This document records the implementation target and its remaining gates.
 
 The private implementation includes inert declarations and records, explicit
 ready and incomplete acquisition, local planning, and metadata writer
-primitives. The writer claims once, retires only known obsolete records and
-writes a complete immutable pending bundle. It retains partial outcomes and
-refuses reuse after an admitted primitive fails or exits nonlocally. Domain
-execution, final publication and the public workspace/2 constructor, loader and
-CLI remain unfinished.
+primitives and an executor prototype. The writer claims once, retires only known
+obsolete records and writes a complete immutable pending bundle. It retains
+partial outcomes and refuses reuse after an admitted step fails or exits
+nonlocally. Complete executor qualification and the public workspace/2
+constructor, loader and CLI remain unfinished.
 
 A private domain-call boundary reuses existing core operations with the busy
 token, generated step guards and original client context. It returns retained
 creation observations for physical-ID resolution and stops after failed or
-missing required observations. It does not generate or execute a complete plan.
+missing required observations. The private executor uses that boundary for
+complete logical-ID plans, verifies replacement captures, writes a candidate
+revision and publishes once. This path remains subject to independent review
+and endpoint/archive qualification before public admission.
 
 ## Identity and declarations
 
@@ -131,6 +134,14 @@ window and reject floating or modal panes. Grouped sessions can
 propagate window creation; a prior snapshot check alone cannot prevent that.
 These [tmux group fields](https://github.com/tmux/tmux/blob/3.8/format.c#L2989-L2996)
 are checked again at dispatch.
+
+The pane guard compares physical IDs and captured pane indexes together.
+Native `P` loops use window order through tmux 3.5a, then creation-ID order from
+[tmux 3.6](https://github.com/tmux/tmux/blob/3.6/format.c#L4618-L4630).
+Expected fragments follow the qualified loop order; each fragment retains the
+captured index. This detects a pane reorder after preflight even when native
+iteration remains in creation order. Sorting a private copy does not change the
+captured graph or the declaration's pane order.
 
 Private preconditions belong adjacent to the payload in core's existing witness
 and target guard chain. Refusal needs its own receipt and retained non-dispatch

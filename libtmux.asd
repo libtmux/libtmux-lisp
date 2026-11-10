@@ -164,7 +164,9 @@
                (:file "src/workspace-plan"
                       :description "Private local owned declaration and observed-drift planning.")
                (:file "src/workspace-writer"
-                      :description "Private writer metadata, guarded core operations and retained outcomes.")))
+                      :description "Private writer metadata, guarded core operations and retained outcomes.")
+               (:file "src/workspace-apply"
+                      :description "Private exact-ID application, live predicates, committed records and final publication.")))
 
 (defsystem "libtmux/workspace/cli"
   :description "Explicit-endpoint workspace command-line interface"
@@ -242,9 +244,12 @@
                (:file "tests/workspace-state-integration")
                (:file "tests/workspace-geometry-integration")
                (:file "tests/workspace-inspection-integration")
-               (:file "tests/workspace-writer-integration"))
+               (:file "tests/workspace-writer-integration")
+               (:file "tests/workspace-apply-integration")
+               (:file "tests/workspace-publication-integration")
+               (:file "tests/workspace-apply-race-integration"))
   :perform (test-op (operation component)
              (declare (ignore operation component))
-             (dolist (suite '(:transport-integration :integration :control-integration :configuration-integration :workspace-integration :workspace-inspection-integration :workspace-writer-integration))
+             (dolist (suite '(:transport-integration :integration :control-integration :configuration-integration :workspace-integration :workspace-inspection-integration :workspace-writer-integration :workspace-apply-integration :workspace-publication-integration :workspace-apply-race-integration))
                (unless (uiop:symbol-call :libtmux.tests :run-suite suite)
                  (error "libtmux ~A tests failed" suite)))))

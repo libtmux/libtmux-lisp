@@ -41,12 +41,13 @@
    (head :initarg :head) (token :initarg :token) (control-key :initarg :control-key)
    (control :initarg :control) (pending :initarg :pending) (writes :initarg :writes)
    (retirement :initarg :retirement) (options :initarg :options) (deadline :initarg :deadline)
+   (application-preconditions :initarg :application-preconditions :initform nil)
    (stage :initform :prepared) (outcomes :initform nil))
-  (:documentation "Private single-use metadata writer; no domain execution or publication."))
+  (:documentation "Private owned writer with guarded operations and retained outcomes."))
 
 (define-condition owned-writer-error (workspace-error)
   ((writer :initarg :writer))
-  (:documentation "A metadata primitive stopped; the writer retains every known outcome."))
+  (:documentation "An owned writer step stopped; known outcomes remain retained."))
 
 (defun owned-writer-data (writer)
   "Return fresh progress data without acquiring or advancing writer state."
@@ -92,7 +93,7 @@
                                                (when outcome (vector outcome))))))
              (error 'owned-writer-error :client (slot-value writer 'client) :writer writer
                     :cause cause :outcome (when (typep cause 'libtmux:libtmux-error) (libtmux:error-outcome cause))
-                    :message "Workspace metadata writer stopped; inspect retained outcomes before further action")))
+                    :message "Owned workspace writer stopped; inspect retained outcomes before further action")))
       (unless completed (setf (slot-value writer 'stage) :failed)))))
 
 (defun owned-writer-preconditions (writer &optional idle)
@@ -115,18 +116,25 @@
          (builder (owned-writer-builder writer key value :unset unset :only-if-unset only-if-unset)))
     (libtmux.internal::check-command-envelope
      (libtmux.internal::guarded-command witness nil (funcall builder witness nil)
-                                        "libtmux-00000000000000000000000000000000" preconditions))))
+                                        "libtmux-00000000000000000000000000000000"
+                                        (owned-metadata-preconditions writer preconditions)))))
+
+(defun owned-metadata-preconditions (writer preconditions)
+  (libtmux.internal::owned-dispatch-preconditions
+   (append (slot-value writer 'application-preconditions) preconditions)))
 
 (defun prepare-owned-writer (client declaration state &key writer-token cancel-token
                                                          (timeout (slot-value client 'libtmux::timeout))
                                                          (output-limit (slot-value client 'libtmux::output-limit))
-                                                         total-timeout)
+                                                         total-timeout deadline application-preconditions)
   "Prepare bounded metadata before claiming; the supplied ready state confers no new authority."
   (check-type client libtmux:client)
   (check-type declaration owned-declaration)
   (check-type state owned-state)
   (libtmux.internal::check-limits timeout output-limit)
   (when total-timeout (libtmux.internal::check-limits total-timeout output-limit))
+  (when (or (and deadline total-timeout) (and deadline (not (realp deadline))))
+    (fail-workspace "Use one absolute deadline or one total timeout"))
   (let* ((start (libtmux.internal::monotonic-seconds))
          (data (slot-value state 'data)) (snapshot (slot-value state 'snapshot))
          (id (getf (slot-value declaration 'data) :id))
@@ -154,7 +162,8 @@
                      :pending pending :writes (owned-record-writes pending)
                      :retirement (owned-retirement-keys id committed token)
                      :options (list :cancel-token cancel-token :timeout timeout :output-limit output-limit)
-                     :deadline (when total-timeout (+ start total-timeout)))))
+                     :application-preconditions (libtmux.internal::owned-dispatch-preconditions application-preconditions)
+                     :deadline (or deadline (when total-timeout (+ start total-timeout))))))
       (check-owned-writer-envelope writer (slot-value writer 'control-key) busy
                                    (when control (owned-writer-preconditions writer t))
                                    :only-if-unset (null control))
@@ -171,7 +180,7 @@
                           (slot-value writer 'deadline)))
 
 (defun owned-writer-mutate (writer key value &key unset only-if-unset preconditions)
-  (let ((libtmux.internal::*dispatch-preconditions* preconditions))
+  (let ((libtmux.internal::*dispatch-preconditions* (owned-metadata-preconditions writer preconditions)))
     (let ((outcome (apply #'libtmux.internal::perform-command (slot-value writer 'client) nil
                          (list "set-option" key) :argument-builder
                          (owned-writer-builder writer key value :unset unset :only-if-unset only-if-unset)
@@ -180,7 +189,7 @@
       outcome)))
 
 (defun owned-writer-read (writer procedure)
-  "Read under a separate core owner, bracketing data with the exact writer token."
+  "Read under a separate core owner, bracketing data with the expected control."
   (let ((options (owned-writer-options writer)))
     (apply #'call-with-owned-reader (slot-value writer 'client) (slot-value writer 'declaration)
          (append (loop for key in '(:cancel-token :timeout :output-limit) collect (getf options key))
@@ -190,7 +199,7 @@
                          (owned-writer-check writer)
                          (flet ((check-control ()
                                   (unless (equal (slot-value writer 'control) (owned-read-control reader))
-                                    (fail-workspace "Workspace writer token changed during metadata readback"))))
+                                    (fail-workspace "Workspace control changed during metadata readback"))))
                            (check-control)
                            (multiple-value-prog1 (funcall procedure reader)
                              (check-control))))
@@ -228,21 +237,45 @@
      (setf (slot-value writer 'stage) :retired)
      writer)))
 
-(defun write-owned-writer-pending (writer)
-  "Write absent-only chunks then descriptor, and decode the complete token-bracketed result."
+(defun write-owned-writer-record (writer record)
+  "Write a prepared intent or candidate once, then decode its exact readback."
+  (let* ((kind (slot-value record 'kind)) (data (slot-value record 'data))
+         (token (slot-value writer 'token))
+         (revision (getf data (if (eq kind :pending) :writer :revision)))
+         (writes (owned-record-writes record)))
   (owned-writer-call
-   writer :retired
+   writer (ecase kind (:pending :retired) (:committed :pending))
    (lambda ()
+     (unless (and (string= token revision)
+                  (string= (getf data :workspace) (getf (slot-value (slot-value writer 'declaration) 'data) :id)))
+       (fail-workspace "New bundle must belong to the current workspace writer"))
+     (map nil (lambda (pair)
+                (check-owned-writer-envelope writer (car pair) (cdr pair)
+                                             (owned-writer-preconditions writer) :only-if-unset t)) writes)
      (map nil (lambda (pair)
                 (owned-writer-mutate writer (car pair) (cdr pair) :only-if-unset t
                                      :preconditions (owned-writer-preconditions writer)))
-          (slot-value writer 'writes))
-     (let ((record (owned-writer-read
-                    writer (lambda (reader) (owned-read-bundle reader :pending (slot-value writer 'token))))))
-       (unless (string= (slot-value record 'json) (slot-value (slot-value writer 'pending) 'json))
-         (fail-workspace "Pending record readback differs from the prepared immutable intent"))
-       (setf (slot-value writer 'stage) :pending)
-       record))))
+          writes)
+     (let ((observed (owned-writer-read writer (lambda (reader) (owned-read-bundle reader kind token)))))
+       (unless (string= (slot-value observed 'json) (slot-value record 'json))
+         (fail-workspace "Record readback differs from the prepared immutable bundle"))
+       (setf (slot-value writer 'stage) (ecase kind (:pending :pending) (:committed :candidate)))
+       observed)))))
+
+(defun write-owned-writer-pending (writer)
+  "Write the prepared intent before any domain operation."
+  (write-owned-writer-record writer (slot-value writer 'pending)))
+
+(defun publish-owned-writer (writer)
+  "Publish once as the last writer mutation; post-publication work is read-only."
+  (owned-writer-call
+   writer :candidate
+   (lambda ()
+     (let* ((idle (make-owned-control :idle (slot-value writer 'token)))
+            (outcome (owned-writer-mutate writer (slot-value writer 'control-key) idle
+                                         :preconditions (owned-writer-preconditions writer))))
+       (setf (slot-value writer 'control) idle (slot-value writer 'stage) :published)
+       outcome))))
 
 (defun perform-owned-domain-command (writer preconditions command &key required-type)
   "Invoke one trusted core-operation function with clamped options and retain its outcome.
@@ -259,6 +292,7 @@ the BUSY token and original context; full domain predicates belong to the execut
               (libtmux.internal::owned-dispatch-preconditions
                (append (libtmux.internal::owned-dispatch-preconditions libtmux.internal::*dispatch-preconditions*)
                        (owned-writer-preconditions writer)
+                       (slot-value writer 'application-preconditions)
                        (libtmux.internal::owned-dispatch-preconditions preconditions))))
             (libtmux.internal::*dispatch-context-check*
               (lambda (client witness current)

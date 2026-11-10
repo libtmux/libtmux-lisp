@@ -523,11 +523,22 @@ pending chunks before their descriptor. Preparation checks predictable command
 envelopes before claiming. Each core call rechecks the original client generation
 after preflight; exact readback distinguishes successful writes from failed
 observation. Failure or a nonlocal exit during an admitted primitive makes the
-writer unusable. These primitives neither execute the domain plan nor publish
-a committed revision.
+writer unusable. Claim and intent primitives do not execute the domain plan;
+the executor separately invokes the committed-record and publication helpers.
 The private domain boundary reuses core operations and rechecks the original
 client after preflight, including targetless creation. It retains successful
 effects separately from failed observations and composes busy and step guards.
+The private executor prototype applies complete logical-ID plans through that
+boundary, retains returned physical identities and verifies fresh captures
+before writing the candidate record. Conditional publication is its final
+mutation; later work only observes. Its result/error data distinguishes the
+selected baseline, unpublished candidate, latest observed metadata and known
+or uncertain publication outcome. Complete executor review and endpoint/archive
+qualification remain required before public admission.
+Geometry guards compare physical pane IDs with their captured indexes, using
+the source-qualified iteration order. From
+[tmux 3.6](https://github.com/tmux/tmux/blob/3.6/format.c#L4618-L4630), a bare
+`P` loop follows creation order, so its output alone cannot prove pane position.
 Public workspace/2 acquisition and application remain unavailable until the
 complete path is qualified.
 
