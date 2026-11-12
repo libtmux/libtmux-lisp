@@ -15,7 +15,6 @@ is decoded to octets. Larger stream and retained-memory benchmarks remain open.
 | Concurrency | Synchronous core calls; one operation per client; optional nonblocking control submission/event waits and explicit generation-changing reconnect | Larger control workloads |
 | Streaming/events | Bounded captures and byte buffers; daemon-owned `pipe-pane`; optional raw notifications and native pane-output events with gap/end results and bounded drop-oldest delivery | Long-running streams and retained-memory benchmarks |
 | Workspace | Separate bounded JSON/native system; owned logical IDs and records, explicit state/inspection, local drift previews, guarded apply/reconcile and explicit-endpoint CLI; legacy topology reuse | Deletion, process replacement, takeover and replay are outside owned reconciliation |
-| MCP | Intentionally excluded by project policy | Use a separately maintained external integration if one becomes suitable |
 | Optional integrations | Separate CL-PPCRE regex, bounded query JSON, workspace/CLI and scoped native control connections | Broader mode benchmarks |
 | Performance | [Optional native read-path comparison](benchmarks.md) with separate acquisition/startup, launch counts and allocation samples | Large-graph, query and stream workloads; retained heap and broader latency qualification |
 
@@ -31,11 +30,9 @@ workspace consumer is a separate `libtmux/workspace` ASDF system over core and
 the locked Jzon parser; its CLI is another separate system. External libraries
 stay isolated in the optional systems that justify them.
 
-MCP is intentionally outside this port's product scope; it is not an unfinished
-package or release gate. An agent can still read the [public API](api.md),
-[query API](query-api.md), [field registry](fields.md) and [tutorial](tutorial.md),
-but these documents are not a protocol server. No terminal output stream or
-lossless event-replay guarantee is implied by `pipe-pane`.
+An agent can read the [public API](api.md), [query API](query-api.md),
+[field registry](fields.md) and [tutorial](tutorial.md). No terminal output
+stream or lossless event-replay guarantee is implied by `pipe-pane`.
 
 ## Evidence and adoption
 
@@ -59,7 +56,7 @@ silently borrowing another version's schema.
 A build-versus-adopt decision should check the platform boundary, required
 operations, identity policy, synchronous concurrency model, diagnostics and
 cleanup behavior against the actual application. Teams requiring continuous updates should check the optional control system
-against their required event coverage and reconnect policy. MCP stays excluded. The single maintainer
+against their required event coverage and reconnect policy. The single maintainer
 and unreleased status do not change those technical boundaries.
 
 Benchmark evidence must report workload, graph size, tmux/toolchain versions,

@@ -58,7 +58,7 @@ Portable domain and query code is the design aim; supported runtime claims
 cover only tested implementations and operating systems.
 
 The selected implementation is native Common Lisp. Java, ABCL and a JVM
-sidecar are outside its architecture. MCP is excluded by project policy. The
+sidecar are outside its architecture. The
 library does not implement a tmux daemon, a terminal emulator or operating-system
 confinement. Optional control submission, output events and explicit
 reconnection are implemented separately. Generic notification routing and

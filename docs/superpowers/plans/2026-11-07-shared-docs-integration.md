@@ -8,8 +8,7 @@ parsing Lisp source in JavaScript.
 loaded public packages, native docstrings, lambda lists, CLOS metadata and
 definition sources. The shared docs repository validates and adapts that
 artifact into its existing Astro API model, then stages authored guides from
-the same source revision. Common Lisp owns no MCP product; the site records it
-as excluded.
+the same source revision.
 
 ### Task 1: Native documentation artifact
 
@@ -24,7 +23,7 @@ as excluded.
 
 - Add `lisp` to the shared API model and implement a strict artifact adapter.
 - Register Common Lisp, its source checkout/worktree, source installation,
-  core/workspace product availability and excluded MCP status.
+  core/workspace product availability.
 - Inventory the public ASDF systems and CLI accurately as source-installed and
   unreleased.
 - Add focused adapter, registration, inventory and version tests first.

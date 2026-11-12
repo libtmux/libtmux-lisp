@@ -156,6 +156,6 @@ checks that opening the client created no daemon socket.
 Broader stream/retained-memory qualification, source filtering, shared-site
 rendering, broader benchmarks and
 integrated acceptance of all required capabilities on both CI endpoints remain
-pending. MCP is excluded by policy. The
+pending. The
 [capability table](docs/capabilities.md) separates implemented behavior from
 those gaps. A passing core package or example does not cover them.
