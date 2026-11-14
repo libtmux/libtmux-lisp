@@ -17,95 +17,258 @@
 
 </div>
 
-libtmux-lisp is a native Common Lisp tmux client library. Acquire
-[sessions][api-session], [windows][api-window], [window links][api-window-link]
-and [panes][api-pane] as a CLOS object graph, process them with ordinary
-sequences, and make mutations through an explicit [`libtmux:client`][api-client].
+Drive tmux from Common Lisp: [sessions][api-session], [windows][api-window],
+[window links][api-window-link] and [panes][api-pane] as CLOS objects, queried
+with plain sequences, changed through an explicit [`client`][api-client].
 
 [Documentation](https://libtmux.org/en/lisp/) ·
 [API reference](https://libtmux.org/en/lisp/latest/reference/) ·
 [REPL tutorial](docs/tutorial.md)
 
-**Implemented:** captured sessions, physical windows, window links and panes;
-bounded subprocess transport; cancellation; named operations, byte buffers,
-validated native queries, eager QuerySets, optional regex and bounded JSON;
-[owned declarative workspaces](docs/workspace-owned.md) with local previews,
-explicit reconciliation and an explicit-endpoint CLI;
-[decoded configuration reads](docs/configuration.md),
-[printer inspection](docs/operations.md#configuration-inspection) and
-[typed option, hook and environment mutations](docs/operations.md#configuration-mutations)
-for the exact reviewed tmux catalogs through 3.8; explicit entity and server
-termination with retained outcome evidence; [owned daemon scopes](docs/daemons.md);
-optional [queued control commands, pane-output streams and explicit reconnection](docs/control.md) on
-tmux 3.8+.
-**In development:** broader event qualification and source filtering.
-The `0.1.0` systems are unreleased.
+**Contents** — [Install](#install-from-source) ·
+[Start a server](#start-a-private-server) ·
+[Find things](#find-sessions-windows-and-panes) ·
+[Query](#query-a-snapshot) ·
+[Workspaces](#build-a-workspace) ·
+[Systems](#choose-an-asdf-system) ·
+[Status](#support-and-status) ·
+[Guides](#find-the-right-guide)
 
 ## Install from source
 
-Use Linux x86-64 (including WSL), kernel 6.9+, Bash and a native tmux binary.
-The supported tmux range is 3.3a through 3.8, including intermediate releases.
-Plain tmux 3.3 is rejected. The pinned toolchain is SBCL 2.6.10,
-ASDF/UIOP 3.3.7 and Qlot 1.8.4. The
-[process requirements](docs/transport.md#supported-process-boundary) also apply
-to WSL; its distribution name alone does not establish kernel capabilities.
-
-Core and query loading require ASDF/UIOP only. Mise reproduces the contributor
-toolchain; Qlot installs development and optional dependencies. ASDF is the
-Common Lisp build system.
+Needs SBCL, Linux (WSL included) and tmux 3.3a or newer. Not released yet:
+load it from a checkout.
 
 ```console
 $ git clone https://github.com/libtmux/libtmux-lisp.git && cd libtmux-lisp
 ```
 
-In an existing SBCL application with ASDF loaded, register this checkout from
-its root:
+Register the checkout with ASDF, from its root:
 
 ```lisp
 (asdf:load-asd (truename "libtmux.asd"))
 ```
 
-Load core and its local query API:
+Load core and queries. Both need only ASDF/UIOP:
 
 ```lisp
 (asdf:load-system "libtmux/query")
 ```
 
-To reproduce the pinned contributor environment and run all optional examples,
-use [mise 2026.11.3+](https://mise.jdx.dev/getting-started.html).
-Review [mise.toml](mise.toml), then trust the checkout:
-
-```console
-$ mise trust
-```
-
-```console
-$ mise install
-```
-
-Install the locked dependencies. This is the network step:
-
-```console
-$ mise run setup
-```
-
-Run the complete workspace example. It creates a private tmux socket, checks
-the results and removes its daemon; it never addresses your default server.
+To run the examples, set up the toolchain with
+[mise](.github/CONTRIBUTING.md), then:
 
 ```console
 $ mise run examples
 ```
 
-Success includes `EXAMPLES PASS: graph, links, native, compiled, relation,
-regex and JSON selection, declarative workspace, false/presence, ownership,
-refresh, bytes, capture, close, terminate`. Core and query loading need ASDF/UIOP only; optional
-regex/JSON use the locked CL-PPCRE/Jzon systems. The example runner also needs
-Python 3. No Java runtime is involved.
+The examples run on a private tmux socket, never your default server.
+
+## Start a private server
+
+### [`libtmux:with-daemon`][api-with-daemon]: a server that cleans up after itself
+
+[`with-client`][api-with-client] scopes the connection;
+[`new-session`][api-new-session] creates a session.
+
+<!-- example:managed -->
+```lisp
+(defun inspect-owned-workspace (&key (program "tmux"))
+  "Start an isolated daemon; return owned pane data after closing both resources."
+  (libtmux:with-daemon (daemon :program program)
+    (libtmux:with-client (client :program (libtmux:daemon-program daemon)
+                                 :socket-path (libtmux:daemon-socket-path daemon))
+      (let ((outcome (libtmux:new-session client :name "demo" :command '("/bin/cat"))))
+        (when (libtmux:outcome-observation-error outcome)
+          (error (libtmux:outcome-observation-error outcome))))
+      (map 'list #'libtmux:entity-data
+           (libtmux:panes (libtmux:fetch-snapshot client))))))
+```
+<!-- /example -->
+
+```console
+$ mise exec -- tools/lisp.sh examples/managed-daemon.lisp
+```
+
+Prints `MANAGED DAEMON PASS` and a pane record. To reach an existing server,
+use `with-client` alone. More: [daemon scopes](docs/daemons.md).
+
+## Find sessions, windows and panes
+
+### [`libtmux:fetch-snapshot`][api-fetch-snapshot]: read the graph once
+
+One call to tmux; everything after is local.
+
+<!-- example:inventory -->
+```lisp
+(defun inspect-workspace (socket-path &key (program "tmux"))
+  "Acquire one graph from SOCKET-PATH; return owned session/window/pane data."
+  (tm:with-client (client :program program :socket-path socket-path)
+    (let ((snapshot (tm:fetch-snapshot client)))
+      (loop for session across (tm:sessions snapshot)
+            collect
+            (list :session (tm:name session)
+                  :windows
+                  (loop for link across (tm:window-links session)
+                        for window = (tm:window link)
+                        collect (list :index (tm:index link)
+                                      :name (tm:name window)
+                                      :panes (map 'list #'tm:entity-data
+                                                  (tm:panes window)))))))))
+```
+<!-- /example -->
+
+A window can be linked into several sessions:
+
+```mermaid
+graph LR
+  work[Session: work] --> a[Window link: index 0]
+  work --> b[Window link: logs]
+  review[Session: review] --> c[Window link: index 7]
+  review --> d[Window link: notes]
+  a --> editor[Physical window: editor]
+  c --> editor
+  editor --> p1[Pane 1]
+  editor --> p2[Pane 2]
+  b --> logs[Physical window: logs]
+  d --> notes[Physical window: notes]
+```
+
+More: [identity and ownership](docs/captures.md) ·
+[walkthrough](docs/tutorial.md#build-a-linked-workspace).
+
+### [`libtmux:panes`][api-panes]: filter with plain Lisp
+
+<!-- example:selection -->
+```lisp
+(defun wide-active-panes (snapshot)
+  "Select captured active panes at least 40 cells wide; no tmux commands."
+  (loop for pane across (tm:panes snapshot)
+        when (and (tm:active-p pane) (>= (tm:width pane) 40))
+          collect (tm:entity-data pane)))
+```
+<!-- /example -->
+
+## Query a snapshot
+
+`tm` and `q` are local nicknames for `libtmux` and `libtmux.query`.
+
+### [`libtmux.query:compile-filter`][api-compile-filter]: a filter compiled once
+
+[`matching`][api-matching] applies it to captured objects. No tmux calls.
+
+<!-- example:query -->
+```lisp
+(defparameter *wide-active-filter*
+  (q:compile-filter
+   :pane
+   '(:and (:= :pane/active t)
+          (:>= :pane/width 40))))
+
+(defun wide-active-pane-data (snapshot)
+  "Return owned data for captured active panes at least 40 cells wide; no I/O."
+  (map 'vector #'tm:entity-data
+       (q:matching *wide-active-filter* (tm:panes snapshot))))
+```
+<!-- /example -->
+
+Mistyped fields are refused at compile time. More: [query guide](docs/queries.md).
+
+### [`libtmux.query:where`][api-where]: follow relations
+
+Sessions with an active pane, through window links and windows.
+[`items`][api-items] returns the matches.
+
+<!-- example:relation -->
+```lisp
+(defparameter *active-session-filter*
+  (q:compile-filter
+   :session
+   '(:any :session/window-links
+     (:is :link/window
+      (:any :window/panes
+       (:= :pane/active t))))))
+
+(defun active-session-data (snapshot)
+  "Return owned data for sessions with an active pane; no I/O."
+  (map 'vector #'tm:entity-data
+       (q:items
+        (q:where (q:from (tm:sessions snapshot) :model :session)
+                 *active-session-filter*))))
+```
+<!-- /example -->
+
+### [`libtmux.json:write-filter`][api-write-filter]: regex and JSON documents
+
+Optional systems add CL-PPCRE matching and a versioned JSON form.
+[`read-filter`][api-read-filter] restores a filter.
+
+<!-- example:regex -->
+```lisp
+(defparameter *cat-command-filter*
+  (q:compile-filter
+   :pane
+   '(:regex-full-match :pane/current-command
+     (:cl-ppcre "CAT" :case-insensitive-mode t))))
+
+(defun cat-pane-data (snapshot)
+  "Return owned data for captured panes whose command is exactly cat; no I/O."
+  (map 'vector #'tm:entity-data
+       (q:matching *cat-command-filter* (tm:panes snapshot))))
+```
+<!-- /example -->
+
+<!-- example:filterdocument -->
+```lisp
+(defun round-trip-filter-document (snapshot)
+  "Round-trip the checked regex filter and apply it to one retained snapshot."
+  (let* ((document (j:write-filter *cat-command-filter*))
+         (restored (j:read-filter document :allow-regex t)))
+    (values document
+            (map 'vector #'tm:entity-data
+                 (q:matching restored (tm:panes snapshot))))))
+```
+<!-- /example -->
+
+More: [query interchange](docs/query-interchange.md).
+
+## Build a workspace
+
+### [`libtmux.workspace:make-workspace`][api-make-workspace]: declare windows and panes
+
+Plain Lisp data, or an equivalent [JSON file](examples/owned-workspace.json).
+Nothing touches tmux until you apply it.
+
+<!-- example:owneddeclaration -->
+```lisp
+(defun owned-description ()
+  "Describe two windows and three panes without contacting tmux."
+  (libtmux.workspace:make-workspace
+   '(:schema "libtmux.lisp.workspace/2" :id "demo-workspace"
+     :session
+     (:id "main" :name "owned-demo"
+      :environment #(("DEMO_LABEL" . "hello from Common Lisp"))
+      :windows
+      #((:id "code" :name "code" :index 2 :layout :tiled
+         :panes #((:id "shell" :command #("/bin/cat"))
+                  (:id "repl" :command #("/bin/cat"))))
+        (:id "logs" :name "logs" :index 5
+         :panes #((:id "tail" :command #("/bin/cat")))))))))
+```
+<!-- /example -->
+
+```console
+$ mise exec -- tools/lisp.sh examples/owned-workspace.lisp
+```
+
+Preview first, then apply. Changing an existing workspace needs `:reconcile t`.
+More: [owned workspaces](docs/workspace-owned.md) ·
+[Workspace API][api-workspace] · [legacy schema](docs/workspaces.md).
 
 ## Choose an ASDF system
 
-All systems share this source distribution, version and [changelog](CHANGELOG.md).
-Load only the systems your application uses. Each system has its own README:
+One source distribution, one version, one [changelog](CHANGELOG.md). Load only
+what you use:
 
 | System | Use it for | Additional dependencies | API |
 | --- | --- | --- | --- |
@@ -117,12 +280,8 @@ Load only the systems your application uses. Each system has its own README:
 | [`libtmux/workspace`](workspace/README.md) | Owned declarations, drift previews and explicit reconciliation | Core, Jzon | [Workspace][api-workspace] |
 | [`libtmux/workspace/cli`](workspace/cli/README.md) | Workspace validation, previews and explicit-endpoint apply | Workspace | [CLI][api-cli] |
 
-These directories provide system documentation. ASDF definitions remain in
-[`libtmux.asd`](libtmux.asd); source stays in `src/`. Secondary systems are
-optional parts of one library release.
-
-Each heading below links to the system's directory on GitHub, where its
-README lives.
+Definitions are in [`libtmux.asd`](libtmux.asd); source is in `src/`. Each
+heading links to the system's directory on GitHub.
 
 ### [`libtmux`](https://github.com/libtmux/libtmux-lisp/tree/master/src): the core library
 
@@ -176,238 +335,21 @@ Validates, previews and applies a workspace against an explicit endpoint.
 
 [API reference][api-cli] · [README](workspace/cli/README.md)
 
-## Start an isolated daemon
+## Support and status
 
-[`libtmux:with-daemon`][api-with-daemon] owns an isolated
-[`libtmux:daemon`][api-daemon]; [`libtmux:with-client`][api-with-client] scopes
-the connection. This complete function creates one session and returns pane
-data after closing both resources. The daemon uses an empty config. The
-[runnable program](examples/managed-daemon.lisp) includes loading and assertions.
-
-<!-- example:managed -->
-```lisp
-(defun inspect-owned-workspace (&key (program "tmux"))
-  "Start an isolated daemon; return owned pane data after closing both resources."
-  (libtmux:with-daemon (daemon :program program)
-    (libtmux:with-client (client :program (libtmux:daemon-program daemon)
-                                 :socket-path (libtmux:daemon-socket-path daemon))
-      (let ((outcome (libtmux:new-session client :name "demo" :command '("/bin/cat"))))
-        (when (libtmux:outcome-observation-error outcome)
-          (error (libtmux:outcome-observation-error outcome))))
-      (map 'list #'libtmux:entity-data
-           (libtmux:panes (libtmux:fetch-snapshot client))))))
-```
-<!-- /example -->
-
-Run it from the checkout with the pinned toolchain:
-
-```console
-$ mise exec -- tools/lisp.sh examples/managed-daemon.lisp
-```
-
-It prints `MANAGED DAEMON PASS` and a pane record. Read
-[daemon scopes](docs/daemons.md) for environment, readiness and cleanup contracts.
-Use an ordinary client alone when connecting to an existing server.
-
-## Inspect a workspace
-
-The [REPL tutorial](docs/tutorial.md) loads the example package, whose local
-nickname `tm` refers to `libtmux`. This complete function returns ordinary
-owned data after closing its client:
-
-<!-- example:inventory -->
-```lisp
-(defun inspect-workspace (socket-path &key (program "tmux"))
-  "Acquire one graph from SOCKET-PATH; return owned session/window/pane data."
-  (tm:with-client (client :program program :socket-path socket-path)
-    (let ((snapshot (tm:fetch-snapshot client)))
-      (loop for session across (tm:sessions snapshot)
-            collect
-            (list :session (tm:name session)
-                  :windows
-                  (loop for link across (tm:window-links session)
-                        for window = (tm:window link)
-                        collect (list :index (tm:index link)
-                                      :name (tm:name window)
-                                      :panes (map 'list #'tm:entity-data
-                                                  (tm:panes window)))))))))
-```
-<!-- /example -->
-
-[`libtmux:fetch-snapshot`][api-fetch-snapshot] contacts tmux.
-Traversal and projection inside the loops are
-local. Returned strings and sequence containers belong to the caller.
-Acquisition spans an interval; it is not a transaction over a changing daemon.
-
-The [walkthrough](docs/tutorial.md#build-a-linked-workspace) also creates two
-sessions, splits a pane and links one physical window into both sessions:
-
-```mermaid
-graph LR
-  work[Session: work] --> a[Window link: index 0]
-  work --> b[Window link: logs]
-  review[Session: review] --> c[Window link: index 7]
-  review --> d[Window link: notes]
-  a --> editor[Physical window: editor]
-  c --> editor
-  editor --> p1[Pane 1]
-  editor --> p2[Pane 2]
-  b --> logs[Physical window: logs]
-  d --> notes[Physical window: notes]
-```
-
-Select a **window link** when session/index context matters. Rename the physical
-window to affect every link. Refresh returns a new observation; earlier captures
-retain their values. See [identity and ownership](docs/captures.md).
-
-Process the retained capture with ordinary Lisp. This function uses only local
-accessors and returns a list of owned pane data:
-
-<!-- example:selection -->
-```lisp
-(defun wide-active-panes (snapshot)
-  "Select captured active panes at least 40 cells wide; no tmux commands."
-  (loop for pane across (tm:panes snapshot)
-        when (and (tm:active-p pane) (>= (tm:width pane) 40))
-          collect (tm:entity-data pane)))
-```
-<!-- /example -->
-
-## Compile a local query
-
-The tutorial's example package gives `libtmux` and `libtmux.query` the local
-nicknames `tm` and `q`. [`libtmux.query:compile-filter`][api-compile-filter]
-compiles once; [`libtmux.query:matching`][api-matching] filters a captured vector
-locally. This checked function returns ordinary owned data:
-
-<!-- example:query -->
-```lisp
-(defparameter *wide-active-filter*
-  (q:compile-filter
-   :pane
-   '(:and (:= :pane/active t)
-          (:>= :pane/width 40))))
-
-(defun wide-active-pane-data (snapshot)
-  "Return owned data for captured active panes at least 40 cells wide; no I/O."
-  (map 'vector #'tm:entity-data
-       (q:matching *wide-active-filter* (tm:panes snapshot))))
-```
-<!-- /example -->
-
-`matching` returns a fresh simple vector and preserves order and duplicates.
-The compiler owns mutable operands, rejects cycles and mistyped fields, and
-never evaluates query data. Scalar filtering performs no tmux calls. Read the
-[query guide](docs/queries.md) for presence, limits, inspection and strict
-cardinality.
-
-Relations traverse the same captured graph. This checked query follows session
-links to physical windows and panes, then uses the eager local QuerySet:
-
-<!-- example:relation -->
-```lisp
-(defparameter *active-session-filter*
-  (q:compile-filter
-   :session
-   '(:any :session/window-links
-     (:is :link/window
-      (:any :window/panes
-       (:= :pane/active t))))))
-
-(defun active-session-data (snapshot)
-  "Return owned data for sessions with an active pane; no I/O."
-  (map 'vector #'tm:entity-data
-       (q:items
-        (q:where (q:from (tm:sessions snapshot) :model :session)
-                 *active-session-filter*))))
-```
-<!-- /example -->
-
-## Declare and apply a workspace
-
-Load the optional `libtmux/workspace` system.
-[`libtmux.workspace:make-workspace`][api-make-workspace] builds a declaration
-without contacting tmux. This function from the
-[complete program](examples/owned-workspace.lisp) declares two windows and
-three panes using ordinary Lisp data:
-
-<!-- example:owneddeclaration -->
-```lisp
-(defun owned-description ()
-  "Describe two windows and three panes without contacting tmux."
-  (libtmux.workspace:make-workspace
-   '(:schema "libtmux.lisp.workspace/2" :id "demo-workspace"
-     :session
-     (:id "main" :name "owned-demo"
-      :environment #(("DEMO_LABEL" . "hello from Common Lisp"))
-      :windows
-      #((:id "code" :name "code" :index 2 :layout :tiled
-         :panes #((:id "shell" :command #("/bin/cat"))
-                  (:id "repl" :command #("/bin/cat"))))
-        (:id "logs" :name "logs" :index 5
-         :panes #((:id "tail" :command #("/bin/cat")))))))))
-```
-<!-- /example -->
-
-The equivalent [JSON file](examples/owned-workspace.json) is bounded and
-versioned. Acquisition is explicit; a local preview separates declaration
-changes from captured drift. Apply reacquires state, preserves physical IDs,
-and requires `:reconcile t` for permitted additions, renames and layouts.
-Unowned sessions and busy claims are refused.
-
-Run the complete program on its own daemon:
-
-```console
-$ mise exec -- tools/lisp.sh examples/owned-workspace.lisp
-```
-
-It checks file/native equivalence, printed shell output, retained observations,
-stable IDs after reconciliation and an unchanged second apply. A deliberate
-bad-checksum layout demonstrates failed-step evidence and explicit incomplete
-inspection. No mutation is retried or rolled back. Read the
-[owned workspace guide](docs/workspace-owned.md) and
-[API reference](docs/workspace-api.md); legacy
-[topology-only reuse](docs/workspaces.md) remains available under schema `/1`.
-
-## Add regex and a versioned filter document
-
-Optional systems keep core/query dependency-free while providing a compiled
-CL-PPCRE scanner and a bounded native JSON envelope.
-[`libtmux.json:write-filter`][api-write-filter] serializes a compiled filter;
-[`libtmux.json:read-filter`][api-read-filter] restores it. These checked
-definitions match the demo's `cat` panes, round-trip the filter with explicit
-regex permission, and evaluate it against the same capture:
-
-<!-- example:regex -->
-```lisp
-(defparameter *cat-command-filter*
-  (q:compile-filter
-   :pane
-   '(:regex-full-match :pane/current-command
-     (:cl-ppcre "CAT" :case-insensitive-mode t))))
-
-(defun cat-pane-data (snapshot)
-  "Return owned data for captured panes whose command is exactly cat; no I/O."
-  (map 'vector #'tm:entity-data
-       (q:matching *cat-command-filter* (tm:panes snapshot))))
-```
-<!-- /example -->
-
-<!-- example:filterdocument -->
-```lisp
-(defun round-trip-filter-document (snapshot)
-  "Round-trip the checked regex filter and apply it to one retained snapshot."
-  (let* ((document (j:write-filter *cat-command-filter*))
-         (restored (j:read-filter document :allow-regex t)))
-    (values document
-            (map 'vector #'tm:entity-data
-                 (q:matching restored (tm:panes snapshot))))))
-```
-<!-- /example -->
-
-The JSON decoder rejects duplicates, unknown names, null operands and exhausted
-input/depth/node/string/membership/numeric bounds. It never interns external
-names. See [optional query interchange](docs/query-interchange.md).
+- **Unreleased.** Load it from a checkout; the API may change.
+- **Platform.** SBCL on Linux x86-64, WSL included.
+  [Process requirements](docs/transport.md#supported-process-boundary).
+- **tmux.** 3.3a or newer. [Control connections](docs/control.md) need 3.8.
+- **One operation per client.** Calls block; a second concurrent call signals
+  [`client-busy`][api-client-busy].
+- **Closing a client leaves tmux running.**
+  [`kill-server`][api-kill-server] is a separate, explicit call.
+- **Mutations return outcomes.** Read the
+  [`command-outcome`][api-command-outcome] before retrying.
+  [Outcome handling](docs/tutorial.md#handle-command-and-observation-outcomes).
+- **In development.** Wider event coverage and source filtering.
+  [Capabilities and limits](docs/capabilities.md).
 
 ## Find the right guide
 
@@ -429,30 +371,6 @@ names. See [optional query interchange](docs/query-interchange.md).
 | Rerun FiveAM tests at the REPL or inspect CI coverage | [Testing](docs/testing.md) · [Verification](verification.md) |
 | Navigate all documentation | [Guide index](docs/index.md) |
 
-Core subprocess calls block. Each client accepts one external operation at a
-time; concurrent reuse signals `client-busy`. Optional control
-[`submit-command`](docs/control-api.md#submit-command-function) queues a request
-without awaiting its reply; use
-[`await-request`](docs/control-api.md#await-request-function) or
-[`next-event`](docs/control-api.md#next-event-function) for bounded waits.
-Closing a client releases its resources and leaves tmux running.
-[`kill-server`](docs/api.md#kill-server-function)
-is a separate explicit operation that proves the daemon accepted during its
-preflight exited. [Daemon scopes](docs/daemons.md) separately own a new private
-daemon; the tutorial also documents explicit tmux setup and cleanup.
-
-Named mutations preserve dispatch evidence and separate successful changes
-from follow-up observation failures. Inspect
-[command-outcome](docs/api.md#command-outcome-type) or the condition's
-[error-outcome](docs/api.md#error-outcome-function); never retry an uncertain
-mutation blindly. See
-[outcome handling](docs/tutorial.md#handle-command-and-observation-outcomes).
-
-The examples are shipped source, executed on isolated servers and checked for
-excerpt drift. All tmux releases from 3.3a through 3.8 are supported. CI uses the
-latest stable SBCL pin and tests only the range's endpoints, 3.3a and 3.8, to
-reduce build time. No benchmark result is claimed.
-
 For changes, read [Contributing](.github/CONTRIBUTING.md) and
 [Writing](.github/WRITING.md). Licensed under [MIT](LICENSE).
 
@@ -460,18 +378,25 @@ For changes, read [Contributing](.github/CONTRIBUTING.md) and
 
 [api-cli]: https://libtmux.org/en/lisp/latest/workspace/reference/libtmux-workspace-cli/
 [api-client]: https://libtmux.org/en/lisp/latest/reference/libtmux-client/
+[api-client-busy]: https://libtmux.org/en/lisp/latest/reference/libtmux-client-busy/
+[api-command-outcome]: https://libtmux.org/en/lisp/latest/reference/libtmux-command-outcome/
 [api-compile-filter]: https://libtmux.org/en/lisp/latest/reference/libtmux-query-compile-filter/
 [api-control]: https://libtmux.org/en/lisp/latest/reference/libtmux-control/
 [api-core]: https://libtmux.org/en/lisp/latest/reference/libtmux/
 [api-daemon]: https://libtmux.org/en/lisp/latest/reference/libtmux-daemon/
 [api-fetch-snapshot]: https://libtmux.org/en/lisp/latest/reference/libtmux-fetch-snapshot/
+[api-items]: https://libtmux.org/en/lisp/latest/reference/libtmux-query-items/
 [api-json]: https://libtmux.org/en/lisp/latest/reference/libtmux-json/
+[api-kill-server]: https://libtmux.org/en/lisp/latest/reference/libtmux-kill-server/
 [api-make-workspace]: https://libtmux.org/en/lisp/latest/workspace/reference/libtmux-workspace-make-workspace/
 [api-matching]: https://libtmux.org/en/lisp/latest/reference/libtmux-query-matching/
+[api-new-session]: https://libtmux.org/en/lisp/latest/reference/libtmux-new-session/
 [api-pane]: https://libtmux.org/en/lisp/latest/reference/libtmux-pane/
+[api-panes]: https://libtmux.org/en/lisp/latest/reference/libtmux-panes/
 [api-query]: https://libtmux.org/en/lisp/latest/reference/libtmux-query/
 [api-read-filter]: https://libtmux.org/en/lisp/latest/reference/libtmux-json-read-filter/
 [api-session]: https://libtmux.org/en/lisp/latest/reference/libtmux-session-type/
+[api-where]: https://libtmux.org/en/lisp/latest/reference/libtmux-query-where/
 [api-window]: https://libtmux.org/en/lisp/latest/reference/libtmux-window-type/
 [api-window-link]: https://libtmux.org/en/lisp/latest/reference/libtmux-window-link/
 [api-with-client]: https://libtmux.org/en/lisp/latest/reference/libtmux-with-client/
