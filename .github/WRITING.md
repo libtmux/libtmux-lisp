@@ -51,6 +51,12 @@ A README is scanned, not read. Each line has to survive a glance.
   newer". Toolchain pins and CI matrices stay in their own files.
 - Cut what a reader would assume or never need: that examples are tested,
   how the documentation is built, what the checks cover.
+- Show the headline features that exist, each under a linked API heading with
+  an example: queries, explain, workspace plans and control mode. Never
+  describe one the API lacks.
+- An example starts with its package or system setup and comes from a file the
+  example runner executes. It starts and stops its own private daemon through
+  the library, never through shell commands.
 
 ## Native documentation
 
