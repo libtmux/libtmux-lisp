@@ -151,7 +151,8 @@ More: [identity and ownership](docs/captures.md) ·
 
 ## Query a snapshot
 
-`tm` and `q` are local nicknames for `libtmux` and `libtmux.query`.
+`tm`, `q` and `j` are local nicknames for `libtmux`, `libtmux.query` and
+`libtmux.json`.
 
 ### [`libtmux.query:compile-filter`][api-compile-filter]: a filter compiled once
 
@@ -280,8 +281,7 @@ what you use:
 | [`libtmux/workspace`](workspace/README.md) | Owned declarations, drift previews and explicit reconciliation | Core, Jzon | [Workspace][api-workspace] |
 | [`libtmux/workspace/cli`](workspace/cli/README.md) | Workspace validation, previews and explicit-endpoint apply | Workspace | [CLI][api-cli] |
 
-Definitions are in [`libtmux.asd`](libtmux.asd); source is in `src/`. Each
-heading links to the system's directory on GitHub.
+Definitions are in [`libtmux.asd`](libtmux.asd); source is in `src/`.
 
 ### [`libtmux`](https://github.com/libtmux/libtmux-lisp/tree/master/src): the core library
 
