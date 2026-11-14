@@ -1,25 +1,26 @@
 # Capture, inspect and build a workspace
 
-This tutorial uses an isolated existing tmux daemon. It creates two sessions,
-three physical windows, four links and four panes, then inspects them through
-ordinary Common Lisp data. It modifies only the daemon you start below.
-Complete the [source installation](../README.md#install-from-source) first.
+This tutorial builds two sessions, three physical windows, four links and four
+panes on a private tmux daemon, then inspects them as ordinary Lisp data. It
+touches no other tmux server.
 
-## Run the checked walkthrough
+Start with the [source installation](../README.md#install-from-source).
+
+## Run the walkthrough
 
 ```console
 $ mise run examples
 ```
 
-The runner creates a mode-0700 temporary directory and explicit socket, clears
-inherited tmux variables, starts an empty-configuration daemon, runs the shipped
-Lisp examples, checks their results and terminates its own server. Assertions
-check object/link counts, false with presence, identity, ownership, literal
-names, refresh, byte buffers, optional regex/JSON queries and local access after
-client closure. A failure exits nonzero. It leaves the optional thread library
-unloaded.
+The runner:
 
-Select another native tmux binary explicitly:
+- creates a private temporary directory and socket, and clears inherited tmux
+  variables
+- starts an empty-configuration daemon and runs the shipped Lisp examples
+- stops its own server
+- exits nonzero on any failure
+
+Use another tmux binary:
 
 ```console
 $ LIBTMUX_TEST_TMUX=/usr/bin/tmux mise run examples
@@ -66,14 +67,13 @@ Use the same terminal to start the pinned REPL:
 $ mise run repl
 ```
 
-Load the query system, which depends on the core. The development REPL
-registers the ASDF definition but does not implicitly load either system:
+Load the query system (it loads the core). The REPL loads no system on its own:
 
 ```lisp
 (asdf:load-system "libtmux/query")
 ```
 
-Load the three optional systems used later in the checked walkthrough:
+Load the optional systems used below:
 
 ```lisp
 (asdf:load-system "libtmux/regex")
@@ -87,9 +87,9 @@ Load the three optional systems used later in the checked walkthrough:
 (asdf:load-system "libtmux/workspace")
 ```
 
-Load the recipe functions. Their package declares the SBCL package-local
-nicknames `tm`, `q`, `j` and `ws` for the core, query, JSON and workspace
-packages; the library claims no global short nicknames.
+Load the recipes. Their package defines the SBCL package-local nicknames `tm`
+(core), `q` (query), `j` (JSON) and `ws` (workspace). The library defines no
+global nicknames.
 
 ```lisp
 (load "examples/workspace.lisp")
@@ -99,16 +99,16 @@ packages; the library claims no global short nicknames.
 (in-package #:libtmux.examples)
 ```
 
-Supply the printed socket path as data, without invoking the Lisp reader:
+Read the socket path as a plain string, not through the Lisp reader:
 
 ```lisp
 (defparameter *socket-path* (progn (write-line "Paste the demo socket path:")
                                  (read-line)))
 ```
 
-This acquires the graph and returns one session record named `work`, containing
-its `editor` window and one pane. Pane projections include identity, captured
-fields, provenance and relationship IDs:
+This captures the graph and returns one record: session `work`, its `editor`
+window and one pane. Pane data holds identity, captured fields, provenance and
+relationship IDs:
 
 ```lisp
 (inspect-workspace *socket-path*)
@@ -116,10 +116,14 @@ fields, provenance and relationship IDs:
 
 ## Build a linked workspace
 
-The complete recipe is copied from [workspace.lisp](../examples/workspace.lisp).
-It creates a `logs` window and `review` session, splits `editor`, shares that
-physical window through index 7 of `review`, and renames logs literally.
-Run it once on the fresh demo; a repeated invocation encounters existing names.
+The recipe comes from [workspace.lisp](../examples/workspace.lisp). It:
+
+- creates a `logs` window and a `review` session
+- splits `editor`
+- links the `editor` window into `review` at index 7
+- renames `logs` to `logs #{literal}`, keeping the format text literal
+
+Run it once on the fresh demo. A second run fails on the existing names.
 
 <!-- example:workspace -->
 ```lisp
@@ -145,8 +149,8 @@ The caller owns the isolated daemon; repeating this recipe there is an error."
 ```
 <!-- /example -->
 
-Keep a captured graph after closing the client. These globals are interactive
-scratch values, not a global connection convention in the library:
+Keep the captured graph after the client closes. The global is REPL scratch,
+not a library convention:
 
 ```lisp
 (defparameter *snapshot*
@@ -161,10 +165,14 @@ scratch values, not a global connection convention in the library:
       (length (tm:panes *snapshot*)))
 ```
 
-The result is `(2 3 4 4)`. The two editor links have different session/index
-locators and the same physical window. `windows` on a snapshot deduplicates
-physical windows; `windows` on a session retains one entry per link.
-The [graph contract](captures.md) explains all traversal directions.
+The result is `(2 3 4 4)`: sessions, windows, links, panes.
+
+- The two `editor` links differ in session and index, and share one physical
+  window.
+- `windows` on a snapshot deduplicates physical windows.
+- `windows` on a session keeps one entry per link.
+
+All traversal directions: [captured objects](captures.md).
 
 ## Select and project locally
 
@@ -182,13 +190,12 @@ The [graph contract](captures.md) explains all traversal directions.
 (wide-active-panes *snapshot*)
 ```
 
-This returns a nonempty list of plists from the retained graph. You can instead
-use `map`, `find-if`, `count-if`, `reduce` or `remove-if` with a native function.
-These calls do not acquire state.
+This returns a nonempty list of plists from the retained graph. Plain sequence
+functions (`map`, `find-if`, `count-if`, `reduce`, `remove-if`) work on it too.
+None of these contact tmux.
 
-Compile a reusable scalar filter when the selection should be validated,
-inspected or shared. The example package's local nickname `q` refers to
-`libtmux.query`; the library claims no global nickname.
+Compile a reusable scalar filter to validate, inspect or share a selection.
+`q` is the package-local nickname for `libtmux.query`.
 
 <!-- example:query -->
 ```lisp
@@ -209,13 +216,14 @@ inspected or shared. The example package's local nickname `q` refers to
 (wide-active-pane-data *snapshot*)
 ```
 
-`matching` returns a fresh simple vector in captured order. Compilation copies
-the query form and checks field types, cycles and resource limits. The returned
-predicate is ordinary Lisp code over retained observations; neither compilation
-nor matching contacts tmux.
+- `matching` returns a fresh simple vector in captured order.
+- Compilation copies the query form and checks field types, cycles and
+  resource limits.
+- Neither compilation nor matching contacts tmux. A compiled filter is plain
+  Lisp over retained observations.
 
-Traverse registered relationships without reacquiring state, and keep the eager
-selection in a QuerySet with explicit root-model metadata:
+Traverse relationships locally and keep the eager selection in a QuerySet that
+records its root model:
 
 <!-- example:relation -->
 ```lisp
@@ -236,14 +244,13 @@ selection in a QuerySet with explicit root-model metadata:
 ```
 <!-- /example -->
 
-See the [native query guide](queries.md) for quantifier identities, stable
-ordering, ownership and strict cardinality.
+More: [native query guide](queries.md) (quantifier identities, stable
+ordering, ownership, strict cardinality).
 
 ## Match and serialize an optional query
 
-`libtmux/regex` adds CL-PPCRE-backed operators without adding that dependency
-to core or `libtmux/query`. The scanner is compiled once with the filter; this
-full-match example also proves that a match beginning at position zero works:
+`libtmux/regex` adds CL-PPCRE operators. Core and `libtmux/query` do not depend
+on CL-PPCRE. The scanner compiles once with the filter:
 
 <!-- example:regex -->
 ```lisp
@@ -264,9 +271,9 @@ full-match example also proves that a match beginning at position zero works:
 (cat-pane-data *snapshot*)
 ```
 
-`libtmux/json` writes the native schema `libtmux.lisp.filter/1`. Reading regex
-is an explicit local opt-in because parser limits do not interrupt CL-PPCRE
-scanner execution:
+`libtmux/json` writes the native schema `libtmux.lisp.filter/1`. Reading a regex
+filter needs `:allow-regex t`, because parser limits do not interrupt a
+CL-PPCRE scan:
 
 <!-- example:filterdocument -->
 ```lisp
@@ -284,11 +291,11 @@ scanner execution:
 (round-trip-filter-document *snapshot*)
 ```
 
-Both operations are local. The [interchange guide](query-interchange.md)
-documents the closed envelope, limits and false/empty/null distinctions.
+Both are local. More: [interchange guide](query-interchange.md) (closed
+envelope, limits, false/empty/null).
 
-Use both values when false and absence matter. This field is always present;
-an inactive pane returns `nil` and `t`:
+Use both values when false and absence differ. This field is always present,
+so an inactive pane returns `nil` and `t`:
 
 ```lisp
 (let ((pane (find-if-not #'tm:active-p (tm:panes *snapshot*))))
@@ -296,17 +303,19 @@ an inactive pane returns `nil` and `t`:
     (list value present-p)))
 ```
 
-Returned strings, plists and relation vectors are caller-owned copies.
-`entity-data` is finite and contains relationship identifiers rather than a
-recursive graph. A copied plist is local data; editing it does not mutate tmux.
-See the [field reference](fields.md) for types and optional values.
+- Returned strings, plists and relation vectors are caller-owned copies.
+- `entity-data` holds relationship IDs, not a recursive graph.
+- Editing a copy never changes tmux.
+
+More: [field reference](fields.md) (types, optional values).
 
 ## Handle command and observation outcomes
 
-Creation and named mutations return
-[command-outcome](api.md#command-outcome-type). A successful command
-can have no replacement observation because the target disappeared afterward.
-Check the observation separately; this helper never retries the mutation:
+Creation and named mutations return a
+[command-outcome](api.md#command-outcome-type).
+
+- A command can succeed with no observation: its target may vanish afterward.
+- Check the observation separately. This helper never retries the mutation:
 
 <!-- example:outcome -->
 ```lisp
@@ -321,7 +330,7 @@ Check the observation separately; this helper never retries the mutation:
 ```
 <!-- /example -->
 
-Rename a captured physical window and inspect old and new observations:
+Rename a captured window and compare the old and new observations:
 
 ```lisp
 (tm:with-client (client :socket-path *socket-path*)
@@ -331,19 +340,24 @@ Rename a captured physical window and inspect old and new observations:
     (list (tm:name window) (tm:name renamed) (tm:same-entity-p window renamed))))
 ```
 
-The result is `("editor" "api #{literal}" t)`. The literal format punctuation
-survives. Refresh uses the **same client context** and returns another captured
-observation. Observations from a different connection are not interchangeable
-operational targets, even when their numeric IDs match.
+The result is `("editor" "api #{literal}" t)`.
 
-External failures signal typed conditions. A handler can inspect
-[error-outcome](api.md#error-outcome-function),
-[outcome-status](api.md#outcome-status-function),
-[outcome-phase](api.md#outcome-phase-function),
-[outcome-exit-code](api.md#outcome-exit-code-function) and owned
-diagnostic bytes. Missing completion evidence can mean the mutation already
-happened; an automatic retry can duplicate effects. The
-[operation guide](operations.md#outcomes-and-target-checks) defines these cases.
+- Format punctuation survives literally.
+- Refresh uses the **same client context** and returns a new observation.
+- Observations from a different connection are not interchangeable targets,
+  even when their numeric IDs match.
+
+External failures signal typed conditions. A handler can read:
+
+- [error-outcome](api.md#error-outcome-function)
+- [outcome-status](api.md#outcome-status-function)
+- [outcome-phase](api.md#outcome-phase-function)
+- [outcome-exit-code](api.md#outcome-exit-code-function)
+- owned diagnostic bytes
+
+Missing completion evidence can mean the mutation already happened. A blind
+retry can duplicate effects. Details:
+[operation guide](operations.md#outcomes-and-target-checks).
 
 ## Preserve binary data
 
@@ -366,23 +380,27 @@ happened; an automatic retry can duplicate effects. The
 (tm:with-client (client :socket-path *socket-path*) (round-trip-bytes client))
 ```
 
-This returns five octets, including NUL and invalid UTF-8, unchanged. For pane
-contents, `capture-pane` returns UTF-8 text and outcome; use
-`capture-pane-bytes` for octets. Captures and buffer reads are bounded complete
-results, not subscriptions or streams.
+- This returns the five octets unchanged, NUL and invalid UTF-8 included.
+- `capture-pane` returns UTF-8 text and an outcome. `capture-pane-bytes`
+  returns octets.
+- Captures and buffer reads are bounded, complete results, not streams.
 
-Successful input dispatch does not prove application readiness or consumption.
-Coordinate with an application signal; do not add a sleep or treat printed
-text as proof. `pipe-pane` configures a daemon-owned shell pipe and has a
-separate [ownership contract](operations.md#pane-processes).
+Input and pipes:
+
+- A successful send does not prove the application is ready or consumed the
+  input. Wait on an application signal, not a sleep or printed text.
+- `pipe-pane` sets up a daemon-owned shell pipe. Ownership:
+  [pane processes](operations.md#pane-processes).
 
 ## Drive an application without polling
 
-The shipped [worker](../examples/worker.sh) signals initialization, reads one
-request, writes its receipt file, then signals consumption. The Lisp controller
-uses a fresh `wait-for` channel for each signal. The file receipt proves what
-the application consumed; a successful send or printed marker would not.
-These are blocking calls with deadlines, not a control-mode subscription API.
+The shipped [worker](../examples/worker.sh) signals readiness, reads one
+request, writes a receipt file, then signals consumption.
+
+- The Lisp controller waits on a fresh `wait-for` channel per signal.
+- The receipt file proves what the application consumed. A successful send or
+  printed marker does not.
+- Calls block with deadlines. This is not a control-mode subscription API.
 
 <!-- example:worker -->
 ```lisp
@@ -418,15 +436,16 @@ Signals operational conditions without retrying a mutation. Calls block."
                                (uiop:pathname-directory-pathname *socket-path*))))))
 ```
 
-The result contains `:consumed "release #{literal}; λ"` and a pane ID. The
-request travels as literal text; worker arguments travel through argv. The
-worker remains in its pane until the owned daemon is stopped. Receipt paths
-are local to this example's daemon host; this is not a remote-file API.
+The result contains `:consumed "release #{literal}; λ"` and a pane ID.
+
+- The request travels as literal text; worker arguments travel through argv.
+- The worker stays in its pane until the owned daemon stops.
+- Receipt paths are local to the daemon host. This is not a remote-file API.
 
 ## Inspect a typed failure
 
-This cancels a read before it acquires data, then handles `command-cancelled`
-and returns the retained dispatch evidence:
+Cancel a read before it acquires data, handle `command-cancelled`, and return
+the outcome the condition carries:
 
 <!-- example:condition -->
 ```lisp
@@ -449,9 +468,9 @@ and returns the retained dispatch evidence:
 (tm:with-client (client :socket-path *socket-path*) (cancelled-read client))
 ```
 
-This handler inspects evidence and returns; it never retries a command.
-Post-dispatch cancellation of a mutation can have a different status or phase.
-See the [condition reference](api.md#command-cancelled-type).
+The handler never retries. Cancelling a mutation after dispatch can give a
+different status or phase. See
+[command-cancelled](api.md#command-cancelled-type).
 
 ## Terminate the owned server
 

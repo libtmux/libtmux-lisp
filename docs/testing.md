@@ -1,7 +1,7 @@
 # Testing
 
-Use FiveAM directly at the REPL for local tests. Use the separate command for
-live tmux tests so the process owner can check fixture cleanup.
+Run local tests in FiveAM at the REPL. Run live tmux tests through the
+separate command, so the process owner can check fixture cleanup.
 
 ## Run and redefine a local test
 
@@ -32,22 +32,21 @@ Re-evaluate its changed test definition in the editor, then rerun that name:
 
 [`fiveam:!!`](https://github.com/lispci/fiveam/blob/3ba1300a9dd6bafdaef2af76d261d73bdf7e4bf0/src/run.lisp)
 and [`fiveam:!!!`](https://github.com/lispci/fiveam/blob/3ba1300a9dd6bafdaef2af76d261d73bdf7e4bf0/src/run.lisp)
-rerun the second and third previous selections.
-These rerun functions do not shift their history. To enter the debugger on an
-unexpected condition, run the test with `debug!`:
+rerun the second and third previous selections without shifting the history.
+To enter the debugger on an unexpected condition, use `debug!`:
 
 ```lisp
 (fiveam:debug! 'libtmux.tests::record-codec-preserves-text-and-presence)
 ```
 
 FiveAM supplies `retest` and `ignore` restarts while the condition is active.
-Use the complete unit suite after a focused change:
+After a focused change, run the complete unit suite:
 
 ```lisp
 (fiveam:run! 'libtmux.tests::unit)
 ```
 
-Load and run the separate native-query suite without contacting tmux:
+Run the native-query suite without contacting tmux:
 
 ```lisp
 (asdf:test-system "libtmux/query")
@@ -73,25 +72,31 @@ The optional systems keep their own suites and remain local:
 (asdf:test-system "libtmux/json")
 ```
 
-The pinned FiveAM 1.4.3 compiles test bodies at definition time by default.
-After changing a macro used by a test, re-evaluate that test definition too.
-For a test specifically studying macro redefinition, `def-test` supports the
-`:compile-at :run-time` option. The upstream homepage's older macro-redefinition
-description does not describe this default. See the pinned
-[test definitions](https://github.com/lispci/fiveam/blob/3ba1300a9dd6bafdaef2af76d261d73bdf7e4bf0/src/test.lisp)
-and [runner](https://github.com/lispci/fiveam/blob/3ba1300a9dd6bafdaef2af76d261d73bdf7e4bf0/src/run.lisp).
+FiveAM compiles test bodies at definition time by default.
 
-`run!` returns a Boolean; scripts must check it to return a failing process
-status. Unknown names and entirely skipped selections can report no failures,
-so select a known test or suite and read the check and skip counts. The shipped
-runner selects declared suites and checks the result before exiting.
+- After changing a macro a test uses, re-evaluate that test definition too.
+- To study macro redefinition, `def-test` accepts `:compile-at :run-time`.
+- Upstream's homepage describes older behavior. See the pinned
+  [test definitions](https://github.com/lispci/fiveam/blob/3ba1300a9dd6bafdaef2af76d261d73bdf7e4bf0/src/test.lisp)
+  and [runner](https://github.com/lispci/fiveam/blob/3ba1300a9dd6bafdaef2af76d261d73bdf7e4bf0/src/run.lisp).
 
-The mid loop runs the five local suites in one image, loading each system just
-before its suite. Core and query tests therefore run before optional libraries
-load. A failure stops the remaining suites. Package-consumer checks still use
-isolated images to verify loading boundaries.
-Live CLI apply/reapply runs through the extracted package's entry point in
-`mise run package-examples`; core workspace behavior stays in integration.
+`run!` returns a Boolean.
+
+- Scripts must check it to return a failing process status.
+- Unknown names and entirely skipped selections can report no failures. Select
+  a known test or suite and read the check and skip counts.
+- The shipped runner selects declared suites and checks the result before
+  exiting.
+
+The mid loop runs the five local suites in one image.
+
+- Each system loads just before its suite, so core and query tests run before
+  optional libraries load.
+- A failure stops the remaining suites.
+- Package-consumer checks still use isolated images to verify loading
+  boundaries.
+- Live CLI apply/reapply runs through the extracted package's entry point in
+  `mise run package-examples`. Core workspace behavior stays in integration.
 
 ## Run external tests
 
@@ -123,23 +128,24 @@ Run the owned live fixtures with one explicit tmux executable:
 $ LIBTMUX_TEST_TMUX=/path/to/tmux mise run integration
 ```
 
-This outer loop uses a dedicated process owner and subreaper. It checks that
-no test-owned child or daemon survives the Lisp image. Tests coordinate through
-FIFOs, semaphores, pidfds and application signals. A send acknowledgment alone
-does not establish application consumption. See [verification](../verification.md)
-for the loop budgets and current coverage.
+This outer loop uses a dedicated process owner and subreaper.
+
+- No test-owned child or daemon may survive the Lisp image.
+- Tests wait on application signals. A send acknowledgment alone does not show
+  the application consumed the input.
+- Loop budgets and coverage: [verification](../verification.md).
 
 ## GitHub Actions
 
-The workflow uses the same mise tasks, pinned SBCL/ASDF, Qlot lock and FiveAM
-suites as local development. The supported tmux range is 3.3a through 3.8,
-including every intermediate release. CI samples only the two endpoints to
-reduce build time; that selection does not narrow compatibility. It uses one
-language version: the latest stable SBCL pin in
-[.tool-versions](../.tool-versions), currently 2.6.10. Pushes to `master`, pull
-requests and manual runs check tmux 3.3a and 3.8. Unit tests cover
-rejection of plain 3.3 without another tmux build. The explicit Ubuntu 26.04
-image supplies the Linux capabilities required by the process backend.
+CI runs the same mise tasks and FiveAM suites as local development, with the
+toolchain in [.tool-versions](../.tool-versions) and the Qlot lock.
+
+- Pushes to `master`, pull requests and manual runs check tmux 3.3a and 3.8,
+  the two ends of the supported range. Intermediate releases are supported but
+  not built in CI.
+- Unit tests cover rejection of plain 3.3 without another tmux build.
+- The runner image must meet the
+  [process requirements](transport.md#supported-process-boundary).
 
 Run the same endpoint checks manually:
 
@@ -148,17 +154,21 @@ $ gh workflow run tests.yml \
     --ref master
 ```
 
-Qlot dependencies use a cache keyed by the toolchain configuration and lock.
-It contains both `.qlot` and Qlot's shared cache, because installed systems
-link to source directories outside the project.
-Tmux builds use exact keys containing source/archive identities, build recipe,
-runner image, architecture, compiler and dependency versions. Runtime libraries
-are installed before restoring a binary. Reuse checks provenance, binary hash,
-ELF architecture and the exact version. A rejected cached artifact is rebuilt.
-Only a build that passes its Lisp checks is saved.
+Caches:
 
-Workflow artifacts retain build provenance, logs and the isolated package
-evidence. A passing save step alone does not prove that GitHub stored a cache;
-a second run of the same revision must restore the exact entry and report
-`reused: true` with no configure or make commands. GitHub cache entries are
-immutable; rebuilding a rejected exact hit cannot replace that entry.
+- Qlot dependencies: keyed by toolchain configuration and lock. The cache holds
+  both `.qlot` and Qlot's shared cache, because installed systems link to
+  sources outside the project.
+- tmux builds: exact keys from source/archive identities, build recipe, runner
+  image, architecture, compiler and dependency versions. Runtime libraries are
+  installed before a binary is restored.
+- Reuse checks provenance, binary hash, ELF architecture and the exact version.
+  A rejected cached artifact is rebuilt.
+- Only a build that passes its Lisp checks is saved.
+- GitHub cache entries are immutable. Rebuilding a rejected exact hit cannot
+  replace that entry.
+- A passing save step does not prove GitHub stored the cache. A second run of
+  the same revision must restore the exact entry and report `reused: true`
+  with no configure or make commands.
+- Workflow artifacts keep build provenance, logs and the isolated package
+  evidence.

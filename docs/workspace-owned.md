@@ -1,9 +1,10 @@
 # Owned workspaces
 
-Use `libtmux/workspace` to create a declared workspace, retain logical-to-physical
-IDs, and explicitly reconcile permitted changes. Acquisition reads tmux;
-planning over acquired state is local. Application reacquires and verifies its
-targets before each operation.
+Use `libtmux/workspace` to declare a workspace, keep logical-to-physical IDs,
+and reconcile permitted changes explicitly.
+
+- Acquisition reads tmux; planning over acquired state is local.
+- Application reacquires and verifies its targets before each operation.
 
 [Workspace API](workspace-api.md) · [System README](../workspace/README.md) ·
 [Ownership protocol](design/workspace-v2.md) · [Legacy topology reuse](workspaces.md)
@@ -17,17 +18,16 @@ optional dependencies. From the checkout root:
 $ mise exec -- tools/lisp.sh examples/owned-workspace.lisp
 ```
 
-The [program](../examples/owned-workspace.lisp) owns a private daemon and closes
-its client and daemon on every exit. It checks native/file equivalence, printed
-shell output, environment values, identity-preserving reconciliation, no-op
-reapplication, retained observations and an unrelated session. It deliberately
-ends one apply with a bad layout checksum, then inspects the stopped work.
-Success prints `OWNED WORKSPACE PASS`.
+The [program](../examples/owned-workspace.lisp):
 
-The program uses a bounded raw notification wait within its owned daemon to
-run on tmux 3.3a through 3.8. The shell signals after printing its label; this
-does not prove a later application consumed input. The named
-[`wait-for`](api.md#wait-for-function) waiting contract requires tmux 3.8+.
+- Owns a private daemon and closes its client and daemon on every exit.
+- Ends one apply on purpose with a bad layout checksum, then inspects the
+  stopped work.
+- Waits on a raw notification inside its own daemon, so it runs on tmux 3.3a
+  or newer. The signal does not prove a later application consumed input.
+- Prints `OWNED WORKSPACE PASS` on success.
+
+The named [`wait-for`](api.md#wait-for-function) needs tmux 3.8 or newer.
 
 ## Start with native data
 
@@ -37,7 +37,7 @@ Load the optional system after registering this checkout with ASDF:
 (asdf:load-system "libtmux/workspace")
 ```
 
-This pure constructor function comes from the complete program:
+This pure constructor, from the complete program, never contacts tmux:
 
 <!-- example:owneddeclaration -->
 ```lisp
@@ -57,24 +57,28 @@ This pure constructor function comes from the complete program:
 ```
 <!-- /example -->
 
-The equivalent [JSON document](../examples/owned-workspace.json) has two windows
-and three panes. The example compares both declarations before binding its
-run-specific notification environment. `:command` is literal argv;
-`:shell-command` explicitly requests shell source. Parsing never executes either.
+The equivalent [JSON document](../examples/owned-workspace.json) declares the
+same two windows and three panes.
 
-The root, session, windows and panes have bounded logical IDs. Names and indexes
-can change without replacing those IDs. Captured tmux `$`, `@` and `%` IDs are
-separate physical identities; application records bind them to the declaration
-and observed daemon. Input and projected data own their mutable containers and
-strings.
+- `:command` is literal argv.
+- `:shell-command` explicitly requests shell source.
+- Parsing never executes either.
+
+IDs and ownership:
+
+- The root, session, windows and panes carry bounded logical IDs.
+- Names and indexes can change without replacing an ID.
+- Captured tmux `$`, `@` and `%` IDs are separate physical identities.
+  Application records bind them to the declaration and the observed daemon.
+- Input and projected data own their mutable containers and strings.
 
 ## Acquire, preview and apply
 
-In the remaining function excerpts, the program declares package-local `tm`
-for `libtmux` and `ws` for `libtmux.workspace`.
+The remaining excerpts use the package-local nicknames `tm` (`libtmux`) and
+`ws` (`libtmux.workspace`).
 [`fetch-workspace-state`](workspace-api.md#fetch-workspace-state-function)
-acquires ready owned state or proven vacancy. The following function previews
-locally and then applies through the same explicit client:
+acquires ready owned state or proven vacancy. This function previews locally,
+then applies through the same explicit client:
 
 <!-- example:ownedapply -->
 ```lisp
@@ -90,13 +94,18 @@ locally and then applies through the same explicit client:
 <!-- /example -->
 
 The [`plan-data`](workspace-api.md#plan-data-function) plist separates changes,
-drift, conflicts and informational context. `:publish-p` says whether the plan
-requires publication. An empty step vector alone does not establish a no-op:
-metadata-only changes can still need publication.
+drift, conflicts and informational context.
 
-A preview is observational data. It grants no execution authority; apply
-reacquires state and plans again. Unowned sessions, invalid mappings and busy
-claims are refused. A matching session name does not grant ownership.
+- `:publish-p` says whether the plan requires publication.
+- An empty step vector alone is not a no-op: metadata-only changes can still
+  need publication.
+
+Preview rules:
+
+- A preview is observational and grants no execution authority. Apply
+  reacquires state and plans again.
+- Apply refuses unowned sessions, invalid mappings and busy claims.
+- A matching session name does not grant ownership.
 
 ## Reconcile explicitly
 
@@ -116,47 +125,60 @@ metadata changes:
 <!-- /example -->
 
 The program renames the session and code window, adds a pane and changes the
-layout. Assertions establish that the original session, window and first pane
-retain their physical IDs. Earlier observations retain their captured names.
-The unrelated session remains present.
+layout. The session, window and first pane keep their physical IDs; earlier
+observations keep their captured names.
 
-Reconciliation preserves unrelated entities; it does not adopt an unowned
-session, remove extra work, steal a busy claim or replace existing pane
-processes. Existing command, working-directory and environment changes have
-the explicit refusals described in the [protocol](design/workspace-v2.md).
-Named layouts and custom layout descriptions use the core
-[`select-layout`](api.md#select-layout-function) contract, including the live
-tmux 3.8 minimum for custom JSON layouts.
+Reconciliation:
+
+- Preserves unrelated entities.
+- Does not adopt an unowned session, remove extra work, steal a busy claim or
+  replace existing pane processes.
+- Gives existing command, working-directory and environment changes explicit
+  refusals; see the [protocol](design/workspace-v2.md).
+- Applies named and custom layouts through
+  [`select-layout`](api.md#select-layout-function). Custom JSON layouts need
+  tmux 3.8 or newer.
 
 ## Keep result and failure evidence
 
 [`result-data`](workspace-api.md#result-data-function) returns two values:
-owned data and `t` for schema `/2`, or `nil, nil` for legacy `/1`. Owned data
-retains phase, mappings, selected/candidate/observed metadata, the selected
-record and publication status. `result-created-p` reports creation of the owned
-session. An unchanged application still acquires state and retains its reads.
 
-`result-snapshot` provides the replacement observation. `result-outcomes`
-returns chronological command outcomes; `result-causes` retains original
-conditions. These readers are local. A public
-[`workspace-apply-failed`](workspace-api.md#workspace-apply-failed-type)
-exposes the same evidence and the actual failed step where known.
+- Owned data and `t` for schema `/2`; `nil, nil` for legacy `/1`.
+- Owned data holds phase, mappings, selected/candidate/observed metadata, the
+  selected record and publication status.
 
-Publication is the final mutation. Failed observation after successful
-publication differs from failed or uncertain publication. Do not automatically
-repeat an interrupted apply. Completed steps remain completed; an apply is
-not a transaction.
+Related readers:
 
-Use `:total-timeout` for one admission budget across acquisition, planning and
-application. Per-operation timeout and output limits retain their own meanings;
-synchronous preparation and cleanup can extend caller wall time.
+- `result-created-p` reports creation of the owned session.
+- An unchanged apply still acquires state and retains its reads.
+- `result-snapshot` is the replacement observation.
+- `result-outcomes` lists command outcomes in chronological order.
+- `result-causes` keeps the original conditions.
+- All of these readers are local.
+- A public
+  [`workspace-apply-failed`](workspace-api.md#workspace-apply-failed-type)
+  exposes the same evidence and the actual failed step where known.
+
+Failure rules:
+
+- Publication is the final mutation.
+- A failed observation after successful publication differs from failed or
+  uncertain publication.
+- Do not repeat an interrupted apply automatically. Completed steps stay
+  completed; an apply is not a transaction.
+
+`:total-timeout` sets one admission budget across acquisition, planning and
+application.
+
+- Per-operation timeout and output limits keep their own meanings.
+- Synchronous preparation and cleanup can extend caller wall time.
 
 ## Inspect stopped work
 
-[`inspect-workspace`](workspace-api.md#inspect-workspace-function) explicitly
-acquires diagnostic evidence even when ownership metadata is busy, incomplete
-or invalid. It returns a distinct inspection object, which cannot satisfy the
-planning input type:
+[`inspect-workspace`](workspace-api.md#inspect-workspace-function) acquires
+diagnostic evidence even when ownership metadata is busy, incomplete or
+invalid. It returns an inspection object that cannot satisfy the planning input
+type:
 
 <!-- example:ownedinspection -->
 ```lisp
@@ -170,17 +192,17 @@ planning input type:
 ```
 <!-- /example -->
 
-Here `:complete-p` means the inspection read completed. `:busy` describes the
-interrupted writer, not readiness to plan or retry. The program uses a canonical
-layout header with an incorrect checksum to exercise this path without
-terminating its daemon.
+- `:complete-p` means the inspection read completed.
+- `:busy` describes the interrupted writer, not readiness to plan or retry.
 
 On a terminal read failure,
 [`workspace-inspection-error`](workspace-api.md#workspace-inspection-error-type)
 retains partial `inspection-evidence` and a separate `inspection-terminal`.
-Inspection readers expose attempts, snapshots, outcomes and original causes;
-they perform no further I/O. A `workspace-state-error` similarly retains partial
-ready-state acquisition evidence without inventing vacancy.
+
+- Inspection readers expose attempts, snapshots, outcomes and original causes,
+  and perform no further I/O.
+- `workspace-state-error` likewise retains partial ready-state acquisition
+  evidence without inventing vacancy.
 
 ## Use the CLI
 
@@ -192,31 +214,41 @@ $ bin/libtmux-workspace validate examples/owned-workspace.json
 ```
 
 Success reports schema `libtmux.lisp.workspace/2`, ID `demo-workspace`, two
-windows and three panes. Inspect the accepted option grammar:
+windows and three panes. Show the accepted options:
 
 ```console
 $ bin/libtmux-workspace --help
 ```
 
-`plan FILE`, `apply FILE` and `inspect FILE` require `--socket-path PATH` for
-owned documents; `--program PROGRAM` selects the native tmux executable.
-`--reconcile` is a standalone flag for owned plan/apply only. Endpoint plan
-acquires state before previewing; inspect never mutates. Legacy `/1` additionally
-supports an offline creation preview without an endpoint.
+Options:
 
-Exit codes are 0 for completed commands, 2 for invalid usage, and 1 for document
-or operational failure. Successful results use stdout; errors use stderr.
-A completed inspection exits 0 even when it reports busy or invalid ownership.
-Terminal failed inspection exits 1 with its retained evidence.
+- `plan FILE`, `apply FILE` and `inspect FILE` need `--socket-path PATH` for
+  owned documents.
+- `--program PROGRAM` selects the native tmux executable.
+- `--reconcile` is a standalone flag, for owned plan and apply only.
+- Endpoint `plan` acquires state before previewing; `inspect` never mutates.
+- Legacy `/1` also supports an offline creation preview with no endpoint.
 
-Owned summaries add `data` using lowercase native keyword names. Boolean
-fields preserve `false`, optional absent values use `null`, and vectors use
-arrays. Environment and session-group associations are objects. Application
-summaries retain `commandOutcomes` and causes; failures retain outcomes and
-failed-step data. Snapshots are available through the Lisp API rather than
-recursive JSON graph expansion.
+Exit codes and streams:
 
-`mise run examples` executes the CLI with cold compilation, creation, no-op
-reapply, explicit reconcile, failure reporting and busy inspection on an owned
-endpoint. `mise run package-examples` repeats these checks from the extracted
-source artifact.
+- `0`: command completed. `2`: invalid usage. `1`: document or operational
+  failure.
+- Successful results use stdout; errors use stderr.
+- A completed inspection exits `0` even when it reports busy or invalid
+  ownership.
+- A terminal failed inspection exits `1` with its retained evidence.
+
+Owned summaries add `data`:
+
+- Keys are lowercase native keyword names.
+- `false` stays `false`; absent optional values are `null`; vectors are arrays.
+- Environment and session-group associations are objects.
+- Application summaries keep `commandOutcomes` and causes. Failures keep
+  outcomes and failed-step data.
+- Snapshots stay in the Lisp API; JSON does not expand the recursive graph.
+
+Run the CLI end to end against an owned endpoint:
+
+```console
+$ mise run examples
+```

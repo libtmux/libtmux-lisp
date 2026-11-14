@@ -1,12 +1,11 @@
 # libtmux-lisp documentation
 
-Start with the [REPL tutorial](tutorial.md): install, acquire, inspect the
-graph, filter locally, build linked workspaces and inspect operation outcomes.
-All examples use the native SBCL implementation.
+Start with the [REPL tutorial](tutorial.md): install, acquire, filter, build
+workspaces, inspect outcomes. Examples run on SBCL.
 
-Choose optional dependencies through the
-[ASDF system directory](../README.md#choose-an-asdf-system). Each secondary
-system has a README covering loading, examples and its execution boundary.
+Pick optional systems from the
+[ASDF system directory](../README.md#choose-an-asdf-system). Each has its own
+README.
 
 | Guide | Purpose |
 | --- | --- |
@@ -14,31 +13,31 @@ system has a README covering loading, examples and its execution boundary.
 | [Captures and identity](captures.md) | Object graph, relations, presence, ownership and refresh |
 | [Native queries](queries.md) | Typed forms, relations, QuerySets, limits and cardinality |
 | [Query interchange](query-interchange.md) | Optional regex and bounded versioned JSON documents |
-| [Owned workspaces](workspace-owned.md) | Logical IDs, native/file declarations, local previews, reconcile, inspection and CLI |
+| [Owned workspaces](workspace-owned.md) | Logical IDs, declarations, previews, reconcile, inspection, CLI |
 | [Legacy workspace topology](workspaces.md) | Schema /1 creation and topology-only reuse |
 | [Decoded configuration](configuration.md) | Typed values, inheritance, hooks, environment state and failure evidence |
 | [Explicit operations](operations.md) | Creation, placement, input, buffers and mutation outcomes |
 | [Transport](transport.md) | Client lifecycle, limits, cancellation and failure evidence |
-| [Persistent control](control.md) | Nonblocking submission, byte output, cancellation and owned connection scopes |
-| [Control API](control-api.md) | Generated resource, request, event and recovery contracts |
+| [Persistent control](control.md) | Nonblocking submission, byte output, cancellation, connection scopes |
+| [Control API](control-api.md) | Generated resource, request, event and recovery reference |
 | [Daemon scopes](daemons.md) | Private foreground startup, readiness, environment and checked shutdown |
-| [Architecture decision](adr/0001-native-common-lisp-engine.md) | Engine boundaries, captured model, alternatives and trade-offs |
+| [Architecture decision](adr/0001-native-common-lisp-engine.md) | Engine boundaries, captured model and trade-offs |
 | [Public API](api.md) | Generated signatures, docstrings, classes and conditions |
 | [Query API](query-api.md) | Generated query, QuerySet, condition and operator reference |
 | [Query JSON API](json-api.md) | Generated codec signatures and document conditions |
 | [Workspace API](workspace-api.md) | Generated workspace, plan, result, condition and CLI reference |
 | [Captured fields](fields.md) | Generated typed field/relation registry |
-| [Capabilities and limits](capabilities.md) | Platform, concurrency, planned modules and adoption gaps |
-| [Benchmarks](benchmarks.md) | Same-workload native read paths, acquisition cost, samples and limits |
-| [Testing](testing.md) | FiveAM's interactive workflow and isolated tmux CI |
+| [Capabilities and limits](capabilities.md) | Platform, concurrency, planned modules, gaps |
+| [Benchmarks](benchmarks.md) | Native read paths and acquisition cost |
+| [Testing](testing.md) | FiveAM workflow and isolated tmux |
 | [Source modules](modules.md) | Generated implementation responsibility map |
 
-For reproducibility, see [verification](../verification.md),
-[toolchain and dependency setup](../.github/CONTRIBUTING.md#setup),
-[source examples](../examples/workspace.lisp) and the
-[workflow](../.github/workflows/tests.yml). API and field pages are generated
-from the loaded Lisp system; excerpts come from executed example files.
+Reproduce and verify:
 
-At the REPL, use `documentation` on a public function or class. In SLY or SLIME,
-the same documentation and real lambda lists support symbol help and source
-navigation. No browser-specific annotations replace the Lisp docstrings.
+- [Verification](../verification.md)
+- [Toolchain and dependency setup](../.github/CONTRIBUTING.md#setup)
+- [Source examples](../examples/workspace.lisp)
+- [Workflow](../.github/workflows/tests.yml)
+
+At the REPL, call `documentation` on a public function or class. SLY and SLIME
+show the same docstrings and lambda lists.

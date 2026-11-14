@@ -1,15 +1,16 @@
 # Declarative workspaces
 
-This guide describes schema `libtmux.lisp.workspace/1`, which preserves the
-original topology-only creation/reuse API. For logical IDs, ownership records,
-drift reports and explicit reconciliation, start with
+Schema `libtmux.lisp.workspace/1`: topology-only creation and reuse. For
+logical IDs, ownership records, drift reports and explicit reconciliation, use
 [owned workspaces](workspace-owned.md).
 
-`libtmux/workspace` validates a closed workspace description, produces an
-inspectable plan without I/O, and creates a missing session through the core
-library. Reapplying an exact topology dispatches no mutations. A conflict fails
-before the first mutation; a later failure retains every attempted
-[`command-outcome`](api.md#command-outcome-type).
+`libtmux/workspace` validates a closed workspace description, plans without
+I/O, and creates a missing session through the core library.
+
+- Reapplying an exact topology dispatches no mutations.
+- A conflict fails before the first mutation.
+- A later failure retains every attempted
+  [`command-outcome`](api.md#command-outcome-type).
 
 [Workspace API](workspace-api.md) · [v1 contract](design/workspace-v1.md) ·
 [operation outcomes](operations.md#outcomes-and-target-checks)
@@ -32,10 +33,12 @@ The command-line adapter is another explicit system:
 ## Describe a topology
 
 Start with native data. This function from
-[`examples/workspace.lisp`](../examples/workspace.lisp) constructs an owned
-declaration without I/O. The session environment is inherited by later panes.
-`:command` is literal argv; `:shell-command` explicitly requests shell execution
-during apply.
+[`examples/workspace.lisp`](../examples/workspace.lisp) builds a declaration
+without I/O.
+
+- The session environment is inherited by later panes.
+- `:command` is literal argv.
+- `:shell-command` requests shell execution during apply.
 
 <!-- example:workspacenative -->
 ```lisp
@@ -57,9 +60,8 @@ APP_LABEL seeds the session environment, inherited by subsequent panes."
 <!-- /example -->
 
 The shipped [`examples/workspace.json`](../examples/workspace.json) describes
-the same two windows and three panes. The tested examples compare the native
-and JSON declarations before applying them. The loader never invokes the Common
-Lisp reader, evaluates input, or interns external names.
+the same two windows and three panes. The loader never invokes the Common Lisp
+reader, evaluates input, or interns external names.
 
 ```json
 {
@@ -88,34 +90,46 @@ Lisp reader, evaluates input, or interns external names.
 }
 ```
 
-[`read-workspace`](workspace-api.md#read-workspace-function) requires a regular
-UTF-8 file. [`parse-workspace`](workspace-api.md#parse-workspace-function)
-accepts a complete string. Both reject duplicate and unknown members, trailing
-data, nulls, floating-point numbers, and exhausted input, nesting, node, string,
-window, pane, argv, environment-pair, or integer-token bounds.
+Reading JSON:
 
-For trusted in-process data, [`make-workspace`](workspace-api.md#make-workspace-function)
-accepts the equivalent closed keyword plist with vectors or finite proper
-lists. It copies retained strings and containers. Session names cannot contain
-periods or colons; names also reject characters tmux would rewrite. `:layout`
-uses a Common Lisp keyword such as `:tiled`; JSON uses the corresponding string.
-Custom layouts use `(:custom text)` or JSON `{"custom": "..."}`. Tmux validates
-their checksum and geometry during apply; failure can follow completed creation.
+- [`read-workspace`](workspace-api.md#read-workspace-function) requires a
+  regular UTF-8 file.
+- [`parse-workspace`](workspace-api.md#parse-workspace-function) accepts a
+  complete string.
+- Both reject duplicate and unknown members, trailing data, nulls and
+  floating-point numbers.
+- Both reject input over a bound on nesting, nodes, strings, windows, panes,
+  argv, environment pairs or integer tokens.
 
-Session `:environment` accepts `(name . value)` string pairs; JSON accepts a
-string-valued object. Names are unique and exclude NUL and `=`. Empty values
-are allowed. `:max-environment` defaults to 256 and bounds pairs per session.
-These are raw tmux session values, not an exact child environment; tmux supplies
-variables such as `TMUX_PANE` and can update inherited values on attachment.
-Pane/window environment keys are unsupported. See the
-[creation-input contract](design/workspace-v1.md#native-data).
+For trusted in-process data,
+[`make-workspace`](workspace-api.md#make-workspace-function) accepts the
+equivalent closed keyword plist.
+
+- Sequences may be vectors or finite proper lists. Retained strings and
+  containers are copied.
+- Session names cannot contain periods or colons, or characters tmux would
+  rewrite.
+- `:layout` is a keyword such as `:tiled`; JSON uses the matching string.
+- Custom layouts: `(:custom text)` or JSON `{"custom": "..."}`. Tmux validates
+  checksum and geometry during apply, so failure can follow completed creation.
+
+Session `:environment`:
+
+- Takes `(name . value)` string pairs; JSON takes a string-valued object.
+- Names are unique and exclude NUL and `=`. Empty values are allowed.
+- `:max-environment` bounds pairs per session (default 256).
+- Values are raw tmux session values, not an exact child environment: tmux
+  supplies variables such as `TMUX_PANE` and can update inherited values on
+  attachment.
+- Pane and window environment keys are unsupported.
+
+See the [creation-input contract](design/workspace-v1.md#native-data).
 
 ## Plan locally, then apply explicitly
 
-This function is executable source from
-[`examples/workspace.lisp`](../examples/workspace.lisp). Planning against the
-captured graph is local. Applying performs its own fresh capture before any
-mutation, then proves the final topology with another capture.
+Planning against the captured graph is local. Apply captures fresh before any
+mutation, then proves the final topology with another capture. This function
+is from [`examples/workspace.lisp`](../examples/workspace.lisp):
 
 <!-- example:workspaceconfig -->
 ```lisp
@@ -140,37 +154,48 @@ The result separates the important facts:
 | What topology passed final proof? | `result-snapshot` |
 | What would an offline creation do? | `plan-steps`, then `step-action` and `step-data` |
 
-`result-outcomes` returns a fresh vector in dispatch order. Each member is the
-core outcome with status, phase, diagnostics, elapsed time, and optional
-replacement observation. Successfully dispatched commands remain present even
-when later workspace state validation fails. An exact second apply returns false from
-`result-created-p` and an empty outcome vector.
+About `result-outcomes`:
+
+- It returns a fresh vector in dispatch order.
+- Each member is the core outcome: status, phase, diagnostics, elapsed time and
+  an optional replacement observation.
+- Dispatched commands stay present even when later state validation fails.
+- An exact second apply returns false from `result-created-p` and an empty
+  outcome vector.
 
 ## Bound application time
 
-[`apply-workspace`](workspace-api.md#apply-workspace-function) accepts
+[`apply-workspace`](workspace-api.md#apply-workspace-function) takes
 `:total-timeout` in seconds, shared across its initial capture, core steps and
-final verification. The example supplies 30 seconds for application; its file
-loading and preview happen first. Omit the argument to keep only per-operation
-timeouts. An explicit value must be a nonnegative finite real; zero refuses
-the initial read.
+final verification.
 
-Each core call receives the smaller of the remaining application budget and
-`:timeout` or the client's default. `:output-limit` still applies separately to
-each core operation, and `:cancel-token` is shared. The application budget
-checks admission between operations and after local planning. It cannot
-interrupt core preparation, synchronous platform calls or additive cleanup;
-an admitted call may run or dispatch past it. It is not a hard caller wall-time
-limit.
+- The example passes 30. Its file loading and preview happen first.
+- Omit it to keep only per-operation timeouts.
+- It must be a nonnegative finite real. Zero refuses the initial read.
+
+How the budget applies:
+
+- Each core call gets the smaller of the remaining budget and `:timeout` (or
+  the client's default).
+- `:output-limit` applies separately to each core operation; `:cancel-token`
+  is shared.
+- The budget gates admission between operations and after local planning.
+- It cannot interrupt core preparation, synchronous platform calls or additive
+  cleanup, so an admitted call may run or dispatch past it. It is not a hard
+  caller wall-time limit.
 
 [`workspace-deadline-exceeded`](workspace-api.md#workspace-deadline-exceeded-type)
-reports expiry between calls without inventing a command outcome. Before the
-first core-step invocation it is signalled directly. Execution begins with that
-invocation, which can itself fail before dispatch. Later,
-[`workspace-apply-failed`](workspace-api.md#workspace-apply-failed-type)
-retains it as the cause with all completed outcomes. The failed step is the
-next step refused admission, or `nil` during final verification. Inspect the
-retained evidence before deciding what to do next; no automatic retry occurs.
+reports expiry between calls without inventing a command outcome.
+
+- Before the first core-step invocation, it is signalled directly. Execution
+  begins with that invocation, which can itself fail before dispatch.
+- Later,
+  [`workspace-apply-failed`](workspace-api.md#workspace-apply-failed-type)
+  retains it as the cause, with all completed outcomes.
+- The failed step is the next step refused admission, or `nil` during final
+  verification.
+- Inspect the retained evidence before deciding what to do; nothing retries
+  automatically.
 
 ## Use the CLI without an implicit server
 
@@ -200,42 +225,55 @@ $ bin/libtmux-workspace apply examples/workspace.json \
   --socket-path /path/to/owned/tmux.sock
 ```
 
-The single JSON response reports whether the session was created and how many
-core outcomes were retained. The tested
-[`libtmux.workspace.cli:main`](workspace-api.md#main-function) function returns
-status 0, 1, or 2 and accepts caller-owned output streams; it does not quit the
-image or enter the debugger.
+- `apply` prints one JSON response: whether the session was created and how
+  many core outcomes were retained.
+- [`libtmux.workspace.cli:main`](workspace-api.md#main-function) returns
+  status 0, 1 or 2 and takes caller-owned output streams. It never quits the
+  image or enters the debugger.
 
-Library failures return status 1, leave stdout empty, and write one JSON error
-to stderr. It retains condition names, messages, causes, workspace paths and
-limits, failed-step data, and every retained command outcome. Outcomes include
-status, dispatch phase, argv, elapsed seconds and output bytes; an unknown exit
-code is omitted. `stdoutBytes` and `stderrBytes` are integer arrays, preserving
-invalid UTF-8. Observation and cleanup failures retain their own diagnostics.
-Nested details stop after eight levels and set `detailsTruncated` to true.
-Usage errors return status 2 with usage text on stderr.
+Failures:
 
-Inspect retained statuses and phases before recovering from a failed apply.
-An `unknown` outcome can follow a mutation that already happened. Successful
-outcomes remain successful when a later step or observation fails.
+- A library failure returns status 1, leaves stdout empty and writes one JSON
+  error to stderr.
+- The error keeps condition names, messages, causes, workspace paths and
+  limits, failed-step data and every retained command outcome.
+- Outcomes carry status, dispatch phase, argv, elapsed seconds and output
+  bytes. An unknown exit code is omitted.
+- `stdoutBytes` and `stderrBytes` are integer arrays, so invalid UTF-8
+  survives.
+- Observation and cleanup failures keep their own diagnostics.
+- Nested details stop after eight levels and set `detailsTruncated` to true.
+- Usage errors return status 2 with usage text on stderr.
+
+Read the retained statuses and phases before recovering from a failed apply:
+
+- An `unknown` outcome can follow a mutation that already happened.
+- Successful outcomes stay successful when a later step or observation fails.
 
 ## Handle conflicts and partial application
 
 [`plan-workspace`](workspace-api.md#plan-workspace-function) matches an existing
-session by name, then proves the exact number of named window links, every
-declared index, and each pane count. Extra, missing, duplicate, or mismatched
-topology signals `workspace-conflict`. During creation, later explicit indexes
-are reserved before automatic windows, and redundant same-index moves dispatch
-nothing. Pane creation and final order follow the declaration. Each split uses
-the pane just created and its larger captured dimension; intermediate tiled
-layouts prevent repeatedly halving one shrinking pane. The requested layout
-runs after the final pane exists. No delete, restart, or compensating mutation
-runs.
+session by name, then proves the topology:
 
-Command argv, explicit shell source, environment, cwd and layouts are creation
-inputs. They are not inferred
-from later pane state. A pane may change process or directory without turning an
-otherwise matching topology into a destructive repair plan.
+- The number of named window links, every declared index and each pane count
+  must match exactly.
+- Extra, missing, duplicate or mismatched topology signals
+  `workspace-conflict`.
+
+During creation:
+
+- Later explicit indexes are reserved before automatic windows. Redundant
+  same-index moves dispatch nothing.
+- Pane creation and final order follow the declaration.
+- Each split uses the pane just created and its larger captured dimension.
+  Intermediate tiled layouts stop one shrinking pane from being halved
+  repeatedly.
+- The requested layout runs after the final pane exists.
+- No delete, restart or compensating mutation runs.
+
+Command argv, shell source, environment, cwd and layouts are creation inputs,
+not inferred from later pane state. A pane that changes process or directory
+never turns a matching topology into a destructive repair plan.
 
 If a step fails, inspect the condition while preserving its uncertainty:
 
@@ -250,25 +288,19 @@ If a step fails, inspect the condition while preserving its uncertainty:
           :cause (tm:error-cause condition))))
 ```
 
-A final-proof failure has no failed step because every planned command already
+A final-proof failure has no failed step: every planned command already
 completed. It still retains all outcomes. The workspace layer never retries or
 rolls back a mutation.
 
 ## Current boundary
 
-Reuse checks topology by name, index and pane count, including sessions created
-outside this library. Version 1 does not retain a canonical declaration or
-owned entity mapping. Logical IDs, ownership checks, declaration-versus-drift
-planning and explicit reconciliation remain unfinished. Session environment,
-shell source and custom layouts are creation inputs; reuse does not converge
-them.
+- Reuse checks topology by name, index and pane count, including sessions
+  created outside this library.
+- Version 1 keeps no canonical declaration or owned entity mapping. It has no
+  logical IDs, ownership checks, drift planning or reconciliation.
+- Session environment, shell source and custom layouts are creation inputs;
+  reuse does not converge them.
 
 Version 1 omits YAML, plugins, lifecycle scripts, implicit shell expansion,
-deletion, process supervision, daemon startup and control-mode events.
-Use explicit core operations when the application
-needs behavior outside this bounded bootstrap/reuse contract.
-
-The FiveAM suite proves pure planning and parser bounds without tmux. Integration
-tests apply and reapply the same document on owned exact tmux 3.3a and 3.8
-servers. `mise run package-examples` repeats the executable example from the
-source archive.
+deletion, process supervision, daemon startup and control-mode events. Use
+explicit core operations for anything else.
