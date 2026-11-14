@@ -11,6 +11,8 @@
 
 # libtmux/json
 
+[![libtmux.org](https://img.shields.io/badge/docs-libtmux.org-0b7285)](https://libtmux.org/en/lisp/)
+
 </div>
 
 Read and write bounded `libtmux.lisp.filter/1` query documents. This optional

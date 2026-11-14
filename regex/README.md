@@ -11,6 +11,8 @@
 
 # libtmux/regex
 
+[![libtmux.org](https://img.shields.io/badge/docs-libtmux.org-0b7285)](https://libtmux.org/en/lisp/)
+
 </div>
 
 Add CL-PPCRE search and full-match operators to native captured queries. This

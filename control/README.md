@@ -11,6 +11,8 @@
 
 # libtmux/control
 
+[![libtmux.org](https://img.shields.io/badge/docs-libtmux.org-0b7285)](https://libtmux.org/en/lisp/)
+
 </div>
 
 Queue tmux requests and consume pane-output bytes on a scoped persistent

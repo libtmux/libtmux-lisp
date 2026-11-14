@@ -11,6 +11,8 @@
 
 # libtmux/workspace/cli
 
+[![libtmux.org](https://img.shields.io/badge/docs-libtmux.org-0b7285)](https://libtmux.org/en/lisp/latest/workspace/)
+
 </div>
 
 Validate workspace files, inspect ownership, preview changes and explicitly

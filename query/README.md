@@ -11,6 +11,8 @@
 
 # libtmux/query
 
+[![libtmux.org](https://img.shields.io/badge/docs-libtmux.org-0b7285)](https://libtmux.org/en/lisp/)
+
 </div>
 
 Filter captured tmux objects with ordinary Lisp predicates, validated query

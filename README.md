@@ -11,6 +11,10 @@
 
 # libtmux-lisp
 
+[![Native Lisp checks](https://github.com/libtmux/libtmux-lisp/actions/workflows/tests.yml/badge.svg)](https://github.com/libtmux/libtmux-lisp/actions/workflows/tests.yml)
+[![libtmux.org](https://img.shields.io/badge/docs-libtmux.org-0b7285)](https://libtmux.org/en/lisp/)
+[![license](https://img.shields.io/badge/license-MIT-blue)](https://github.com/libtmux/libtmux-lisp/blob/master/LICENSE)
+
 </div>
 
 libtmux-lisp is a native Common Lisp tmux client library. Acquire
@@ -116,6 +120,61 @@ Load only the systems your application uses. Each system has its own README:
 These directories provide system documentation. ASDF definitions remain in
 [`libtmux.asd`](libtmux.asd); source stays in `src/`. Secondary systems are
 optional parts of one library release.
+
+Each heading below links to the system's directory on GitHub, where its
+README lives.
+
+### [`libtmux`](https://github.com/libtmux/libtmux-lisp/tree/master/src): the core library
+
+Captures the CLOS object graph and runs explicit tmux operations through a
+[`libtmux:client`][api-client], with ASDF and UIOP alone.
+
+[API reference][api-core] · [Guides](https://libtmux.org/en/lisp/latest/guides/) ·
+[REPL tutorial](docs/tutorial.md)
+
+### [`libtmux/query`](https://github.com/libtmux/libtmux-lisp/tree/master/query): native queries
+
+[`libtmux.query:compile-filter`][api-compile-filter] and
+[`libtmux.query:matching`][api-matching] filter captured objects without
+contacting tmux.
+
+[API reference][api-query] · [README](query/README.md)
+
+### [`libtmux/regex`](https://github.com/libtmux/libtmux-lisp/tree/master/regex): CL-PPCRE operators
+
+Adds search and full-match operators to native queries.
+
+[Query API][api-query] · [README](regex/README.md)
+
+### [`libtmux/json`](https://github.com/libtmux/libtmux-lisp/tree/master/json): bounded filter documents
+
+[`libtmux.json:write-filter`][api-write-filter] and
+[`libtmux.json:read-filter`][api-read-filter] exchange a compiled filter as a
+versioned JSON document.
+
+[API reference][api-json] · [README](json/README.md)
+
+### [`libtmux/control`](https://github.com/libtmux/libtmux-lisp/tree/master/control): control connections on tmux 3.8+
+
+[`libtmux.control:with-connection`][api-with-connection] scopes a connection
+that queues requests and streams pane output.
+
+[API reference][api-control] · [README](control/README.md)
+
+### [`libtmux/workspace`](https://github.com/libtmux/libtmux-lisp/tree/master/workspace): owned workspaces
+
+[`libtmux.workspace:make-workspace`][api-make-workspace] declares a workspace;
+previews and reconciliation stay explicit.
+
+[API reference][api-workspace] ·
+[Workspace docs](https://libtmux.org/en/lisp/latest/workspace/) ·
+[README](workspace/README.md)
+
+### [`libtmux/workspace/cli`](https://github.com/libtmux/libtmux-lisp/tree/master/workspace/cli): the workspace command line
+
+Validates, previews and applies a workspace against an explicit endpoint.
+
+[API reference][api-cli] · [README](workspace/cli/README.md)
 
 ## Start an isolated daemon
 
@@ -416,6 +475,7 @@ For changes, read [Contributing](.github/CONTRIBUTING.md) and
 [api-window]: https://libtmux.org/en/lisp/latest/reference/libtmux-window-type/
 [api-window-link]: https://libtmux.org/en/lisp/latest/reference/libtmux-window-link/
 [api-with-client]: https://libtmux.org/en/lisp/latest/reference/libtmux-with-client/
+[api-with-connection]: https://libtmux.org/en/lisp/latest/reference/libtmux-control-with-connection/
 [api-with-daemon]: https://libtmux.org/en/lisp/latest/reference/libtmux-with-daemon/
 [api-workspace]: https://libtmux.org/en/lisp/latest/workspace/reference/libtmux-workspace/
 [api-write-filter]: https://libtmux.org/en/lisp/latest/reference/libtmux-json-write-filter/

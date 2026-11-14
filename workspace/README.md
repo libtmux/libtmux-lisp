@@ -11,6 +11,8 @@
 
 # libtmux/workspace
 
+[![libtmux.org](https://img.shields.io/badge/docs-libtmux.org-0b7285)](https://libtmux.org/en/lisp/latest/workspace/)
+
 </div>
 
 Describe an owned tmux workspace with native Lisp data or bounded JSON, preview
