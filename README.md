@@ -27,6 +27,7 @@ with plain sequences, changed through an explicit [`client`][api-client].
 
 **Contents** — [Install](#install-from-source) ·
 [Start a server](#start-a-private-server) ·
+[Drive a pane](#drive-a-pane) ·
 [Find things](#find-sessions-windows-and-panes) ·
 [Query](#query-a-snapshot) ·
 [Workspaces](#build-a-workspace) ·
@@ -93,6 +94,60 @@ $ mise exec -- tools/lisp.sh examples/managed-daemon.lisp
 
 Prints `MANAGED DAEMON PASS` and a pane record. To reach an existing server,
 use `with-client` alone. More: [daemon scopes](docs/daemons.md).
+
+## Drive a pane
+
+### [`libtmux:split-pane`][api-split-pane]: split, send, capture and resize
+
+[`send-text`][api-send-text] types into the new pane and
+[`capture-pane`][api-capture-pane] reads its screen.
+[`resize-window`][api-resize-window] and [`resize-pane`][api-resize-pane] set
+sizes in cells.
+
+<!-- example:panes -->
+```lisp
+(asdf:load-system "libtmux")
+
+(defun drive-panes (&key (program "tmux"))
+  "Split a pane, send it text, capture its screen and resize; return what tmux reports."
+  (libtmux:with-daemon (daemon :program program)
+    (libtmux:with-client (client :program (libtmux:daemon-program daemon)
+                                 :socket-path (libtmux:daemon-socket-path daemon))
+      (flet ((observed (outcome)
+               (when (libtmux:outcome-observation-error outcome)
+                 (error (libtmux:outcome-observation-error outcome)))
+               (values (libtmux:outcome-value outcome))))
+        (observed (libtmux:new-session client :name "demo" :command '("/bin/cat")))
+        (let* ((left (aref (libtmux:fetch-panes client) 0))
+               (right (observed (libtmux:split-pane client left :direction :horizontal
+                                                                :command '("/bin/cat")))))
+          (libtmux:send-text client right "hello from Lisp" :enter t)
+          (let* ((text (libtmux:capture-pane client right))
+                 (window (observed (libtmux:resize-window client (libtmux:window right)
+                                                          :width 100 :height 30)))
+                 (narrow (observed (libtmux:resize-pane client right :width 20))))
+            (list :text (string-right-trim '(#\Newline) text)
+                  :window-size (list (libtmux:width window) (libtmux:height window))
+                  :pane-width (libtmux:width narrow))))))))
+```
+<!-- /example -->
+
+```console
+$ mise exec -- tools/lisp.sh examples/drive-panes.lisp
+```
+
+Prints `PANE OPERATIONS PASS`, the captured text, the window size and the pane
+width. A send succeeds when tmux accepts the input, not when the application
+reads it: [wait on a signal](docs/tutorial.md#drive-an-application-without-polling).
+
+- [`kill-pane`][api-kill-pane], [`kill-window`][api-kill-window],
+  [`kill-session`][api-kill-session] and [`kill-server`][api-kill-server]
+  remove targets.
+- [`set-option`][api-set-option] and [`set-hook`][api-set-hook] write;
+  [`show-options`][api-show-options] and [`show-hooks`][api-show-hooks] read.
+
+More: [operation contracts](docs/operations.md) ·
+[decoded configuration](docs/configuration.md)
 
 ## Find sessions, windows and panes
 
@@ -518,6 +573,7 @@ For changes, read [Contributing](.github/CONTRIBUTING.md) and
 
 [api-apply-workspace]: https://libtmux.org/en/lisp/latest/workspace/reference/libtmux-workspace-apply-workspace/
 [api-await-request]: https://libtmux.org/en/lisp/latest/reference/libtmux-control-await-request/
+[api-capture-pane]: https://libtmux.org/en/lisp/latest/reference/libtmux-capture-pane/
 [api-cli]: https://libtmux.org/en/lisp/latest/workspace/reference/libtmux-workspace-cli/
 [api-client]: https://libtmux.org/en/lisp/latest/reference/libtmux-client/
 [api-client-busy]: https://libtmux.org/en/lisp/latest/reference/libtmux-client-busy/
@@ -531,7 +587,10 @@ For changes, read [Contributing](.github/CONTRIBUTING.md) and
 [api-fetch-workspace-state]: https://libtmux.org/en/lisp/latest/workspace/reference/libtmux-workspace-fetch-workspace-state/
 [api-items]: https://libtmux.org/en/lisp/latest/reference/libtmux-query-items/
 [api-json]: https://libtmux.org/en/lisp/latest/reference/libtmux-json/
+[api-kill-pane]: https://libtmux.org/en/lisp/latest/reference/libtmux-kill-pane/
 [api-kill-server]: https://libtmux.org/en/lisp/latest/reference/libtmux-kill-server/
+[api-kill-session]: https://libtmux.org/en/lisp/latest/reference/libtmux-kill-session/
+[api-kill-window]: https://libtmux.org/en/lisp/latest/reference/libtmux-kill-window/
 [api-make-workspace]: https://libtmux.org/en/lisp/latest/workspace/reference/libtmux-workspace-make-workspace/
 [api-matching]: https://libtmux.org/en/lisp/latest/reference/libtmux-query-matching/
 [api-new-session]: https://libtmux.org/en/lisp/latest/reference/libtmux-new-session/
@@ -541,7 +600,15 @@ For changes, read [Contributing](.github/CONTRIBUTING.md) and
 [api-plan-workspace]: https://libtmux.org/en/lisp/latest/workspace/reference/libtmux-workspace-plan-workspace/
 [api-query]: https://libtmux.org/en/lisp/latest/reference/libtmux-query/
 [api-read-filter]: https://libtmux.org/en/lisp/latest/reference/libtmux-json-read-filter/
+[api-resize-pane]: https://libtmux.org/en/lisp/latest/reference/libtmux-resize-pane/
+[api-resize-window]: https://libtmux.org/en/lisp/latest/reference/libtmux-resize-window/
+[api-send-text]: https://libtmux.org/en/lisp/latest/reference/libtmux-send-text/
 [api-session]: https://libtmux.org/en/lisp/latest/reference/libtmux-session-type/
+[api-set-hook]: https://libtmux.org/en/lisp/latest/reference/libtmux-set-hook/
+[api-set-option]: https://libtmux.org/en/lisp/latest/reference/libtmux-set-option/
+[api-show-hooks]: https://libtmux.org/en/lisp/latest/reference/libtmux-show-hooks/
+[api-show-options]: https://libtmux.org/en/lisp/latest/reference/libtmux-show-options/
+[api-split-pane]: https://libtmux.org/en/lisp/latest/reference/libtmux-split-pane/
 [api-submit-command]: https://libtmux.org/en/lisp/latest/reference/libtmux-control-submit-command/
 [api-where]: https://libtmux.org/en/lisp/latest/reference/libtmux-query-where/
 [api-window]: https://libtmux.org/en/lisp/latest/reference/libtmux-window-type/
