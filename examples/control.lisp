@@ -1,11 +1,13 @@
 (require :asdf)
 (asdf:load-asd (truename (merge-pathnames "../libtmux.asd" *load-truename*)))
+;;; docs:controlsetup
 (asdf:load-system "libtmux/control")
 
 (defpackage #:libtmux.control.example
   (:use #:cl)
   (:local-nicknames (#:tm #:libtmux) (#:control #:libtmux.control)))
 (in-package #:libtmux.control.example)
+;;; docs:end
 
 ;;; docs:control
 (defun echo-through-control (client session pane)

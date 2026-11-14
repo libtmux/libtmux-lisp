@@ -1,11 +1,13 @@
 (require :asdf)
 (asdf:load-asd (truename (merge-pathnames "../libtmux.asd" *load-truename*)))
+;;; docs:ownedsetup
 (asdf:load-system "libtmux/workspace")
 
 (defpackage #:libtmux.workspace.example
   (:use #:cl)
   (:local-nicknames (#:tm #:libtmux) (#:ws #:libtmux.workspace)))
 (in-package #:libtmux.workspace.example)
+;;; docs:end
 
 ;;; docs:owneddeclaration
 (defun owned-description ()

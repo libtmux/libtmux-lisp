@@ -1,3 +1,4 @@
+;;; docs:package
 (defpackage #:libtmux.examples
   (:use #:cl)
   (:local-nicknames (#:tm #:libtmux)
@@ -9,6 +10,7 @@
            #:terminate-owned-server #:configuration-report))
 
 (in-package #:libtmux.examples)
+;;; docs:end
 
 ;;; docs:configuration
 (defun configuration-report (client session)
@@ -136,6 +138,15 @@ The caller owns the isolated daemon; repeating this recipe there is an error."
   "Return owned data for captured active panes at least 40 cells wide; no I/O."
   (map 'vector #'tm:entity-data
        (q:matching *wide-active-filter* (tm:panes snapshot))))
+;;; docs:end
+
+;;; docs:explain
+(defun filter-execution (filter)
+  "Report that FILTER runs locally and acquires nothing, with the fields it reads."
+  (let ((report (q:explain filter)))
+    (list :execution (getf report :execution)
+          :acquires-p (getf report :acquires-p)
+          :fields (getf report :required-fields))))
 ;;; docs:end
 
 ;;; docs:relation

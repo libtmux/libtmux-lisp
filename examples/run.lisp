@@ -52,6 +52,8 @@
             (compiled (libtmux.examples::wide-active-pane-data snapshot)))
         (assert (equal (mapcar (lambda (data) (getf data :pane/id)) native)
                        (map 'list (lambda (data) (getf data :pane/id)) compiled))))
+      (assert (equalp '(:execution :local :acquires-p nil :fields #(:pane/active :pane/width))
+                      (libtmux.examples::filter-execution libtmux.examples::*wide-active-filter*)))
       (assert (= 2 (length (libtmux.examples::active-session-data snapshot))))
       (multiple-value-bind (document data)
           (libtmux.examples::round-trip-filter-document snapshot)
