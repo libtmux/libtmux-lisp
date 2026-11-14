@@ -185,37 +185,43 @@ def run_owned_workspace_cli(socket, directory, child_environment):
 
 for mode in (("assertions", "tutorial") if args.group == "core" else ()):
     with tempfile.TemporaryDirectory(prefix="libtmux-lisp-example-") as directory:
-        tutorial_terminated = False
         socket = str(Path(directory) / "tmux.sock")
         command = [program, "-S", socket]
         child_environment = environment.copy()
         child_environment["PATH"] = str(Path(program).parent) + os.pathsep + environment["PATH"]
         markdown = (root / "docs/tutorial.md").read_text()
-        console = re.findall(r"^```console\n\$ (.*?)^```$", markdown, re.M | re.S)
         try:
-            if mode == "tutorial":
-                setup = next(block for block in console if "export LIBTMUX_DEMO_DIR=" in block)
-                result = subprocess.run(["bash", "-c", setup], cwd=root, env=child_environment,
-                                        check=True, text=True, stdout=subprocess.PIPE, timeout=10)
-                socket = result.stdout.strip()
-                child_environment["LIBTMUX_DEMO_DIR"] = str(Path(socket).parent)
-                command = [program, "-S", socket]
-            else:
+            if mode == "assertions":
                 subprocess.run(command + ["-f", "/dev/null", "new-session", "-d", "-s", "work",
                                           "-n", "editor", "-x", "120", "-y", "40", "--", "/bin/cat"],
                                env=child_environment, check=True, timeout=10)
-            if mode == "tutorial" and os.environ.get("LIBTMUX_TEST_FAIL_TUTORIAL_BEFORE_TERMINATION"):
-                raise RuntimeError("Injected tutorial failure before termination")
             script = root / "examples/run.lisp"
             extra_arguments = [program, socket]
             working_directory = directory
             if mode == "tutorial":
                 forms = re.findall(r"^```lisp\n(.*?)^```$", markdown, re.M | re.S)
-                if not forms or forms[-1].strip() != "(uiop:quit)":
-                    raise RuntimeError("Tutorial must end with an explicit REPL exit")
-                if len(forms) < 2 or forms[-2].strip() != "(terminate-owned-server *socket-path*)":
-                    raise RuntimeError("Tutorial must terminate its explicitly owned server before exit")
+                ending = ["(terminate-owned-server *socket-path*)", "(tm:stop-daemon *daemon*)", "(uiop:quit)"]
+                if [form.strip() for form in forms[-3:]] != ending:
+                    raise RuntimeError("Tutorial must terminate its daemon, stop it and exit the REPL")
                 script = Path(directory) / "tutorial.lisp"
+                guard = '''
+(setf sb-ext:*invoke-debugger-hook*
+      (lambda (condition hook)
+        (declare (ignore hook))
+        (format *error-output* "~&~A~%" condition)
+        (let* ((package (find-package "LIBTMUX.EXAMPLES"))
+               (symbol (and package (find-symbol "*DAEMON*" package))))
+          (when (and symbol (boundp symbol))
+            (ignore-errors (funcall (find-symbol "STOP-DAEMON" "LIBTMUX") (symbol-value symbol)))))
+        (sb-ext:exit :code 1 :abort t)))
+'''
+                injection = ""
+                if os.environ.get("LIBTMUX_TEST_FAIL_TUTORIAL_BEFORE_TERMINATION"):
+                    injection = '(error "Injected tutorial failure before termination")\n'
+                after = '''
+(assert (not (probe-file (uiop:pathname-directory-pathname *socket-path*))))
+(assert (zerop (length (tm:pending-daemon-cleanups))))
+'''
                 checks = '''
 (assert (equal '(2 3 4 4)
                (list (length (tm:sessions *snapshot*))
@@ -227,9 +233,9 @@ for mode in (("assertions", "tutorial") if args.group == "core" else ()):
   (assert (find "api #{literal}" (tm:fetch-windows client) :key #'tm:name :test #'string=)))
 (format t "TUTORIAL PASS: every Lisp block executed in reading order~%")
 '''
-                script.write_text('(asdf:load-asd (truename "libtmux.asd"))\n' +
-                                  "\n".join(forms[:-2]) + checks +
-                                  "\n".join(forms[-2:]))
+                script.write_text('(asdf:load-asd (truename "libtmux.asd"))\n' + guard +
+                                  "\n".join(forms[:-3]) + checks + injection +
+                                  "\n".join(forms[-3:-1]) + after + forms[-1])
                 extra_arguments = []
                 working_directory = root
             qlot_setup = Path(os.environ.get("LIBTMUX_QLOT_SETUP",
@@ -239,30 +245,17 @@ for mode in (("assertions", "tutorial") if args.group == "core" else ()):
             if qlot_setup.is_file():
                 lisp_command.extend(["--load", str(qlot_setup)])
             lisp_command.extend(["--script", str(script), *extra_arguments])
-            subprocess.run(lisp_command,
-                           input=socket + "\n", text=True, cwd=working_directory,
+            subprocess.run(lisp_command, stdin=subprocess.DEVNULL, cwd=working_directory,
                            env=child_environment, check=True, timeout=20)
-            tutorial_terminated = mode == "tutorial"
         finally:
-            if mode == "tutorial" and "LIBTMUX_DEMO_DIR" in child_environment:
-                original_failure = sys.exc_info()[0] is not None
-                cleanup = next(block for block in console if "tools/stop-example.py" in block)
-                if not tutorial_terminated:
-                    cleanup = cleanup.replace("--already-terminated ", "")
-                try:
-                    subprocess.run(["bash", "-c", cleanup], cwd=root, env=child_environment,
-                                   check=True, timeout=3)
-                except Exception as cleanup_error:
-                    if not original_failure:
-                        raise
-                    print(f"Cleanup also failed: {cleanup_error}", file=sys.stderr)
-            else:
+            if mode == "assertions":
                 subprocess.run(command + ["-N", "kill-server"], env=environment,
                                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=2)
-        stopped = subprocess.run(command + ["-N", "has-session"], env=environment,
-                                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=2)
-        if stopped.returncode == 0:
-            raise RuntimeError("Example daemon survived cleanup")
+        if mode == "assertions":
+            stopped = subprocess.run(command + ["-N", "has-session"], env=environment,
+                                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=2)
+            if stopped.returncode == 0:
+                raise RuntimeError("Example daemon survived cleanup")
 if args.group == "core":
     with tempfile.TemporaryDirectory(prefix="libtmux-lisp-quickstart-") as directory:
         socket = str(Path(directory) / "tmux.sock")
@@ -363,7 +356,7 @@ evidence = {"status": "PASS", "group": args.group, "tmux": version,
             "optional_systems_loaded": ["libtmux/regex", "libtmux/json", "libtmux/workspace"] if args.group == "core" else ["libtmux/workspace"]}
 if args.group == "core":
     evidence["tutorial_lisp_blocks"] = len(forms)
-    evidence["tutorial_console_setup_cleanup"] = "PASS"
+    evidence["tutorial_daemon_cleanup"] = "PASS"
     evidence["workspace_cli"] = workspace_cli
     evidence["managed_daemon"] = "PASS"
     evidence["decoded_configuration"] = "PASS"

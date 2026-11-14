@@ -21,7 +21,7 @@ includes the named integration groups too.
 | `mise run lint-workflows` | Mid | GitHub Actions syntax, expressions and shell checks |
 | `mise run integration` | Outer | Bounded transport, cancellation/cleanup, managed daemon startup/shutdown and failure recovery, linked graphs, attached clients, daemon replacement, named operations, typed configuration reads/mutations, exact target/server termination and tutorial failure cleanup |
 | `mise run package` | Outer | Source archive plus isolated core/query/regex/JSON/control consumers and dependency-boundary checks |
-| `mise run examples` | Outer | Shipped Lisp recipes, all tutorial Lisp blocks, literal console setup/cleanup, worker consumption signals, optional control streaming and owned daemon cleanup |
+| `mise run examples` | Outer | Shipped Lisp recipes, all tutorial Lisp blocks on a daemon the tutorial starts and stops itself, worker consumption signals, optional control streaming and owned daemon cleanup |
 | `mise run package-examples` | Outer | Archive-local links, examples, and the installed workspace CLI's validation, preview, apply, reconciliation and stopped-work inspection |
 | `mise run docs` | Maintenance | Regenerate API signatures/docstrings, condition hierarchy, applicable models, fields, modules and executable excerpts |
 

@@ -28,40 +28,8 @@ $ LIBTMUX_TEST_TMUX=/usr/bin/tmux mise run examples
 
 ## Work at the REPL
 
-For an interactive session, create a private daemon in a shell and keep that
-shell open. This command prints its socket path; use that path when prompted
-in Lisp. The automated runner and final cleanup helper need Python 3; the
-library itself does not.
-
-```console
-$ export LIBTMUX_DEMO_DIR="$(mktemp -d /tmp/libtmux-lisp-demo-XXXXXXXX)" && \
-  env -u TMUX \
-    -u TMUX_PANE \
-    tmux \
-      -S "$LIBTMUX_DEMO_DIR/tmux.sock" \
-      -f /dev/null \
-      new-session \
-        -d \
-        -s work \
-        -n editor \
-        -x 120 \
-        -y 40 \
-        -- /bin/cat && \
-  env -u TMUX \
-    -u TMUX_PANE \
-    tmux \
-      -S "$LIBTMUX_DEMO_DIR/tmux.sock" \
-      display-message \
-        -p '#{pid}' \
-        > "$LIBTMUX_DEMO_DIR/server-witness.txt" && \
-  stat \
-    -Lc '%d %i' \
-    "$LIBTMUX_DEMO_DIR/tmux.sock" \
-    >> "$LIBTMUX_DEMO_DIR/server-witness.txt" && \
-  printf '%s\n' "$LIBTMUX_DEMO_DIR/tmux.sock"
-```
-
-Use the same terminal to start the pinned REPL:
+Start the REPL from the checkout root. It starts, uses and stops its own
+private daemon, so nothing else on the host is touched.
 
 ```console
 $ mise run repl
@@ -99,11 +67,26 @@ global nicknames.
 (in-package #:libtmux.examples)
 ```
 
-Read the socket path as a plain string, not through the Lisp reader:
+Start a private daemon. The library owns it and removes its socket directory
+when you stop it:
 
 ```lisp
-(defparameter *socket-path* (progn (write-line "Paste the demo socket path:")
-                                 (read-line)))
+(defparameter *daemon* (tm:start-daemon))
+```
+
+```lisp
+(defparameter *socket-path* (tm:daemon-socket-path *daemon*))
+```
+
+Create session `work` with one `editor` window. The outcome status is
+`:succeeded`:
+
+```lisp
+(tm:with-client (client :program (tm:daemon-program *daemon*)
+                        :socket-path *socket-path*)
+  (tm:outcome-status
+   (tm:new-session client :name "work" :window-name "editor"
+                          :width 120 :height 40 :command '("/bin/cat"))))
 ```
 
 This captures the graph and returns one record: session `work`, its `editor`
@@ -428,12 +411,12 @@ Signals operational conditions without retrying a mutation. Calls block."
 <!-- /example -->
 
 ```lisp
-(tm:with-client (client :socket-path *socket-path*)
-  (let ((session (find "work" (tm:fetch-sessions client) :key #'tm:name :test #'string=)))
-    (drive-worker client session *socket-path* "tmux"
-                  (namestring (truename "examples/worker.sh"))
-                  (namestring (merge-pathnames "worker-receipt.txt"
-                               (uiop:pathname-directory-pathname *socket-path*))))))
+(uiop:with-temporary-file (:pathname receipt :keep nil)
+  (tm:with-client (client :socket-path *socket-path*)
+    (let ((session (find "work" (tm:fetch-sessions client) :key #'tm:name :test #'string=)))
+      (drive-worker client session *socket-path* "tmux"
+                    (namestring (truename "examples/worker.sh"))
+                    (namestring receipt)))))
 ```
 
 The result contains `:consumed "release #{literal}; λ"` and a pane ID.
@@ -472,12 +455,12 @@ The handler never retries. Cancelling a mutation after dispatch can give a
 different status or phase. See
 [command-cancelled](api.md#command-cancelled-type).
 
-## Terminate the owned server
+## Stop the daemon
 
-Closing a client leaves its daemon alive. This checked helper uses the separate
-[`kill-server`](api.md#kill-server-function) operation only for the explicit
-socket passed by the caller. It accepts success only after the operation proves
-both dispatch and daemon exit:
+Closing a client leaves its daemon alive. The separate
+[`kill-server`](api.md#kill-server-function) operation ends a server. This
+helper kills only the explicit socket you pass and accepts success only after
+the operation proves both dispatch and daemon exit:
 
 <!-- example:termination -->
 ```lisp
@@ -491,28 +474,19 @@ both dispatch and daemon exit:
 ```
 <!-- /example -->
 
-Run it only for the private tutorial endpoint:
-
 ```lisp
 (terminate-owned-server *socket-path*)
 ```
 
-## Clean up
+[`stop-daemon`](api.md#stop-daemon-function) then reaps the daemon you started
+and removes its socket directory:
+
+```lisp
+(tm:stop-daemon *daemon*)
+```
 
 Exit the REPL:
 
 ```lisp
 (uiop:quit)
 ```
-
-In the original shell, terminate only the daemon created for this tutorial:
-
-```console
-$ python3 tools/stop-example.py --already-terminated "$LIBTMUX_DEMO_DIR"
-```
-
-The helper proves the retained daemon PID exited, rejects a replaced socket,
-then removes the owned witness, receipt and stale socket file. Tmux 3.3a can
-leave its socket behind after exit. The automated runner executes the same Lisp
-termination function before this file cleanup. If an earlier example fails, it
-uses the retained witness to terminate and reap only this tutorial daemon.
