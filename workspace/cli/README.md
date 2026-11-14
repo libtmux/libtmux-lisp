@@ -15,59 +15,67 @@
 
 </div>
 
-Validate workspace files, inspect ownership, preview changes and explicitly
-apply them to a selected tmux endpoint. This ASDF system depends on
-[`libtmux/workspace`](../README.md) and adds no external library.
+Validate workspace files, inspect ownership, preview changes and apply them to
+a tmux endpoint you name. Depends only on
+[`libtmux/workspace`](../README.md).
 
 [Documentation](https://libtmux.org/en/lisp/latest/workspace/) ·
 [CLI API][api-cli]
 
-## Run from source
+## Load it
 
-Complete the root [source setup](../../README.md#install-from-source), including
-locked dependencies. Run the shipped entry point from the checkout root:
+Do the root [source setup](../../README.md#install-from-source) first, with its
+locked dependencies. Run from the checkout root.
+
+## Check a workspace file
+
+### `bin/libtmux-workspace validate`: parse a file, no tmux
 
 ```console
 $ bin/libtmux-workspace validate examples/owned-workspace.json
 ```
 
-Success reports `"status":"valid"`, schema `libtmux.lisp.workspace/2`, two
-windows and three panes. Validation reads the bounded document without
-contacting tmux. Display the command grammar:
+It reports `"status":"valid"`, schema `libtmux.lisp.workspace/2`, two windows
+and three panes. Validation never contacts tmux.
 
 ```console
 $ bin/libtmux-workspace --help
 ```
 
-Owned plan, apply and inspect require `--socket-path`; pass `--program` when
-tmux is not the native binary selected by `PATH`. The standalone `--reconcile`
-flag permits owned plan/apply changes; a preview grants no execution authority.
-Legacy `/1` files also support an offline plan without a daemon.
+Prints the command grammar.
 
-See the [CLI guide](../../docs/workspace-owned.md#use-the-cli) for result and
-failure contracts. The [example runner](../../tools/examples.py) executes cold
-validation, preview, apply, no-op reapplication, reconciliation and stopped-work
-inspection through this entry point on its owned server. Run the complete
-checks from the checkout root:
+- `plan`, `apply` and `inspect` need `--socket-path` for owned workspaces.
+- `--program` selects the tmux binary when `PATH` has the wrong one.
+- `--reconcile` lets owned `plan` and `apply` change existing work. A preview
+  grants no authority to apply.
+- Legacy `/1` files can also preview offline, with no daemon.
+
+Run every example, this entry point included, on a private daemon:
 
 ```console
 $ mise run examples
 ```
 
-## Embed and handle results
+More: [CLI guide](../../docs/workspace-owned.md#use-the-cli)
 
-Load the command-line adapter explicitly:
+## Embed it
+
+### [`libtmux.workspace.cli:main`][api-main]: an exit code, not an exit
+
+Load the adapter:
 
 ```lisp
 (asdf:load-system "libtmux/workspace/cli")
 ```
 
-[`libtmux.workspace.cli:main`][api-main] returns an exit code
-without terminating the Lisp image or closing caller-owned streams. Success
-uses code 0, invalid usage code 2 and document or operational failure code 1.
-Failures write structured JSON to stderr and retain command evidence. Completed
-inspection returns 0 even for busy or invalid ownership; read completion differs
-from readiness. Do not automatically retry an uncertain apply.
+`main` returns the code; it does not end the Lisp image or close your streams.
+
+- **0** success, including a completed `inspect` that finds busy or invalid
+  ownership.
+- **1** document or operational failure, as structured JSON on stderr with the
+  command evidence.
+- **2** invalid usage.
+- Do not retry an uncertain `apply` automatically.
 
 [Workspace library](../README.md) · [CLI API][api-cli] ·
 [Changelog](../../CHANGELOG.md) · [MIT](../../LICENSE)

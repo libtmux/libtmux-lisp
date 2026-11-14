@@ -15,36 +15,34 @@
 
 </div>
 
-Read and write bounded `libtmux.lisp.filter/1` query documents. This optional
-ASDF system depends on [`libtmux/query`](../query/README.md) and Jzon. It
-performs no tmux I/O and does not open or close application files.
+Save and restore query filters as bounded `libtmux.lisp.filter/1` JSON.
+Needs [`libtmux/query`](../query/README.md) and Jzon; never calls tmux.
 
 [Documentation](https://libtmux.org/en/lisp/) · [JSON API][api-json]
 
-## Load and use
+## Load it
 
-Complete the root [source setup](../README.md#install-from-source), including
-the locked optional dependencies, then load:
+Do the root [source setup](../README.md#install-from-source) first, with its
+locked optional dependencies, then:
 
 ```lisp
 (asdf:load-system "libtmux/json")
 ```
 
-[`libtmux.json:write-filter`][api-write-filter] returns a fresh JSON
-string, or writes to a caller-owned character stream.
-[`libtmux.json:read-filter`][api-read-filter] validates one complete
-string and returns a compiled native filter.
+## Save and restore a filter
 
-This example also uses a regex filter, so load the optional regex system:
+### [`libtmux.json:write-filter`][api-write-filter]: a filter as JSON
+
+Returns a fresh string, or writes to a character stream you own.
+
+This example filters on a regex, so load the regex system too:
 
 ```lisp
 (asdf:load-system "libtmux/regex")
 ```
 
-These definition excerpts from the [runnable example](../examples/workspace.lisp)
-compile a filter, serialize it, restore it with explicit regex permission and
-match the same captured snapshot. That program defines the local nicknames
-`tm` for `libtmux`, `q` for `libtmux.query` and `j` for `libtmux.json`:
+`tm` is `libtmux`, `q` is `libtmux.query` and `j` is `libtmux.json`. These
+excerpts come from the [runnable program](../examples/workspace.lisp):
 
 <!-- example:regex -->
 ```lisp
@@ -61,6 +59,13 @@ match the same captured snapshot. That program defines the local nicknames
 ```
 <!-- /example -->
 
+### [`libtmux.json:read-filter`][api-read-filter]: JSON back to a filter
+
+Validates one complete string and returns a compiled filter. Regex documents
+need `:allow-regex t`.
+
+`round-trip-filter-document` returns the JSON string and a vector of pane data:
+
 <!-- example:filterdocument -->
 ```lisp
 (defun round-trip-filter-document (snapshot)
@@ -73,29 +78,30 @@ match the same captured snapshot. That program defines the local nicknames
 ```
 <!-- /example -->
 
-`round-trip-filter-document` returns the JSON string and a vector of pane data.
-The [REPL tutorial](../docs/tutorial.md) supplies package setup and acquisition.
-
-Run the complete example from the checkout root:
+Run every example on a private daemon:
 
 ```console
 $ mise run examples
 ```
 
-## Document boundary
+More: [schema and limits](../docs/query-interchange.md) ·
+[REPL tutorial](../docs/tutorial.md)
 
-Boolean false, empty membership arrays and missing members remain distinct.
-The current schema has no nullable operands. Unknown or duplicate properties,
-unknown registry names and exhausted parsing limits signal typed conditions.
-Decoding never evaluates Lisp or interns external names.
+## Limits
 
-Regex documents require [`libtmux/regex`](../regex/README.md) and explicit
-`:allow-regex t`. Native closures cannot be serialized. This is the Common Lisp
-port's schema; similar documents from another port require separate conformance
-evidence. Workspace documents use
-[`libtmux/workspace`](../workspace/README.md), not this query codec.
+- **Absence stays absence.** `false`, empty membership arrays and missing
+  members stay distinct. The schema has no nullable operands.
+- **Bad input signals typed conditions.** That covers unknown or duplicate
+  properties, unknown registry names and exhausted parsing limits.
+- **No evaluation.** Decoding never evaluates Lisp or interns external names.
+- **No files.** It reads and writes strings and streams, never opens files.
+- **No closures.** Native predicates cannot be serialized. Regex documents need
+  [`libtmux/regex`](../regex/README.md).
+- **Queries only.** Workspace documents belong to
+  [`libtmux/workspace`](../workspace/README.md).
+- **This port's schema.** Documents from another port are not promised to
+  match.
 
-[Schema and limits](../docs/query-interchange.md) ·
 [JSON API][api-json] · [Queries](../docs/queries.md) ·
 [Changelog](../CHANGELOG.md) · [MIT](../LICENSE)
 

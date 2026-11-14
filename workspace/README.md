@@ -15,26 +15,31 @@
 
 </div>
 
-Describe an owned tmux workspace with native Lisp data or bounded JSON, preview
-changes and drift locally, then apply through an explicit client. This optional ASDF
-system consumes core `libtmux` and Jzon; core does not load it automatically.
+Declare an owned tmux workspace as Lisp data or bounded JSON, preview the
+changes locally, then apply them through a client you pass. Needs core
+`libtmux` and Jzon; core never loads it for you.
 
 [Documentation](https://libtmux.org/en/lisp/latest/workspace/) ·
 [Workspace API][api-workspace]
 
-## Load and use
+## Load it
 
-Complete the root [source setup](../README.md#install-from-source), including
-the locked optional dependencies, then load:
+Do the root [source setup](../README.md#install-from-source) first, with its
+locked optional dependencies, then:
 
 ```lisp
 (asdf:load-system "libtmux/workspace")
 ```
 
-[`libtmux.workspace:make-workspace`][api-make-workspace] constructs a declaration
-without contacting tmux. This complete function from the
-[runnable example](../examples/owned-workspace.lisp) describes two windows and
-three panes:
+## Declare a workspace
+
+### [`libtmux.workspace:make-workspace`][api-make-workspace]: windows and panes as data
+
+Builds a declaration without contacting tmux. The
+[JSON file](../examples/owned-workspace.json) is its equivalent.
+
+This describes two windows and three panes, from the
+[runnable program](../examples/owned-workspace.lisp):
 
 <!-- example:owneddeclaration -->
 ```lisp
@@ -54,42 +59,60 @@ three panes:
 ```
 <!-- /example -->
 
-[`libtmux.workspace:fetch-workspace-state`][api-fetch-workspace-state] acquires
-state; [`libtmux.workspace:plan-workspace`][api-plan-workspace] previews changes
-locally; [`libtmux.workspace:apply-workspace`][api-apply-workspace] applies them
-through an explicit client. Follow
-[preview and apply](../docs/workspace-owned.md#acquire-preview-and-apply).
-The [shipped declaration](../examples/owned-workspace.json) and its
-[native equivalent](../examples/owned-workspace.lisp) create two windows and three
-panes. The complete program checks native/file equivalence, printed output,
-reconciliation with stable physical IDs, no-op reapplication and explicit
-stopped-work inspection.
-
-Run it from the checkout root on an owned daemon:
+Run the program on its own daemon:
 
 ```console
 $ mise exec -- tools/lisp.sh examples/owned-workspace.lisp
 ```
 
-## Application boundary
+More: [owned workspaces](../docs/workspace-owned.md) ·
+[legacy schema](../docs/workspaces.md)
 
-Construction, parsing and preview perform no tmux I/O. Application acquires
-fresh state and can partially complete; retain
-[`libtmux.workspace:result-outcomes`][api-result-outcomes] and
-failure evidence. A preview is not an executable transaction.
+## Preview and apply
 
-Schema `/2` uses logical IDs and durable ownership records; `:reconcile t`
-permits qualified additions, renames, layout and metadata changes. It preserves
-unrelated entities and refuses busy, unowned or invalid ownership. Inspect
-stopped work explicitly; never replay an uncertain apply automatically.
+### [`libtmux.workspace:apply-workspace`][api-apply-workspace]: preview, then apply
 
-Legacy `/1` retains [topology-only reuse](../docs/workspaces.md). Neither schema
-accepts tmuxp documents. Literal argv and explicit shell source have separate
-fields. Use `:total-timeout` for a shared application budget; per-operation
-timeouts and output limits retain their own meaning.
+[`fetch-workspace-state`][api-fetch-workspace-state] reads tmux and
+[`plan-workspace`][api-plan-workspace] previews locally. `apply-workspace`
+changes tmux through the client you pass.
+
+`ws` is `libtmux.workspace` and `tm` is `libtmux`:
+
+<!-- example:ownedapply -->
+```lisp
+(defun apply-owned-description (client workspace)
+  "Acquire, preview and apply explicitly; return the result and its owned record."
+  (let* ((state (ws:fetch-workspace-state client workspace))
+         (preview (ws:plan-workspace workspace state)))
+    (assert (getf (ws:plan-data preview) :publish-p))
+    (let ((result (ws:apply-workspace client workspace :total-timeout 30)))
+      (assert (eq :succeeded (getf (ws:result-data result) :publication-status)))
+      (values result (getf (ws:result-data result) :record)))))
+```
+<!-- /example -->
+
+- Changing an existing workspace needs `:reconcile t`.
+- `:total-timeout` sets one budget for the whole apply.
+
+More: [preview and apply](../docs/workspace-owned.md#acquire-preview-and-apply)
+
+## Limits
+
+- **A preview is not a transaction.** Apply reads fresh state, plans again and
+  can stop partway. Keep [`result-outcomes`][api-result-outcomes] and the
+  failure evidence.
+- **No tmux I/O** in construction, parsing or preview.
+- **Reconcile is narrow.** It adds, renames and changes layout or metadata. It
+  keeps unrelated entities and refuses busy, unowned or invalid ownership.
+- **No automatic replay.** Inspect stopped work, then decide.
+- **Two schemas.** `/2` uses logical IDs and ownership records. Legacy `/1`
+  reuses topology only.
+- **No tmuxp documents.**
+- **Argv and shell stay apart.** `:command` is literal argv; `:shell-command`
+  is shell source.
 
 [Workspace guide](../docs/workspace-owned.md) · [API][api-workspace] ·
-[Ownership contract](../docs/design/workspace-v2.md) ·
+[Ownership design](../docs/design/workspace-v2.md) ·
 [CLI system](cli/README.md) · [Changelog](../CHANGELOG.md) · [MIT](../LICENSE)
 
 [api-apply-workspace]: https://libtmux.org/en/lisp/latest/workspace/reference/libtmux-workspace-apply-workspace/

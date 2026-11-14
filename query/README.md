@@ -15,32 +15,29 @@
 
 </div>
 
-Filter captured tmux objects with ordinary Lisp predicates, validated query
-data and eager QuerySets. This ASDF system depends on core `libtmux`; it adds
-no external dependency and performs no tmux I/O.
+Filter captured tmux objects with plain Lisp predicates or validated query
+data. Needs only core `libtmux`; never calls tmux.
 
 [Documentation](https://libtmux.org/en/lisp/) · [Query API][api-query]
 
-## Load and use
+## Load it
 
-Complete the root [source setup](../README.md#install-from-source), then load
-the system in your application:
+Do the root [source setup](../README.md#install-from-source) first, then:
 
 ```lisp
 (asdf:load-system "libtmux/query")
 ```
 
-Use `loop`, `map`, `reduce` and other ordinary sequence operations on captured
-objects. For reusable declarations,
-[`libtmux.query:compile-filter`][api-compile-filter] validates a
-keyword-headed form and returns an inspectable filter;
-[`libtmux.query:predicate`][api-predicate] returns a Lisp function.
-[`libtmux.query:matching`][api-matching] accepts lists or vectors
-and returns a fresh simple vector, preserving order and duplicate entries.
+## Filter captured objects
 
-This definition excerpt selects active panes at least 40 cells wide from a
-captured snapshot. The [runnable example](../examples/workspace.lisp) defines
-the local nicknames `tm` for `libtmux` and `q` for `libtmux.query`:
+### [`libtmux.query:compile-filter`][api-compile-filter]: validate a filter once
+
+[`libtmux.query:predicate`][api-predicate] returns the same filter as a Lisp
+function. [`libtmux.query:matching`][api-matching] applies either to a list or
+vector.
+
+This selects active panes at least 40 cells wide. `tm` is `libtmux`, `q` is
+`libtmux.query`, and `snapshot` is an acquired capture:
 
 <!-- example:query -->
 ```lisp
@@ -57,29 +54,30 @@ the local nicknames `tm` for `libtmux` and `q` for `libtmux.query`:
 ```
 <!-- /example -->
 
-The [example runner](../examples/run.lisp) checks native and compiled results
-against the same captured graph. The
-[REPL tutorial](../docs/tutorial.md#select-and-project-locally) supplies loading,
-package setup and snapshot acquisition.
-
-From the checkout root, run the programs with their owned daemon fixtures:
+Run every example on a private daemon:
 
 ```console
 $ mise run examples
 ```
 
-## Contracts and extensions
+- Results are a fresh simple vector, in order, duplicates kept.
+- No match gives `#()`.
+  [`libtmux.query:one-or-none`][api-one-or-none] reports presence as a second
+  value.
 
-Filtering, relationship traversal and inspection read retained observations.
-They do not acquire or refresh tmux state. Empty results are `#()`;
-[`libtmux.query:one-or-none`][api-one-or-none] uses a second return
-value for presence. Declarative filters target the registered captured models;
-application-specific objects use ordinary function predicates.
+More: [query guide](../docs/queries.md) ·
+[runnable program](../examples/workspace.lisp) ·
+[REPL tutorial](../docs/tutorial.md#select-and-project-locally)
 
-Read [query semantics and limits](../docs/queries.md), the
-[API reference][api-query], optional [regex](../regex/README.md) and
-[JSON](../json/README.md) integrations. These systems share the root
-[changelog](../CHANGELOG.md) and [MIT license](../LICENSE).
+## What it leaves out
+
+- **tmux calls.** Filtering and relations read retained captures; they never
+  refresh them.
+- **Your own objects.** Declarative filters target the captured models; use a
+  function predicate for anything else.
+
+[Regex operators](../regex/README.md) · [JSON documents](../json/README.md) ·
+[Changelog](../CHANGELOG.md) · [MIT](../LICENSE)
 
 [api-compile-filter]: https://libtmux.org/en/lisp/latest/reference/libtmux-query-compile-filter/
 [api-matching]: https://libtmux.org/en/lisp/latest/reference/libtmux-query-matching/

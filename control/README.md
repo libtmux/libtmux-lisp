@@ -15,27 +15,32 @@
 
 </div>
 
-Queue tmux requests and consume pane-output bytes on a scoped persistent
-connection. This optional ASDF system depends only on core `libtmux` and needs
-the supported SBCL/Linux runtime profile with a tmux 3.8+ daemon. Core's wider
-tmux 3.3a–3.8 support does not qualify control on earlier releases.
+Queue tmux requests and read pane output as bytes over one persistent
+connection. Needs only core `libtmux`, and tmux 3.8 or newer even though core
+works on older releases.
 
 [Documentation](https://libtmux.org/en/lisp/) · [Control API][api-control]
 
-## Load and run
+## Load it
 
-Complete the root [source setup](../README.md#install-from-source), then load:
+Do the root [source setup](../README.md#install-from-source) first, then:
 
 ```lisp
 (asdf:load-system "libtmux/control")
 ```
 
-[`libtmux.control:with-connection`][api-with-connection] scopes a connection.
-This function excerpt queues literal text and Enter, awaits both replies, then
-collects pane-output bytes until the text arrives. Its arguments are an open
-core client and a session and pane from that client's captured snapshot.
-The [complete program](../examples/control.lisp) defines the local nicknames
-`tm` for `libtmux` and `control` for `libtmux.control`:
+## Queue requests and read pane output
+
+### [`libtmux.control:with-connection`][api-with-connection]: one scoped connection
+
+Its siblings: [`submit-command`][api-submit-command] queues a request,
+[`await-request`][api-await-request] waits for its reply, and
+[`next-event`][api-next-event] reads output.
+
+This function queues literal text and Enter, awaits both replies, then collects
+pane bytes until the text arrives. It takes an open core client, plus a session
+and pane from its snapshot. `tm` is `libtmux` and `control` is
+`libtmux.control`; the [complete program](../examples/control.lisp) defines both:
 
 <!-- example:control -->
 ```lisp
@@ -72,39 +77,38 @@ The [complete program](../examples/control.lisp) defines the local nicknames
 ```
 <!-- /example -->
 
-The [complete control program](../examples/control.lisp) starts its own daemon,
-queues writes, awaits replies, assembles streamed pane bytes, observes a window
-rename and explicitly reconnects. Run it from the checkout root with tmux 3.8
-on `PATH`:
+Run the program on its own daemon, with tmux 3.8 on `PATH`:
 
 ```console
 $ mise exec -- tools/lisp.sh examples/control.lisp
 ```
 
-Success prints `CONTROL PASS`, `CONTROL NOTIFICATION PASS` and
-`CONTROL RECONNECT PASS`. Closing the connection leaves its daemon running;
-the outer owned-daemon scope performs final cleanup.
+It prints `CONTROL PASS`, `CONTROL NOTIFICATION PASS` and
+`CONTROL RECONNECT PASS`.
 
-## Delivery and lifecycle
+More: [control guide](../docs/control.md) ·
+[reconnecting](../docs/control.md#reconnect-with-fresh-observations)
 
-[`libtmux.control:submit-command`][api-submit-command] queues a
-request; queuing alone does not establish command completion.
-[`libtmux.control:await-request`][api-await-request] and
-[`libtmux.control:next-event`][api-next-event] may block up to their
-specified waits. Timeout, end of stream and queue loss remain distinct results.
-Pane output is bytes and may not be valid UTF-8.
+## Delivery and limits
 
-Use [`libtmux.control:with-connection`][api-with-connection] for
-resource ownership. Reconnection is explicit, renews the generation and returns
-fresh observations; it never replays uncertain commands. Earlier captured
-objects retain their values. Broader event qualification remains in development.
+- **Queued is not done.** Queuing says nothing about completion.
+- **Waits block.** `await-request` and `next-event` block up to the wait you
+  give. A timeout, end of stream and queue loss are distinct results.
+- **Output is bytes.** It may not be valid UTF-8.
+- **Reconnecting is explicit.**
+  [`libtmux.control:with-reconnection`][api-with-reconnection] renews the
+  generation and returns fresh observations. It never replays uncertain
+  commands; earlier captures keep their values.
+- **Closing a connection leaves the daemon running.** Stop it from the scope
+  that started it.
+- **Event coverage is still growing.**
+  [Capabilities and limits](../docs/capabilities.md).
 
-[Control guide](../docs/control.md) · [API][api-control] ·
-[Capabilities](../docs/capabilities.md) · [Changelog](../CHANGELOG.md) ·
-[MIT](../LICENSE)
+[Control API][api-control] · [Changelog](../CHANGELOG.md) · [MIT](../LICENSE)
 
 [api-await-request]: https://libtmux.org/en/lisp/latest/reference/libtmux-control-await-request/
 [api-control]: https://libtmux.org/en/lisp/latest/reference/libtmux-control/
 [api-next-event]: https://libtmux.org/en/lisp/latest/reference/libtmux-control-next-event/
 [api-submit-command]: https://libtmux.org/en/lisp/latest/reference/libtmux-control-submit-command/
 [api-with-connection]: https://libtmux.org/en/lisp/latest/reference/libtmux-control-with-connection/
+[api-with-reconnection]: https://libtmux.org/en/lisp/latest/reference/libtmux-control-with-reconnection/
