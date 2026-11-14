@@ -13,9 +13,14 @@
 
 </div>
 
-libtmux-lisp is a native Common Lisp tmux client library. Acquire a CLOS
-object graph once, process its panes with ordinary sequences, and make
-mutations through an explicit client.
+libtmux-lisp is a native Common Lisp tmux client library. Acquire
+[sessions][api-session], [windows][api-window], [window links][api-window-link]
+and [panes][api-pane] as a CLOS object graph, process them with ordinary
+sequences, and make mutations through an explicit [`libtmux:client`][api-client].
+
+[Documentation](https://libtmux.org/en/lisp/) ·
+[API reference](https://libtmux.org/en/lisp/latest/reference/) ·
+[REPL tutorial](docs/tutorial.md)
 
 **Implemented:** captured sessions, physical windows, window links and panes;
 bounded subprocess transport; cancellation; named operations, byte buffers,
@@ -98,15 +103,15 @@ Python 3. No Java runtime is involved.
 All systems share this source distribution, version and [changelog](CHANGELOG.md).
 Load only the systems your application uses. Each system has its own README:
 
-| System | Use it for | Additional dependencies |
-| --- | --- | --- |
-| `libtmux` | Captures, CLOS objects and explicit tmux operations | ASDF/UIOP |
-| [`libtmux/query`](query/README.md) | Native predicates, relations and eager QuerySets | Core |
-| [`libtmux/regex`](regex/README.md) | CL-PPCRE search and full-match filters | Query, CL-PPCRE |
-| [`libtmux/json`](json/README.md) | Bounded query document interchange | Query, Jzon |
-| [`libtmux/control`](control/README.md) | Queued requests, output streams and reconnection on tmux 3.8+ | Core |
-| [`libtmux/workspace`](workspace/README.md) | Owned declarations, drift previews and explicit reconciliation | Core, Jzon |
-| [`libtmux/workspace/cli`](workspace/cli/README.md) | Workspace validation, previews and explicit-endpoint apply | Workspace |
+| System | Use it for | Additional dependencies | API |
+| --- | --- | --- | --- |
+| `libtmux` | Captures, CLOS objects and explicit tmux operations | ASDF/UIOP | [Core][api-core] |
+| [`libtmux/query`](query/README.md) | Native predicates, relations and eager QuerySets | Core | [Query][api-query] |
+| [`libtmux/regex`](regex/README.md) | CL-PPCRE search and full-match filters | Query, CL-PPCRE | [Query][api-query] |
+| [`libtmux/json`](json/README.md) | Bounded query document interchange | Query, Jzon | [JSON][api-json] |
+| [`libtmux/control`](control/README.md) | Queued requests, output streams and reconnection on tmux 3.8+ | Core | [Control][api-control] |
+| [`libtmux/workspace`](workspace/README.md) | Owned declarations, drift previews and explicit reconciliation | Core, Jzon | [Workspace][api-workspace] |
+| [`libtmux/workspace/cli`](workspace/cli/README.md) | Workspace validation, previews and explicit-endpoint apply | Workspace | [CLI][api-cli] |
 
 These directories provide system documentation. ASDF definitions remain in
 [`libtmux.asd`](libtmux.asd); source stays in `src/`. Secondary systems are
@@ -114,8 +119,10 @@ optional parts of one library release.
 
 ## Start an isolated daemon
 
-This complete function starts an empty-config daemon, creates one session and
-returns pane data after closing its client and daemon. The
+[`libtmux:with-daemon`][api-with-daemon] owns an isolated
+[`libtmux:daemon`][api-daemon]; [`libtmux:with-client`][api-with-client] scopes
+the connection. This complete function creates one session and returns pane
+data after closing both resources. The daemon uses an empty config. The
 [runnable program](examples/managed-daemon.lisp) includes loading and assertions.
 
 <!-- example:managed -->
@@ -168,7 +175,7 @@ owned data after closing its client:
 ```
 <!-- /example -->
 
-[libtmux:fetch-snapshot](docs/api.md#fetch-snapshot-function) contacts tmux.
+[`libtmux:fetch-snapshot`][api-fetch-snapshot] contacts tmux.
 Traversal and projection inside the loops are
 local. Returned strings and sequence containers belong to the caller.
 Acquisition spans an interval; it is not a transaction over a changing daemon.
@@ -210,8 +217,9 @@ accessors and returns a list of owned pane data:
 ## Compile a local query
 
 The tutorial's example package gives `libtmux` and `libtmux.query` the local
-nicknames `tm` and `q`. This checked function compiles once, filters a captured
-vector locally, and returns ordinary owned data:
+nicknames `tm` and `q`. [`libtmux.query:compile-filter`][api-compile-filter]
+compiles once; [`libtmux.query:matching`][api-matching] filters a captured vector
+locally. This checked function returns ordinary owned data:
 
 <!-- example:query -->
 ```lisp
@@ -258,9 +266,11 @@ links to physical windows and panes, then uses the eager local QuerySet:
 
 ## Declare and apply a workspace
 
-Load the optional `libtmux/workspace` system. This pure constructor function
-from the [complete program](examples/owned-workspace.lisp) declares two windows
-and three panes using ordinary Lisp data:
+Load the optional `libtmux/workspace` system.
+[`libtmux.workspace:make-workspace`][api-make-workspace] builds a declaration
+without contacting tmux. This function from the
+[complete program](examples/owned-workspace.lisp) declares two windows and
+three panes using ordinary Lisp data:
 
 <!-- example:owneddeclaration -->
 ```lisp
@@ -303,9 +313,11 @@ inspection. No mutation is retried or rolled back. Read the
 ## Add regex and a versioned filter document
 
 Optional systems keep core/query dependency-free while providing a compiled
-CL-PPCRE scanner and a bounded native JSON envelope. These checked definitions
-match the demo's `cat` panes, serialize the filter, read it with explicit regex
-permission, and evaluate the restored predicate against the same capture:
+CL-PPCRE scanner and a bounded native JSON envelope.
+[`libtmux.json:write-filter`][api-write-filter] serializes a compiled filter;
+[`libtmux.json:read-filter`][api-read-filter] restores it. These checked
+definitions match the demo's `cat` panes, round-trip the filter with explicit
+regex permission, and evaluate it against the same capture:
 
 <!-- example:regex -->
 ```lisp
@@ -386,3 +398,24 @@ For changes, read [Contributing](.github/CONTRIBUTING.md) and
 [Writing](.github/WRITING.md). Licensed under [MIT](LICENSE).
 
 [Branding assets](docs/branding.md) include the logo, icons, and social cards.
+
+[api-cli]: https://libtmux.org/en/lisp/latest/workspace/reference/libtmux-workspace-cli/
+[api-client]: https://libtmux.org/en/lisp/latest/reference/libtmux-client/
+[api-compile-filter]: https://libtmux.org/en/lisp/latest/reference/libtmux-query-compile-filter/
+[api-control]: https://libtmux.org/en/lisp/latest/reference/libtmux-control/
+[api-core]: https://libtmux.org/en/lisp/latest/reference/libtmux/
+[api-daemon]: https://libtmux.org/en/lisp/latest/reference/libtmux-daemon/
+[api-fetch-snapshot]: https://libtmux.org/en/lisp/latest/reference/libtmux-fetch-snapshot/
+[api-json]: https://libtmux.org/en/lisp/latest/reference/libtmux-json/
+[api-make-workspace]: https://libtmux.org/en/lisp/latest/workspace/reference/libtmux-workspace-make-workspace/
+[api-matching]: https://libtmux.org/en/lisp/latest/reference/libtmux-query-matching/
+[api-pane]: https://libtmux.org/en/lisp/latest/reference/libtmux-pane/
+[api-query]: https://libtmux.org/en/lisp/latest/reference/libtmux-query/
+[api-read-filter]: https://libtmux.org/en/lisp/latest/reference/libtmux-json-read-filter/
+[api-session]: https://libtmux.org/en/lisp/latest/reference/libtmux-session-type/
+[api-window]: https://libtmux.org/en/lisp/latest/reference/libtmux-window-type/
+[api-window-link]: https://libtmux.org/en/lisp/latest/reference/libtmux-window-link/
+[api-with-client]: https://libtmux.org/en/lisp/latest/reference/libtmux-with-client/
+[api-with-daemon]: https://libtmux.org/en/lisp/latest/reference/libtmux-with-daemon/
+[api-workspace]: https://libtmux.org/en/lisp/latest/workspace/reference/libtmux-workspace/
+[api-write-filter]: https://libtmux.org/en/lisp/latest/reference/libtmux-json-write-filter/

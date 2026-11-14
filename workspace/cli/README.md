@@ -17,6 +17,9 @@ Validate workspace files, inspect ownership, preview changes and explicitly
 apply them to a selected tmux endpoint. This ASDF system depends on
 [`libtmux/workspace`](../README.md) and adds no external library.
 
+[Documentation](https://libtmux.org/en/lisp/latest/workspace/) ·
+[CLI API][api-cli]
+
 ## Run from source
 
 Complete the root [source setup](../../README.md#install-from-source), including
@@ -57,12 +60,15 @@ Load the command-line adapter explicitly:
 (asdf:load-system "libtmux/workspace/cli")
 ```
 
-[`main`](../../docs/workspace-api.md#main-function) returns an exit code
+[`libtmux.workspace.cli:main`][api-main] returns an exit code
 without terminating the Lisp image or closing caller-owned streams. Success
 uses code 0, invalid usage code 2 and document or operational failure code 1.
 Failures write structured JSON to stderr and retain command evidence. Completed
 inspection returns 0 even for busy or invalid ownership; read completion differs
 from readiness. Do not automatically retry an uncertain apply.
 
-[Workspace library](../README.md) · [CLI API](../../docs/workspace-api.md#command-line-adapter) ·
+[Workspace library](../README.md) · [CLI API][api-cli] ·
 [Changelog](../../CHANGELOG.md) · [MIT](../../LICENSE)
+
+[api-cli]: https://libtmux.org/en/lisp/latest/workspace/reference/libtmux-workspace-cli/
+[api-main]: https://libtmux.org/en/lisp/latest/workspace/reference/libtmux-workspace-cli-main/

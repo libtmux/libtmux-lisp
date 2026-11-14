@@ -17,6 +17,8 @@ Read and write bounded `libtmux.lisp.filter/1` query documents. This optional
 ASDF system depends on [`libtmux/query`](../query/README.md) and Jzon. It
 performs no tmux I/O and does not open or close application files.
 
+[Documentation](https://libtmux.org/en/lisp/) · [JSON API][api-json]
+
 ## Load and use
 
 Complete the root [source setup](../README.md#install-from-source), including
@@ -26,12 +28,51 @@ the locked optional dependencies, then load:
 (asdf:load-system "libtmux/json")
 ```
 
-[`write-filter`](../docs/json-api.md#write-filter-function) returns a fresh JSON
+[`libtmux.json:write-filter`][api-write-filter] returns a fresh JSON
 string, or writes to a caller-owned character stream.
-[`read-filter`](../docs/json-api.md#read-filter-function) validates one complete
-string and returns a compiled native filter. See the
-[round-trip example](../docs/query-interchange.md#round-trip-a-compiled-filter)
-for serialization followed by local matching against the same capture.
+[`libtmux.json:read-filter`][api-read-filter] validates one complete
+string and returns a compiled native filter.
+
+This example also uses a regex filter, so load the optional regex system:
+
+```lisp
+(asdf:load-system "libtmux/regex")
+```
+
+These definition excerpts from the [runnable example](../examples/workspace.lisp)
+compile a filter, serialize it, restore it with explicit regex permission and
+match the same captured snapshot. That program defines the local nicknames
+`tm` for `libtmux`, `q` for `libtmux.query` and `j` for `libtmux.json`:
+
+<!-- example:regex -->
+```lisp
+(defparameter *cat-command-filter*
+  (q:compile-filter
+   :pane
+   '(:regex-full-match :pane/current-command
+     (:cl-ppcre "CAT" :case-insensitive-mode t))))
+
+(defun cat-pane-data (snapshot)
+  "Return owned data for captured panes whose command is exactly cat; no I/O."
+  (map 'vector #'tm:entity-data
+       (q:matching *cat-command-filter* (tm:panes snapshot))))
+```
+<!-- /example -->
+
+<!-- example:filterdocument -->
+```lisp
+(defun round-trip-filter-document (snapshot)
+  "Round-trip the checked regex filter and apply it to one retained snapshot."
+  (let* ((document (j:write-filter *cat-command-filter*))
+         (restored (j:read-filter document :allow-regex t)))
+    (values document
+            (map 'vector #'tm:entity-data
+                 (q:matching restored (tm:panes snapshot))))))
+```
+<!-- /example -->
+
+`round-trip-filter-document` returns the JSON string and a vector of pane data.
+The [REPL tutorial](../docs/tutorial.md) supplies package setup and acquisition.
 
 Run the complete example from the checkout root:
 
@@ -53,5 +94,9 @@ evidence. Workspace documents use
 [`libtmux/workspace`](../workspace/README.md), not this query codec.
 
 [Schema and limits](../docs/query-interchange.md) ·
-[JSON API](../docs/json-api.md) · [Queries](../docs/queries.md) ·
+[JSON API][api-json] · [Queries](../docs/queries.md) ·
 [Changelog](../CHANGELOG.md) · [MIT](../LICENSE)
+
+[api-json]: https://libtmux.org/en/lisp/latest/reference/libtmux-json/
+[api-read-filter]: https://libtmux.org/en/lisp/latest/reference/libtmux-json-read-filter/
+[api-write-filter]: https://libtmux.org/en/lisp/latest/reference/libtmux-json-write-filter/

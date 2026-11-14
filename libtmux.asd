@@ -2,7 +2,7 @@
   :description "Native Common Lisp tmux library"
   :version "0.1.0"
   :license "MIT"
-  :homepage "https://github.com/libtmux/libtmux-lisp"
+  :homepage "https://libtmux.org/en/lisp/"
   :source-control (:git "https://github.com/libtmux/libtmux-lisp.git")
   :depends-on ("uiop")
   :in-order-to ((test-op (test-op "libtmux/tests")
@@ -98,6 +98,7 @@
 
 (defsystem "libtmux/query"
   :description "Validated native queries over captured observations"
+  :homepage "https://libtmux.org/en/lisp/latest/reference/libtmux-query/"
   :depends-on ("libtmux")
   :in-order-to ((test-op (test-op "libtmux/tests/query")))
   :serial t
@@ -108,6 +109,7 @@
 
 (defsystem "libtmux/regex"
   :description "Optional CL-PPCRE operators for native captured queries"
+  :homepage "https://libtmux.org/en/lisp/latest/reference/libtmux-query/"
   :depends-on ("libtmux/query" "cl-ppcre")
   :in-order-to ((test-op (test-op "libtmux/tests/regex")))
   :serial t
@@ -116,6 +118,7 @@
 
 (defsystem "libtmux/json"
   :description "Optional bounded JSON interchange for native query filters"
+  :homepage "https://libtmux.org/en/lisp/latest/reference/libtmux-json/"
   :depends-on ("libtmux/query" "com.inuoe.jzon")
   :in-order-to ((test-op (test-op "libtmux/tests/json")))
   :serial t
@@ -124,6 +127,7 @@
 
 (defsystem "libtmux/control"
   :description "Persistent native control requests, scoped connections and byte events"
+  :homepage "https://libtmux.org/en/lisp/latest/reference/libtmux-control/"
   :depends-on ("libtmux")
   :in-order-to ((test-op (test-op "libtmux/tests/control")))
   :serial t
@@ -150,6 +154,7 @@
 
 (defsystem "libtmux/workspace"
   :description "Owned workspace descriptions, pure plans and explicit application"
+  :homepage "https://libtmux.org/en/lisp/latest/workspace/reference/libtmux-workspace/"
   :depends-on ("libtmux" "com.inuoe.jzon")
   :in-order-to ((test-op (test-op "libtmux/tests/workspace")))
   :serial t
@@ -174,6 +179,7 @@
 
 (defsystem "libtmux/workspace/cli"
   :description "Explicit-endpoint workspace command-line interface"
+  :homepage "https://libtmux.org/en/lisp/latest/workspace/reference/libtmux-workspace-cli/"
   :depends-on ("libtmux/workspace")
   :serial t
   :components ((:file "src/workspace-cli"
