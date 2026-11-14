@@ -37,10 +37,23 @@ Its siblings: [`submit-command`][api-submit-command] queues a request,
 [`await-request`][api-await-request] waits for its reply, and
 [`next-event`][api-next-event] reads output.
 
+The [complete program](../examples/control.lisp) starts with this setup, where
+`tm` is `libtmux` and `control` is `libtmux.control`:
+
+<!-- example:controlsetup -->
+```lisp
+(asdf:load-system "libtmux/control")
+
+(defpackage #:libtmux.control.example
+  (:use #:cl)
+  (:local-nicknames (#:tm #:libtmux) (#:control #:libtmux.control)))
+(in-package #:libtmux.control.example)
+```
+<!-- /example -->
+
 This function queues literal text and Enter, awaits both replies, then collects
 pane bytes until the text arrives. It takes an open core client, plus a session
-and pane from its snapshot. `tm` is `libtmux` and `control` is
-`libtmux.control`; the [complete program](../examples/control.lisp) defines both:
+and pane from its snapshot:
 
 <!-- example:control -->
 ```lisp

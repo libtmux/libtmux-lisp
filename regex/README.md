@@ -40,8 +40,27 @@ an owned copy of the pattern and prepares the scanner once.
 - `:regex-full-match` matches the whole value.
 - Both take `(:cl-ppcre pattern options...)`.
 
-This selects `cat` panes with a case-insensitive full match. `tm` is `libtmux`,
-`q` is `libtmux.query`, and `snapshot` is an acquired capture:
+The examples share this package, where `tm` is `libtmux` and `q` is
+`libtmux.query`:
+
+<!-- example:package -->
+```lisp
+(defpackage #:libtmux.examples
+  (:use #:cl)
+  (:local-nicknames (#:tm #:libtmux)
+                    (#:q #:libtmux.query)
+                    (#:j #:libtmux.json)
+                    (#:ws #:libtmux.workspace))
+  (:export #:inspect-workspace #:create-workspace #:observed-value
+           #:apply-workspace-document #:workspace-description
+           #:terminate-owned-server #:configuration-report))
+
+(in-package #:libtmux.examples)
+```
+<!-- /example -->
+
+This selects `cat` panes with a case-insensitive full match. `snapshot` is an
+acquired capture:
 
 <!-- example:regex -->
 ```lisp

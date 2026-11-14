@@ -41,8 +41,25 @@ This example filters on a regex, so load the regex system too:
 (asdf:load-system "libtmux/regex")
 ```
 
-`tm` is `libtmux`, `q` is `libtmux.query` and `j` is `libtmux.json`. These
-excerpts come from the [runnable program](../examples/workspace.lisp):
+These excerpts come from the [runnable program](../examples/workspace.lisp).
+They share this package, where `tm` is `libtmux`, `q` is `libtmux.query` and
+`j` is `libtmux.json`:
+
+<!-- example:package -->
+```lisp
+(defpackage #:libtmux.examples
+  (:use #:cl)
+  (:local-nicknames (#:tm #:libtmux)
+                    (#:q #:libtmux.query)
+                    (#:j #:libtmux.json)
+                    (#:ws #:libtmux.workspace))
+  (:export #:inspect-workspace #:create-workspace #:observed-value
+           #:apply-workspace-document #:workspace-description
+           #:terminate-owned-server #:configuration-report))
+
+(in-package #:libtmux.examples)
+```
+<!-- /example -->
 
 <!-- example:regex -->
 ```lisp

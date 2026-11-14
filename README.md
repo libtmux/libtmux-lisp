@@ -30,6 +30,7 @@ with plain sequences, changed through an explicit [`client`][api-client].
 [Find things](#find-sessions-windows-and-panes) ·
 [Query](#query-a-snapshot) ·
 [Workspaces](#build-a-workspace) ·
+[Control](#stream-pane-output) ·
 [Systems](#choose-an-asdf-system) ·
 [Status](#support-and-status) ·
 [Guides](#find-the-right-guide)
@@ -97,7 +98,25 @@ use `with-client` alone. More: [daemon scopes](docs/daemons.md).
 
 ### [`libtmux:fetch-snapshot`][api-fetch-snapshot]: read the graph once
 
-One call to tmux; everything after is local.
+One call to tmux; everything after is local. The examples share one package:
+`tm` is `libtmux`, `q` is `libtmux.query`, `j` is `libtmux.json` and `ws` is
+`libtmux.workspace`.
+
+<!-- example:package -->
+```lisp
+(defpackage #:libtmux.examples
+  (:use #:cl)
+  (:local-nicknames (#:tm #:libtmux)
+                    (#:q #:libtmux.query)
+                    (#:j #:libtmux.json)
+                    (#:ws #:libtmux.workspace))
+  (:export #:inspect-workspace #:create-workspace #:observed-value
+           #:apply-workspace-document #:workspace-description
+           #:terminate-owned-server #:configuration-report))
+
+(in-package #:libtmux.examples)
+```
+<!-- /example -->
 
 <!-- example:inventory -->
 ```lisp
@@ -151,8 +170,7 @@ More: [identity and ownership](docs/captures.md) ·
 
 ## Query a snapshot
 
-`tm`, `q` and `j` are local nicknames for `libtmux`, `libtmux.query` and
-`libtmux.json`.
+Same package nicknames as above.
 
 ### [`libtmux.query:compile-filter`][api-compile-filter]: a filter compiled once
 
@@ -198,6 +216,30 @@ Sessions with an active pane, through window links and windows.
                  *active-session-filter*))))
 ```
 <!-- /example -->
+
+### [`libtmux.query:explain`][api-explain]: where a filter runs
+
+Lists the fields a compiled filter reads. Filters always run locally; tmux
+filters nothing for you.
+
+<!-- example:explain -->
+```lisp
+(defun filter-execution (filter)
+  "Report that FILTER runs locally and acquires nothing, with the fields it reads."
+  (let ((report (q:explain filter)))
+    (list :execution (getf report :execution)
+          :acquires-p (getf report :acquires-p)
+          :fields (getf report :required-fields))))
+```
+<!-- /example -->
+
+For the filter above it returns:
+
+```text
+(:EXECUTION :LOCAL :ACQUIRES-P NIL :FIELDS #(:PANE/ACTIVE :PANE/WIDTH))
+```
+
+More: [inspecting a filter](docs/queries.md#inspect-owned-query-data)
 
 ### [`libtmux.json:write-filter`][api-write-filter]: regex and JSON documents
 
@@ -262,9 +304,107 @@ Nothing touches tmux until you apply it.
 $ mise exec -- tools/lisp.sh examples/owned-workspace.lisp
 ```
 
-Preview first, then apply. Changing an existing workspace needs `:reconcile t`.
+### [`libtmux.workspace:plan-workspace`][api-plan-workspace]: preview, then apply
+
+[`fetch-workspace-state`][api-fetch-workspace-state] reads tmux. The plan is
+local. [`apply-workspace`][api-apply-workspace] changes tmux through the client
+you pass.
+
+<!-- example:ownedsetup -->
+```lisp
+(asdf:load-system "libtmux/workspace")
+
+(defpackage #:libtmux.workspace.example
+  (:use #:cl)
+  (:local-nicknames (#:tm #:libtmux) (#:ws #:libtmux.workspace)))
+(in-package #:libtmux.workspace.example)
+```
+<!-- /example -->
+
+<!-- example:ownedapply -->
+```lisp
+(defun apply-owned-description (client workspace)
+  "Acquire, preview and apply explicitly; return the result and its owned record."
+  (let* ((state (ws:fetch-workspace-state client workspace))
+         (preview (ws:plan-workspace workspace state)))
+    (assert (getf (ws:plan-data preview) :publish-p))
+    (let ((result (ws:apply-workspace client workspace :total-timeout 30)))
+      (assert (eq :succeeded (getf (ws:result-data result) :publication-status)))
+      (values result (getf (ws:result-data result) :record)))))
+```
+<!-- /example -->
+
+- Changing an existing workspace needs `:reconcile t`.
+- A preview grants no authority to apply.
+
 More: [owned workspaces](docs/workspace-owned.md) ·
 [Workspace API][api-workspace] · [legacy schema](docs/workspaces.md).
+
+## Stream pane output
+
+### [`libtmux.control:with-connection`][api-with-connection]: one connection, queued commands
+
+Needs tmux 3.8 or newer. [`submit-command`][api-submit-command] queues a
+request, [`await-request`][api-await-request] waits for its reply and
+[`next-event`][api-next-event] reads pane output as bytes.
+
+<!-- example:controlsetup -->
+```lisp
+(asdf:load-system "libtmux/control")
+
+(defpackage #:libtmux.control.example
+  (:use #:cl)
+  (:local-nicknames (#:tm #:libtmux) (#:control #:libtmux.control)))
+(in-package #:libtmux.control.example)
+```
+<!-- /example -->
+
+<!-- example:control -->
+```lisp
+(defun echo-through-control (client session pane)
+  "Send literal text and collect pane-output bytes on one scoped connection."
+  (control:with-connection (connection client session)
+    (let ((write (control:submit-command
+                  connection (list "send-keys" "-t" (tm:id pane) "-l" "hello from control")
+                  :effect :mutation))
+          (enter (control:submit-command
+                  connection (list "send-keys" "-t" (tm:id pane) "Enter")
+                  :effect :mutation)))
+      (dolist (request (list write enter))
+        (multiple-value-bind (result delivery) (control:await-request request :timeout 1)
+          (assert (eq :ready delivery))
+          (assert (eq :completed (getf result :status))))))
+    (let ((bytes (make-array 0 :element-type '(unsigned-byte 8)
+                              :adjustable t :fill-pointer 0))
+          (expected (map 'vector #'char-code "hello from control"))
+          (deadline (+ (get-internal-real-time) internal-time-units-per-second)))
+      (loop repeat 64
+            until (search expected bytes)
+            for remaining = (/ (- deadline (get-internal-real-time)) internal-time-units-per-second)
+            do (assert (plusp remaining))
+               (multiple-value-bind (event delivery) (control:next-event connection :timeout remaining)
+                 (assert (eq :ready delivery))
+                 (case (getf event :kind)
+                   (:output
+                    (assert (string= (tm:id pane) (getf event :pane)))
+                    (loop for byte across (getf event :data) do (vector-push-extend byte bytes)))
+                   ((:gap :end) (error "Output stream ended or lost data: ~S" event)))))
+      (assert (search expected bytes))
+      (coerce bytes '(simple-array (unsigned-byte 8) (*))))))
+```
+<!-- /example -->
+
+```console
+$ mise exec -- tools/lisp.sh examples/control.lisp
+```
+
+Prints `CONTROL PASS`, `CONTROL NOTIFICATION PASS` and
+`CONTROL RECONNECT PASS`.
+
+- [`with-reconnection`][api-with-reconnection] reconnects on request and
+  returns fresh observations. It never replays commands.
+
+More: [control guide](docs/control.md) · [control README](control/README.md)
 
 ## Choose an ASDF system
 
@@ -376,6 +516,8 @@ For changes, read [Contributing](.github/CONTRIBUTING.md) and
 
 [Branding assets](docs/branding.md) include the logo, icons, and social cards.
 
+[api-apply-workspace]: https://libtmux.org/en/lisp/latest/workspace/reference/libtmux-workspace-apply-workspace/
+[api-await-request]: https://libtmux.org/en/lisp/latest/reference/libtmux-control-await-request/
 [api-cli]: https://libtmux.org/en/lisp/latest/workspace/reference/libtmux-workspace-cli/
 [api-client]: https://libtmux.org/en/lisp/latest/reference/libtmux-client/
 [api-client-busy]: https://libtmux.org/en/lisp/latest/reference/libtmux-client-busy/
@@ -384,23 +526,29 @@ For changes, read [Contributing](.github/CONTRIBUTING.md) and
 [api-control]: https://libtmux.org/en/lisp/latest/reference/libtmux-control/
 [api-core]: https://libtmux.org/en/lisp/latest/reference/libtmux/
 [api-daemon]: https://libtmux.org/en/lisp/latest/reference/libtmux-daemon/
+[api-explain]: https://libtmux.org/en/lisp/latest/reference/libtmux-query-explain/
 [api-fetch-snapshot]: https://libtmux.org/en/lisp/latest/reference/libtmux-fetch-snapshot/
+[api-fetch-workspace-state]: https://libtmux.org/en/lisp/latest/workspace/reference/libtmux-workspace-fetch-workspace-state/
 [api-items]: https://libtmux.org/en/lisp/latest/reference/libtmux-query-items/
 [api-json]: https://libtmux.org/en/lisp/latest/reference/libtmux-json/
 [api-kill-server]: https://libtmux.org/en/lisp/latest/reference/libtmux-kill-server/
 [api-make-workspace]: https://libtmux.org/en/lisp/latest/workspace/reference/libtmux-workspace-make-workspace/
 [api-matching]: https://libtmux.org/en/lisp/latest/reference/libtmux-query-matching/
 [api-new-session]: https://libtmux.org/en/lisp/latest/reference/libtmux-new-session/
+[api-next-event]: https://libtmux.org/en/lisp/latest/reference/libtmux-control-next-event/
 [api-pane]: https://libtmux.org/en/lisp/latest/reference/libtmux-pane/
 [api-panes]: https://libtmux.org/en/lisp/latest/reference/libtmux-panes/
+[api-plan-workspace]: https://libtmux.org/en/lisp/latest/workspace/reference/libtmux-workspace-plan-workspace/
 [api-query]: https://libtmux.org/en/lisp/latest/reference/libtmux-query/
 [api-read-filter]: https://libtmux.org/en/lisp/latest/reference/libtmux-json-read-filter/
 [api-session]: https://libtmux.org/en/lisp/latest/reference/libtmux-session-type/
+[api-submit-command]: https://libtmux.org/en/lisp/latest/reference/libtmux-control-submit-command/
 [api-where]: https://libtmux.org/en/lisp/latest/reference/libtmux-query-where/
 [api-window]: https://libtmux.org/en/lisp/latest/reference/libtmux-window-type/
 [api-window-link]: https://libtmux.org/en/lisp/latest/reference/libtmux-window-link/
 [api-with-client]: https://libtmux.org/en/lisp/latest/reference/libtmux-with-client/
 [api-with-connection]: https://libtmux.org/en/lisp/latest/reference/libtmux-control-with-connection/
 [api-with-daemon]: https://libtmux.org/en/lisp/latest/reference/libtmux-with-daemon/
+[api-with-reconnection]: https://libtmux.org/en/lisp/latest/reference/libtmux-control-with-reconnection/
 [api-workspace]: https://libtmux.org/en/lisp/latest/workspace/reference/libtmux-workspace/
 [api-write-filter]: https://libtmux.org/en/lisp/latest/reference/libtmux-json-write-filter/

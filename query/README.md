@@ -36,8 +36,27 @@ Do the root [source setup](../README.md#install-from-source) first, then:
 function. [`libtmux.query:matching`][api-matching] applies either to a list or
 vector.
 
-This selects active panes at least 40 cells wide. `tm` is `libtmux`, `q` is
-`libtmux.query`, and `snapshot` is an acquired capture:
+The examples share this package, where `tm` is `libtmux` and `q` is
+`libtmux.query`:
+
+<!-- example:package -->
+```lisp
+(defpackage #:libtmux.examples
+  (:use #:cl)
+  (:local-nicknames (#:tm #:libtmux)
+                    (#:q #:libtmux.query)
+                    (#:j #:libtmux.json)
+                    (#:ws #:libtmux.workspace))
+  (:export #:inspect-workspace #:create-workspace #:observed-value
+           #:apply-workspace-document #:workspace-description
+           #:terminate-owned-server #:configuration-report))
+
+(in-package #:libtmux.examples)
+```
+<!-- /example -->
+
+This selects active panes at least 40 cells wide. `snapshot` is an acquired
+capture:
 
 <!-- example:query -->
 ```lisp

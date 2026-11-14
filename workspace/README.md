@@ -76,7 +76,21 @@ More: [owned workspaces](../docs/workspace-owned.md) ·
 [`plan-workspace`][api-plan-workspace] previews locally. `apply-workspace`
 changes tmux through the client you pass.
 
-`ws` is `libtmux.workspace` and `tm` is `libtmux`:
+The program starts with this setup, where `tm` is `libtmux` and `ws` is
+`libtmux.workspace`:
+
+<!-- example:ownedsetup -->
+```lisp
+(asdf:load-system "libtmux/workspace")
+
+(defpackage #:libtmux.workspace.example
+  (:use #:cl)
+  (:local-nicknames (#:tm #:libtmux) (#:ws #:libtmux.workspace)))
+(in-package #:libtmux.workspace.example)
+```
+<!-- /example -->
+
+This previews locally, then applies:
 
 <!-- example:ownedapply -->
 ```lisp
