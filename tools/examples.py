@@ -302,6 +302,15 @@ if args.group == "core":
             "--load", str(Path(asdf) / "asdf.lisp"),
             "--script", str(root / "examples/managed-daemon.lisp"),
         ], cwd=directory, env=managed_environment, check=True, timeout=20)
+if args.group == "core":
+    with tempfile.TemporaryDirectory(prefix="libtmux-lisp-panes-") as directory:
+        panes_environment = environment.copy()
+        panes_environment["LIBTMUX_PROGRAM"] = program
+        subprocess.run([
+            "sbcl", "--noinform", "--no-sysinit", "--no-userinit",
+            "--load", str(Path(asdf) / "asdf.lisp"),
+            "--script", str(root / "examples/drive-panes.lisp"),
+        ], cwd=directory, env=panes_environment, check=True, timeout=20)
 if args.group == "owned-workspace":
     with tempfile.TemporaryDirectory(prefix="libtmux-lisp-owned-cli-") as directory:
         socket = str(Path(directory) / "tmux.sock")
@@ -359,6 +368,7 @@ if args.group == "core":
     evidence["tutorial_daemon_cleanup"] = "PASS"
     evidence["workspace_cli"] = workspace_cli
     evidence["managed_daemon"] = "PASS"
+    evidence["pane_operations"] = "PASS"
     evidence["decoded_configuration"] = "PASS"
     evidence["persistent_control"] = control_example
 else:
