@@ -71,7 +71,143 @@
    (witness :initform nil))
   (:documentation "A connection scope with one external-operation lease.
 Closing cancels owned work and leaves the tmux daemon alive. Captured data may
-outlive the client. Public operations never expose its mutable storage."))
+outlive the client. Public operations never expose its mutable storage.
+
+A client reaches one tmux server through a tmux program and an optional socket
+name or path. The operations below take it as their first argument and run one
+at a time per client.
+
+#### What is on here
+
+Operations on a tmux server take a client first. They fall into these groups:
+
+**Connecting and closing.** `libtmux:open-client` checks the tmux version and
+returns a client for the default socket or the one you name; it starts no
+daemon. `libtmux:with-client` closes the client on every exit, and
+`libtmux:close-client` does it by hand, cancelling active work and leaving the
+daemon running. `libtmux:tmux-version`, `libtmux:client-open-p` and
+`libtmux:client-cleanup-failures` report the release seen at open and the
+lifecycle, without contacting tmux. `libtmux.control:open-connection` takes a
+client and a captured session and attaches a separate control connection,
+which needs a daemon at tmux 3.8 or newer.
+
+`libtmux:open-client`, `libtmux:with-client`, `libtmux:close-client`,
+`libtmux:tmux-version`, `libtmux:client-open-p`,
+`libtmux:client-cleanup-failures` and `libtmux.control:open-connection`
+
+**Capturing and querying.** `libtmux:fetch-snapshot` captures sessions,
+windows, panes, window links and attached clients as one graph that stays
+usable after the client closes; it is an interval observation, not a
+transaction. `libtmux:fetch-sessions`, `libtmux:fetch-windows`,
+`libtmux:fetch-panes` and `libtmux:fetch-clients` each take a fresh snapshot
+and return one collection, and `libtmux:refresh` returns a replacement
+observation without changing the earlier one. The optional query package
+filters a capture locally: `libtmux.query:compile-filter` compiles a filter
+form without evaluating it as Lisp, `libtmux.query:matching` returns the
+values it accepts, and `libtmux.query:one` and `libtmux.query:one-or-none`
+take the single result.
+
+`libtmux:fetch-snapshot`, `libtmux:fetch-sessions`, `libtmux:fetch-windows`,
+`libtmux:fetch-panes`, `libtmux:fetch-clients`, `libtmux:refresh`,
+`libtmux.query:compile-filter`, `libtmux.query:matching`, `libtmux.query:one`
+and `libtmux.query:one-or-none`
+
+**Creating, restarting and removing.** `libtmux:new-session` creates a
+detached session on a daemon that is already running; it never starts or
+replaces one. `libtmux:new-window` adds a window to a captured session and
+`libtmux:split-pane` splits a captured pane, and `libtmux:outcome-value`
+supplies the created object from each result. `libtmux:respawn-pane` restarts
+a pane's process in place, and `libtmux:respawn-window` restarts a window as a
+single pane. `libtmux:kill-pane`, `libtmux:kill-window` and
+`libtmux:kill-session` delete exactly the captured target, while
+`libtmux:kill-server` terminates the daemon, which `libtmux:close-client`
+never does.
+
+`libtmux:new-session`, `libtmux:new-window`, `libtmux:split-pane`,
+`libtmux:outcome-value`, `libtmux:respawn-pane`, `libtmux:respawn-window`,
+`libtmux:kill-pane`, `libtmux:kill-window`, `libtmux:kill-session`,
+`libtmux:kill-server` and `libtmux:close-client`
+
+**Selecting, renaming and arranging.** Each operation takes captured targets
+and changes what is selected, how sessions, windows and panes are named, sized
+and laid out, or where they sit. Most also take an observe argument, true by
+default, whose replacement record `libtmux:outcome-value` returns; earlier
+captures stay unchanged. `libtmux:select-layout` applies a named or custom
+layout, and `libtmux:swap-windows`, `libtmux:move-window`,
+`libtmux:link-window` and `libtmux:unlink-window` work on window links.
+
+`libtmux:select-window`, `libtmux:select-pane`, `libtmux:next-window`,
+`libtmux:previous-window`, `libtmux:last-window`, `libtmux:last-pane`,
+`libtmux:rename-window`, `libtmux:rename-session`, `libtmux:select-layout`,
+`libtmux:next-layout`, `libtmux:previous-layout`, `libtmux:resize-pane`,
+`libtmux:resize-window`, `libtmux:rotate-window`, `libtmux:swap-panes`,
+`libtmux:swap-windows`, `libtmux:move-pane`, `libtmux:join-pane`,
+`libtmux:break-pane`, `libtmux:move-window`, `libtmux:link-window`,
+`libtmux:unlink-window` and `libtmux:outcome-value`
+
+**Reading and driving panes.** `libtmux:capture-pane` reads a pane as strict
+UTF-8 text and signals a decoding error otherwise, and
+`libtmux:capture-pane-bytes` returns the octets unchanged. `libtmux:send-text`
+sends literal text, `libtmux:send-keys` interprets tmux key names such as C-c
+and Enter, and `libtmux:send-prefix` sends the session's prefix key. A
+completed send means tmux processed the request, not that the application
+consumed it. `libtmux:clear-history`, `libtmux:copy-mode` and
+`libtmux:pipe-pane` clear a pane's history, enter or leave copy mode, and set
+up a tmux-owned pipe.
+
+`libtmux:capture-pane`, `libtmux:capture-pane-bytes`, `libtmux:send-text`,
+`libtmux:send-keys`, `libtmux:send-prefix`, `libtmux:clear-history`,
+`libtmux:copy-mode` and `libtmux:pipe-pane`
+
+**Options, hooks and environment.** `libtmux:set-option`, `libtmux:set-hook`
+and `libtmux:set-environment` write one entry, and every operation here
+requires a scope, with a captured target for a session, window or pane.
+`libtmux:show-option` returns one decoded option with a presence flag,
+`libtmux:show-options` returns decoded records for several, and
+`libtmux:show-hooks` and `libtmux:show-environment` do the same for hooks and
+environment entries. `libtmux:show-options-text` and its hook and environment
+counterparts return tmux's printer text instead. `libtmux:unset-environment`
+deletes a name, while `libtmux:remove-environment` stores tmux's removal
+marker.
+
+`libtmux:set-option`, `libtmux:unset-option`, `libtmux:show-option`,
+`libtmux:show-options`, `libtmux:show-options-text`, `libtmux:set-hook`,
+`libtmux:unset-hook`, `libtmux:show-hooks`, `libtmux:show-hooks-text`,
+`libtmux:set-environment`, `libtmux:unset-environment`,
+`libtmux:remove-environment`, `libtmux:show-environment` and
+`libtmux:show-environment-text`
+
+**Buffers.** `libtmux:set-buffer` and `libtmux:load-buffer` store a string,
+octets or a file's bytes; `libtmux:show-buffer`, `libtmux:save-buffer` and
+`libtmux:paste-buffer` read a buffer's octets, write them to a file or paste
+them into a pane. `libtmux:list-buffers` returns each buffer's name, size and
+creation time, and `libtmux:delete-buffer` deletes one. Without a name, show,
+save, paste and delete use tmux's top buffer, while store and load create an
+automatic name; deleting by name needs tmux 3.4 or newer.
+
+`libtmux:set-buffer`, `libtmux:load-buffer`, `libtmux:show-buffer`,
+`libtmux:save-buffer`, `libtmux:paste-buffer`, `libtmux:list-buffers` and
+`libtmux:delete-buffer`
+
+**Attached terminals, key bindings and the rest.** `libtmux:switch-client`,
+`libtmux:detach-client` and the other terminal operations act on one attached
+terminal taken from a capture, while `libtmux:lock-session` and
+`libtmux:lock-server` lock a session's or every attached terminal.
+`libtmux:bind-key` and `libtmux:unbind-key` change key bindings and
+`libtmux:server-access` changes the daemon's access list; `libtmux:list-keys`,
+`libtmux:list-commands` and `libtmux:list-server-access` print bindings,
+built-in commands and the access list. `libtmux:wait-for` waits on, signals or
+locks a channel, though waiting and locking need tmux 3.8, and
+`libtmux:display-message` prints a message through tmux. `libtmux:run-command`
+runs explicit tmux arguments for anything else; it does not check captured
+targets.
+
+`libtmux:switch-client`, `libtmux:detach-client`, `libtmux:refresh-client`,
+`libtmux:suspend-client`, `libtmux:lock-client`, `libtmux:lock-session`,
+`libtmux:lock-server`, `libtmux:bind-key`, `libtmux:unbind-key`,
+`libtmux:server-access`, `libtmux:list-keys`, `libtmux:list-commands`,
+`libtmux:list-server-access`, `libtmux:wait-for`, `libtmux:display-message`
+and `libtmux:run-command`"))
 
 (defmethod print-object ((client client) stream)
   (print-unreadable-object (client stream :type t :identity t)

@@ -9,6 +9,8 @@ import re
 import subprocess
 from pathlib import Path
 
+from api_directory import fold
+
 
 ROOT = Path(__file__).resolve().parents[1]
 ARTIFACT = ROOT / "docs" / "_build" / "api.json"
@@ -159,6 +161,22 @@ require(
     <= set(cli["documentation"].get("seeAlso", [])),
     "workspace CLI lost authored references to another public package",
 )
+client = symbols[ids.index("libtmux:client")]
+runs, strays = fold(client["documentation"].get("body", ""))
+require(len(runs) == 1 and not strays,
+        "libtmux:client lost its capability directory: need three or more bold-led "
+        f"paragraphs, each followed by a references-only paragraph (folded {len(runs)}, "
+        f"left as prose {strays})")
+listed = {reference for _, references in runs[0] for reference in references}
+require(listed <= set(ids), f"directory references unknown symbols: {sorted(listed - set(ids))}")
+operations = {
+    symbol["id"] for symbol in symbols
+    if symbol["kind"] == "function" and symbol["id"].startswith("libtmux:")
+    and re.match(r"^\([^ )]+ client[ )]", symbol["signature"])
+}
+require(operations <= listed,
+        f"operations that take a client are missing from the directory: {sorted(operations - listed)}")
+
 workspace_reference = (ROOT / "docs/workspace-api.md").read_text()
 for anchor in ("outcome-status-function", "outcome-phase-function"):
     require(f"(api.md#{anchor})" in workspace_reference,
