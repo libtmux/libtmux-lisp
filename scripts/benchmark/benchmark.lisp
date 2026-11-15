@@ -146,7 +146,7 @@ The bootstrap is deterministic; the tail is reported from twenty observations."
 (sb-alien:define-alien-routine ("sysconf" %sysconf) sb-alien:long (name sb-alien:int))
 
 (defun free-disk-bytes (directory)
-  "Free bytes for unprivileged users, like Python's shutil.disk_usage(...).free."
+  "Free bytes for unprivileged users on the filesystem holding DIRECTORY (statvfs f_bavail * f_frsize)."
   (sb-alien:with-alien ((buffer (array sb-alien:unsigned-long 32)))
     (unless (zerop (%statvfs (uiop:native-namestring directory) (sb-alien:cast buffer (* sb-alien:unsigned-long))))
       (fail "statvfs failed for ~A" directory))

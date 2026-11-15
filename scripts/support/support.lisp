@@ -221,8 +221,8 @@ SCRIPT-FAILURE for a timeout or nonzero exit."
 ;;;
 ;;; An object is (:OBJECT (KEY . VALUE)...), an array a vector. true, false and
 ;;; null are :TRUE, :FALSE and :NULL. Objects keep their order, and JSON-STRING
-;;; matches the layout of Python's json.dumps(indent=2, ensure_ascii=False), so
-;;; generated files stay byte-identical across the port.
+;;; writes two-space indentation and non-ASCII text as is, so a regenerated file
+;;; differs from the committed one only when its content changed.
 
 (defun obj (&rest keys-and-values)
   (cons :object (loop for (key value) on keys-and-values by #'cddr
