@@ -1,6 +1,4 @@
-(require :asdf)
-
-(asdf:load-asd (truename (merge-pathnames "../libtmux.asd" *load-truename*)))
+(load (merge-pathnames "../tools/load.lisp" *load-truename*))
 (asdf:load-system "libtmux")
 
 ;;; docs:managed

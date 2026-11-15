@@ -1,5 +1,4 @@
-(require :asdf)
-(asdf:load-asd (truename (merge-pathnames "../libtmux.asd" *load-truename*)))
+(load (merge-pathnames "../tools/load.lisp" *load-truename*))
 ;;; docs:controlsetup
 (asdf:load-system "libtmux/control")
 

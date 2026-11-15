@@ -18,7 +18,7 @@ After [contributor setup](../.github/CONTRIBUTING.md#setup), run this program
 from the checkout. Set `LIBTMUX_PROGRAM` to the native tmux binary when needed.
 
 ```console
-$ mise exec -- tools/lisp.sh examples/control.lisp
+$ mise exec -- sbcl --script examples/control.lisp
 ```
 
 The program:

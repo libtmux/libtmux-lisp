@@ -1,6 +1,5 @@
-(require :asdf)
+(load (merge-pathnames "load.lisp" *load-truename*))
 (require :sb-introspect)
-(asdf:load-asd (truename "libtmux.asd"))
 (asdf:load-system "libtmux")
 (asdf:load-system "libtmux/query")
 (asdf:load-system "libtmux/regex")

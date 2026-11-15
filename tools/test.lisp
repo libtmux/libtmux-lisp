@@ -1,10 +1,9 @@
-(require :asdf)
-(asdf:load-asd (merge-pathnames "../libtmux.asd" *load-truename*))
+(load (merge-pathnames "load.lisp" *load-truename*))
 (let* ((arguments (uiop:command-line-arguments))
        (suites (mapcar
                 (lambda (argument)
                   (or (cdr (assoc argument '(("unit" . :unit) ("query" . :query)
-                                            ("regex" . :regex) ("json" . :json)
+                                            ("regex" . :regex) ("json" . :json) ("scripts" . :scripts)
                                             ("control" . :control)
                                             ("transport-integration" . :transport-integration)
                                             ("workspace-integration" . :workspace-integration)
@@ -21,13 +20,14 @@
                       (error "Unknown test suite: ~A" argument)))
                 arguments)))
   (unless suites
-    (error "Expected unit, query, regex, json, control, transport-integration, control-integration, configuration-integration, workspace-integration, workspace-inspection-integration, workspace-writer-integration, workspace-apply-integration, workspace-publication-integration, workspace-apply-race-integration, workspace-public-integration, workspace or integration"))
+    (error "Expected unit, query, regex, json, scripts, control, transport-integration, control-integration, configuration-integration, workspace-integration, workspace-inspection-integration, workspace-writer-integration, workspace-apply-integration, workspace-publication-integration, workspace-apply-race-integration, workspace-public-integration, workspace or integration"))
   (dolist (suite suites)
     (asdf:load-system (ecase suite
                         (:unit "libtmux/tests")
                         (:query "libtmux/tests/query")
                         (:regex "libtmux/tests/regex")
                         (:json "libtmux/tests/json")
+                        (:scripts "libtmux/tests/scripts")
                         (:control "libtmux/tests/control")
                         (:workspace "libtmux/tests/workspace")
                         ((:transport-integration :integration :control-integration

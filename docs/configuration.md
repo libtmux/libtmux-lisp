@@ -20,7 +20,7 @@ It:
 Run it from a source checkout ([setup](../.github/CONTRIBUTING.md#setup)):
 
 ```console
-$ mise exec -- tools/lisp.sh examples/configuration.lisp
+$ mise exec -- sbcl --script examples/configuration.lisp
 ```
 
 It prints `CONFIGURATION PASS`. The core function:

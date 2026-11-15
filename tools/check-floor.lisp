@@ -1,5 +1,4 @@
-(require :asdf)
-(asdf:load-asd (merge-pathnames "../libtmux.asd" *load-truename*))
+(load (merge-pathnames "load.lisp" *load-truename*))
 (asdf:load-system "libtmux")
 
 (let* ((program (first (uiop:command-line-arguments)))

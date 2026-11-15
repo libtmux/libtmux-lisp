@@ -89,7 +89,7 @@ The examples run on a private tmux socket, never your default server.
 <!-- /example -->
 
 ```console
-$ mise exec -- tools/lisp.sh examples/managed-daemon.lisp
+$ mise exec -- sbcl --script examples/managed-daemon.lisp
 ```
 
 Prints `MANAGED DAEMON PASS` and a pane record. To reach an existing server,
@@ -133,7 +133,7 @@ sizes in cells.
 <!-- /example -->
 
 ```console
-$ mise exec -- tools/lisp.sh examples/drive-panes.lisp
+$ mise exec -- sbcl --script examples/drive-panes.lisp
 ```
 
 Prints `PANE OPERATIONS PASS`, the captured text, the window size and the pane
@@ -356,7 +356,7 @@ Nothing touches tmux until you apply it.
 <!-- /example -->
 
 ```console
-$ mise exec -- tools/lisp.sh examples/owned-workspace.lisp
+$ mise exec -- sbcl --script examples/owned-workspace.lisp
 ```
 
 ### [`libtmux.workspace:plan-workspace`][api-plan-workspace]: preview, then apply
@@ -450,7 +450,7 @@ request, [`await-request`][api-await-request] waits for its reply and
 <!-- /example -->
 
 ```console
-$ mise exec -- tools/lisp.sh examples/control.lisp
+$ mise exec -- sbcl --script examples/control.lisp
 ```
 
 Prints `CONTROL PASS`, `CONTROL NOTIFICATION PASS` and

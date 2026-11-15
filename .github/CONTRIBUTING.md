@@ -73,7 +73,7 @@ $ /usr/bin/time -p mise run check
 ```
 
 It checks source whitespace, loads the selected systems and runs the core,
-native-query, regex, JSON and workspace suites. It also checks public
+native-query, regex, JSON, workspace and support-script suites. It also checks public
 docstrings, generated API/field/operator/module references,
 the generated configuration catalog, example excerpts and local documentation
 links. Regenerate those pages with
@@ -161,8 +161,7 @@ does not alter that tmux checkout or install anything. Run it outside inner
 and mid loops:
 
 ```console
-$ python3 tools/extract-options-catalog.py \
-    --repo . \
+$ mise exec -- sbcl --script scripts/options-catalog/extract-options-catalog.lisp \
     --tmux-source "$TMUX_SOURCE"
 ```
 
@@ -170,7 +169,7 @@ The output and source-verification evidence go under `build/options-catalog/`.
 Review them, then import the verified catalog and regenerate the native file:
 
 ```console
-$ python3 tools/options-catalog.py import \
+$ mise exec -- sbcl --script scripts/options-catalog/options-catalog.lisp import \
     --source-catalog build/options-catalog/catalog.json
 ```
 
@@ -190,6 +189,12 @@ Keep one logical topic per commit. Preserve unrelated work and stage explicit
 paths. Describe the resulting behavior, why it matters, commands run, elapsed
 times, and evidence gaps. An empty system loading successfully does not prove
 an implemented library. The project uses MIT.
+
+Support scripts are Common Lisp under `scripts/<name>/`, each with a README and
+tests that run in `mise run check`; [SCRIPTS.md](SCRIPTS.md) sets the policy.
+`sbcl --script` skips init files, so every script and example loads
+`tools/load.lisp` first. It reads the pinned ASDF from `PATH`, loads the Qlot
+environment when `.qlot/` exists and registers `libtmux.asd`.
 
 The documentation workflow builds artifacts for pushes, pull requests and tags.
 Publishing requires a manual dispatch with `publish` enabled. Keep both shared

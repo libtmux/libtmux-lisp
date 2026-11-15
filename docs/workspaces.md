@@ -199,11 +199,12 @@ reports expiry between calls without inventing a command outcome.
 
 ## Use the CLI without an implicit server
 
-The source checkout ships `bin/libtmux-workspace`. Validation and offline
+The source checkout ships `tools/workspace-cli.lisp`, a Lisp program run with
+`sbcl --script`. Validation and offline
 planning do not contact tmux:
 
 ```console
-$ bin/libtmux-workspace validate examples/workspace.json
+$ mise exec -- sbcl --script tools/workspace-cli.lisp validate examples/workspace.json
 ```
 
 ```json
@@ -211,7 +212,7 @@ $ bin/libtmux-workspace validate examples/workspace.json
 ```
 
 ```console
-$ bin/libtmux-workspace plan examples/workspace.json
+$ mise exec -- sbcl --script tools/workspace-cli.lisp plan examples/workspace.json
 ```
 
 ```json
@@ -221,7 +222,7 @@ $ bin/libtmux-workspace plan examples/workspace.json
 Apply requires the socket pathname. It never falls back to the default server:
 
 ```console
-$ bin/libtmux-workspace apply examples/workspace.json \
+$ mise exec -- sbcl --script tools/workspace-cli.lisp apply examples/workspace.json \
   --socket-path /path/to/owned/tmux.sock
 ```
 

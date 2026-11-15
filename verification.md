@@ -15,8 +15,8 @@ includes the named integration groups too.
 | `mise run regex` | Inner | Optional CL-PPCRE search/full-match semantics, options, ownership and retained causes |
 | `mise run json` | Inner | Optional bounded filter documents, allowlists, false/empty/null distinctions and regex opt-in |
 | `mise run control` | Inner | Local codecs, byte fidelity, queued/active cancellation, terminal races, CLOS resource identity, live-witness admission, raw notification/reply routing and lexical cleanup; no live connection |
-| `tools/lisp.sh tools/test.lisp control-integration` | Outer | Persistent requests/events on 3.8, raw topology/configuration/flow notifications, binary pane output, reply separation, public cancellation, environment preservation, explicit reconnect/recapture without replay, cutover cancellation/cleanup recovery and 3.3a pre-launch rejection |
-| `tools/lisp.sh tools/test.lisp configuration-integration` | Outer | Decoded reads on both tmux endpoints, false/absence, sparse keys, inheritance/visibility races, partial evidence, cancellation and truncation |
+| `sbcl --script tools/test.lisp control-integration` | Outer | Persistent requests/events on 3.8, raw topology/configuration/flow notifications, binary pane output, reply separation, public cancellation, environment preservation, explicit reconnect/recapture without replay, cutover cancellation/cleanup recovery and 3.3a pre-launch rejection |
+| `sbcl --script tools/test.lisp configuration-integration` | Outer | Decoded reads on both tmux endpoints, false/absence, sparse keys, inheritance/visibility races, partial evidence, cancellation and truncation |
 | `mise run check` | Mid | Source whitespace, all local unit suites, exported docstrings, generated references, excerpts and local documentation links |
 | `mise run lint-workflows` | Mid | GitHub Actions syntax, expressions and shell checks |
 | `mise run integration` | Outer | Bounded transport, cancellation/cleanup, managed daemon startup/shutdown and failure recovery, linked graphs, attached clients, daemon replacement, named operations, typed configuration reads/mutations, exact target/server termination and tutorial failure cleanup |
@@ -147,7 +147,7 @@ Unit tests cover floor rejection without adding a third tmux build to CI.
 For an optional maintenance probe, use the exact 3.3 executable:
 
 ```console
-$ mise exec -- tools/lisp.sh tools/check-floor.lisp /path/to/tmux-3.3/tmux
+$ mise exec -- sbcl --script tools/check-floor.lisp /path/to/tmux-3.3/tmux
 ```
 
 This check asserts the executable's release, expects `unsupported-tmux`, and

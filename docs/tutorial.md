@@ -377,7 +377,9 @@ Input and pipes:
 
 ## Drive an application without polling
 
-The shipped [worker](../examples/worker.sh) signals readiness, reads one
+The shipped [worker](../examples/worker.lisp) is a Lisp program that
+`sbcl --script` runs in the pane. It opens a client on the daemon's socket,
+signals readiness with [`wait-for`](api.md#wait-for-function), reads one
 request, writes a receipt file, then signals consumption.
 
 - The Lisp controller waits on a fresh `wait-for` channel per signal.
@@ -389,21 +391,21 @@ request, writes a receipt file, then signals consumption.
 ```lisp
 (defun drive-worker (client session socket-path program worker-path receipt-path)
   "Launch a worker through argv, wait for readiness and verify input consumption.
-WORKER-PATH names the shipped worker.sh; RECEIPT-PATH is in the owned demo directory.
+WORKER-PATH names the shipped worker.lisp; RECEIPT-PATH is in the owned demo directory.
 Signals operational conditions without retrying a mutation. Calls block."
   (let* ((ready (symbol-name (gensym "example-ready-")))
          (consumed (symbol-name (gensym "example-consumed-")))
          (window (observed-value
                   (tm:new-window client session :name "worker"
-                                 :command (list "/bin/sh" worker-path program
+                                 :command (list "sbcl" "--script" worker-path program
                                                 socket-path ready consumed receipt-path))))
          (pane (aref (tm:panes window) 0))
          (message "release #{literal}; λ"))
     (tm:run-command client (list "-N" "wait-for" ready)
-                    :effect :read :timeout 1 :output-limit 4096)
+                    :effect :read :timeout 30 :output-limit 4096)
     (tm:send-text client pane message :enter t)
     (tm:run-command client (list "-N" "wait-for" consumed)
-                    :effect :read :timeout 1 :output-limit 4096)
+                    :effect :read :timeout 30 :output-limit 4096)
     (let ((receipt (uiop:read-file-string receipt-path :external-format :utf-8)))
       (assert (string= message receipt))
       (list :consumed receipt :pane (tm:id pane)))))
@@ -415,7 +417,7 @@ Signals operational conditions without retrying a mutation. Calls block."
   (tm:with-client (client :socket-path *socket-path*)
     (let ((session (find "work" (tm:fetch-sessions client) :key #'tm:name :test #'string=)))
       (drive-worker client session *socket-path* "tmux"
-                    (namestring (truename "examples/worker.sh"))
+                    (namestring (truename "examples/worker.lisp"))
                     (namestring receipt)))))
 ```
 

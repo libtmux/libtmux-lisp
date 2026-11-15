@@ -29,7 +29,7 @@ runs:
       env:
         TMUX_VERSION: ${{ inputs.version }}
       run: |
-        python3 tools/provision-tmux.py \
+        mise exec -- sbcl --script scripts/provision-tmux/provision-tmux.lisp \
           --manifest tools/tmux-sources.json \
           --version "$TMUX_VERSION" \
           --output-dir build/tmux \
@@ -46,7 +46,7 @@ runs:
       env:
         TMUX_VERSION: ${{ inputs.version }}
       run: |
-        python3 tools/provision-tmux.py \
+        mise exec -- sbcl --script scripts/provision-tmux/provision-tmux.lisp \
           --manifest tools/tmux-sources.json \
           --version "$TMUX_VERSION" \
           --output-dir build/tmux \

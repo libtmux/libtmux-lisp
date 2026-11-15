@@ -215,6 +215,37 @@
              (unless (uiop:symbol-call :libtmux.tests :run-suite :json)
                (error "libtmux JSON tests failed"))))
 
+(defsystem "libtmux/tests/scripts"
+  :description "Tests of the support scripts; each script loads here as a library"
+  :depends-on ("libtmux/tests" "libtmux/workspace" "cl-ppcre")
+  :serial t
+  :components ((:file "scripts/support/support")
+               (:file "scripts/test-processes/test-processes")
+               (:file "scripts/test-processes/tests/test-processes")
+               (:file "scripts/check-source/check-source")
+               (:file "scripts/check-source/tests/check-source")
+               (:file "scripts/api-directory/api-directory")
+               (:file "scripts/api-directory/tests/api-directory")
+               (:file "scripts/doc-examples/doc-examples")
+               (:file "scripts/doc-examples/tests/doc-examples")
+               (:file "scripts/check-documentation-artifact/check-documentation-artifact")
+               (:file "scripts/check-documentation-artifact/tests/check-documentation-artifact")
+               (:file "scripts/options-catalog/options-catalog")
+               (:file "scripts/options-catalog/extract-options-catalog")
+               (:file "scripts/options-catalog/tests/options-catalog")
+               (:file "scripts/benchmark/benchmark")
+               (:file "scripts/benchmark/tests/benchmark")
+               (:file "scripts/examples/examples")
+               (:file "scripts/examples/tests/examples")
+               (:file "scripts/package/package")
+               (:file "scripts/package/tests/package")
+               (:file "scripts/provision-tmux/provision-tmux")
+               (:file "scripts/provision-tmux/tests/provision-tmux"))
+  :perform (test-op (operation component)
+             (declare (ignore operation component))
+             (unless (uiop:symbol-call :libtmux.tests :run-suite :scripts)
+               (error "libtmux script tests failed"))))
+
 (defsystem "libtmux/tests/workspace"
   :description "Local workspace validation and planning tests"
   :depends-on ("libtmux/tests" "libtmux/workspace/cli")

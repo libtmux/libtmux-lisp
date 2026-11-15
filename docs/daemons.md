@@ -34,7 +34,7 @@ Full program (ASDF loading, entry point):
 From a source checkout ([setup](../.github/CONTRIBUTING.md#setup)):
 
 ```console
-$ mise exec -- tools/lisp.sh examples/managed-daemon.lisp
+$ mise exec -- sbcl --script examples/managed-daemon.lisp
 ```
 
 Success prints `MANAGED DAEMON PASS` and one pane record. Set

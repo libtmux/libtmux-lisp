@@ -1,11 +1,9 @@
-(let ((asdf (sb-ext:posix-getenv "LIBTMUX_ASDF")))
-  (if asdf (load asdf) (require :asdf)))
+;;; The workspace command line:
+;;;
+;;;   sbcl --script tools/workspace-cli.lisp validate|plan|apply|inspect FILE ...
+;;;
+;;; Run it from any directory; paths in the arguments are relative to that one.
 
-(let* ((root (uiop:pathname-directory-pathname
-              (merge-pathnames "../" *load-truename*)))
-       (qlot (or (uiop:getenv "LIBTMUX_QLOT_SETUP")
-                 (namestring (merge-pathnames ".qlot/setup.lisp" root)))))
-  (when (probe-file qlot) (load qlot))
-  (asdf:load-asd (merge-pathnames "libtmux.asd" root))
-  (asdf:load-system "libtmux/workspace/cli")
-  (uiop:quit (uiop:symbol-call :libtmux.workspace.cli :main)))
+(load (merge-pathnames "load.lisp" *load-truename*))
+(asdf:load-system "libtmux/workspace/cli")
+(uiop:quit (uiop:symbol-call :libtmux.workspace.cli :main))

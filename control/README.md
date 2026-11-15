@@ -93,7 +93,7 @@ and pane from its snapshot:
 Run the program on its own daemon, with tmux 3.8 on `PATH`:
 
 ```console
-$ mise exec -- tools/lisp.sh examples/control.lisp
+$ mise exec -- sbcl --script examples/control.lisp
 ```
 
 It prints `CONTROL PASS`, `CONTROL NOTIFICATION PASS` and

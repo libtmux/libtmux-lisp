@@ -29,20 +29,21 @@ locked dependencies. Run from the checkout root.
 
 ## Check a workspace file
 
-### `bin/libtmux-workspace validate`: parse a file, no tmux
+### `tools/workspace-cli.lisp validate`: parse a file, no tmux
 
 ```console
-$ bin/libtmux-workspace validate examples/owned-workspace.json
+$ mise exec -- sbcl --script tools/workspace-cli.lisp validate examples/owned-workspace.json
 ```
 
 It reports `"status":"valid"`, schema `libtmux.lisp.workspace/2`, two windows
 and three panes. Validation never contacts tmux.
 
 ```console
-$ bin/libtmux-workspace --help
+$ mise exec -- sbcl --script tools/workspace-cli.lisp
 ```
 
-Prints the command grammar.
+Prints the command grammar and exits 2. The `sbcl` launcher answers `--help`
+itself, so the program has no such flag.
 
 - `plan`, `apply` and `inspect` need `--socket-path` for owned workspaces.
 - `--program` selects the tmux binary when `PATH` has the wrong one.

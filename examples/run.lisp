@@ -1,5 +1,4 @@
-(require :asdf)
-(asdf:load-asd (truename (merge-pathnames "../libtmux.asd" *load-truename*)))
+(load (merge-pathnames "../tools/load.lisp" *load-truename*))
 (asdf:load-system "libtmux/regex")
 (asdf:load-system "libtmux/json")
 (asdf:load-system "libtmux/workspace")
@@ -8,11 +7,13 @@
 (assert (find-package :com.inuoe.jzon))
 (assert (not (find-package :bt2)))
 
-(let* ((arguments (uiop:command-line-arguments))
-       (program (first arguments))
-       (socket-path (second arguments)))
-  (assert (= 2 (length arguments)))
-  (libtmux:with-client (client :program program :socket-path socket-path)
+(let* ((program (or (uiop:getenv "LIBTMUX_PROGRAM") "tmux"))
+       (daemon (libtmux:start-daemon :program program))
+       (socket-path (libtmux:daemon-socket-path daemon)))
+  (libtmux:with-client (client :program (libtmux:daemon-program daemon) :socket-path socket-path)
+    (libtmux.examples:observed-value
+     (libtmux:new-session client :name "work" :window-name "editor"
+                                 :width 120 :height 40 :command '("/bin/cat")))
     (let* ((snapshot (libtmux.examples:create-workspace client))
            (windows (libtmux:windows snapshot))
            (shared (find-if (lambda (window)
@@ -65,12 +66,11 @@
         (assert (not (string= "changed local data" (libtmux:id pane)))))
       (libtmux.examples::round-trip-bytes client)
       (let* ((session (aref (libtmux:sessions snapshot) 0))
-             (receipt (namestring (merge-pathnames "worker-receipt.txt"
-                                  (uiop:pathname-directory-pathname socket-path))))
-             (result (libtmux.examples::drive-worker
-                      client session socket-path program
-                      (namestring (truename (merge-pathnames "worker.sh" *load-truename*)))
-                      receipt)))
+             (result (uiop:with-temporary-file (:pathname receipt :keep nil)
+                       (libtmux.examples::drive-worker
+                        client session socket-path program
+                        (namestring (truename (merge-pathnames "worker.lisp" *load-truename*)))
+                        (namestring receipt)))))
         (assert (string= "release #{literal}; λ" (getf result :consumed))))
       (assert (eq 'libtmux:command-cancelled
                   (getf (libtmux.examples::cancelled-read client) :condition)))
@@ -100,4 +100,7 @@
       (assert (string= before-name (libtmux:name shared)))))
   (assert (= 3 (length (libtmux.examples:inspect-workspace socket-path :program program))))
   (libtmux.examples:terminate-owned-server socket-path :program program)
+  (libtmux:stop-daemon daemon)
+  (assert (not (probe-file (uiop:pathname-directory-pathname socket-path))))
+  (assert (zerop (length (libtmux:pending-daemon-cleanups))))
   (format t "EXAMPLES PASS: graph, links, native, compiled, relation, regex and JSON selection, declarative workspace, false/presence, ownership, refresh, bytes, capture, close, terminate, configuration printers~%"))

@@ -62,7 +62,7 @@ This describes two windows and three panes, from the
 Run the program on its own daemon:
 
 ```console
-$ mise exec -- tools/lisp.sh examples/owned-workspace.lisp
+$ mise exec -- sbcl --script examples/owned-workspace.lisp
 ```
 
 More: [owned workspaces](../docs/workspace-owned.md) ·

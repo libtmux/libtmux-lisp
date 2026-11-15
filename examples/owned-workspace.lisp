@@ -1,5 +1,4 @@
-(require :asdf)
-(asdf:load-asd (truename (merge-pathnames "../libtmux.asd" *load-truename*)))
+(load (merge-pathnames "../tools/load.lisp" *load-truename*))
 ;;; docs:ownedsetup
 (asdf:load-system "libtmux/workspace")
 
@@ -67,7 +66,7 @@
     data))
 ;;; docs:end
 
-(defun exercise-owned-workspace (client program document)
+(defun exercise-owned-workspace (client program socket-path document)
   "Check native/file declarations, identity-preserving edits and stopped work."
   (let* ((base (owned-description))
          (loaded (ws:read-workspace document))
@@ -78,11 +77,15 @@
     (assert (equalp (ws:workspace-data base) (ws:workspace-data loaded)))
     (setf (getf session :environment)
           (concatenate 'vector (getf session :environment)
-                       (vector (cons "DEMO_TMUX" program) (cons "DEMO_READY" ready))))
+                       (vector (cons "DEMO_TMUX" program) (cons "DEMO_SOCKET" socket-path)
+                               (cons "DEMO_READY" ready)
+                               (cons "DEMO_WORKER"
+                                     (namestring (truename (merge-pathnames "worker.lisp"
+                                                                            *load-truename*)))))))
     (setf (aref (getf (aref (getf session :windows) 0) :panes) 0)
           (list :id "shell" :shell-command
-                (concatenate 'string "printf '%s\\n' \"$DEMO_LABEL\"; "
-                             "\"$DEMO_TMUX\" wait-for -S \"$DEMO_READY\"; exec /bin/cat")))
+                (concatenate 'string "printf '%s\\n' \"$DEMO_LABEL\"; exec sbcl --script "
+                             "\"$DEMO_WORKER\" \"$DEMO_TMUX\" \"$DEMO_SOCKET\" \"$DEMO_READY\"")))
     (let ((workspace (ws:make-workspace data)))
       (multiple-value-bind (first before) (apply-owned-description client workspace)
         (assert (ws:result-created-p first))
@@ -90,7 +93,7 @@
         (assert (eq :succeeded
                     (tm:outcome-status
                      (tm:run-command client (list "-N" "wait-for" ready)
-                                     :effect :read :timeout 1 :output-limit 4096))))
+                                     :effect :read :timeout 30 :output-limit 4096))))
         (let* ((code (mapped-window before "code"))
                (shell-id (getf (aref (getf code :panes) 0) :physical-id))
                (shell (find shell-id (tm:panes (ws:result-snapshot first)) :key #'tm:id :test #'string=)))
@@ -138,6 +141,7 @@
       (document (merge-pathnames "owned-workspace.json" *load-truename*)))
   (tm:with-daemon (daemon :program program)
     (tm:with-client (client :program (tm:daemon-program daemon) :socket-path (tm:daemon-socket-path daemon))
-      (exercise-owned-workspace client (tm:daemon-program daemon) document)))
+      (exercise-owned-workspace client (tm:daemon-program daemon)
+                                (tm:daemon-socket-path daemon) document)))
   (assert (zerop (length (tm:pending-daemon-cleanups))))
-  (format t "OWNED WORKSPACE PASS: native/file declarations, printed-output notification, environment, stable IDs, reconcile, no-op, retained observations, unrelated session, stopped-work inspection~%"))
+  (format t "OWNED WORKSPACE PASS: native/file declarations, worker readiness signal, environment, stable IDs, reconcile, no-op, retained observations, unrelated session, stopped-work inspection~%"))

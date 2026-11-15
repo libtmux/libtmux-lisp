@@ -15,7 +15,7 @@ Complete the [source setup](../README.md#install-from-source), including locked
 optional dependencies. From the checkout root:
 
 ```console
-$ mise exec -- tools/lisp.sh examples/owned-workspace.lisp
+$ mise exec -- sbcl --script examples/owned-workspace.lisp
 ```
 
 The [program](../examples/owned-workspace.lisp):
@@ -207,17 +207,18 @@ retains partial `inspection-evidence` and a separate `inspection-terminal`.
 ## Use the CLI
 
 The separate `libtmux/workspace/cli` system ships
-[`bin/libtmux-workspace`](../bin/libtmux-workspace). Validation is local:
+[`tools/workspace-cli.lisp`](../tools/workspace-cli.lisp). Validation is local:
 
 ```console
-$ bin/libtmux-workspace validate examples/owned-workspace.json
+$ mise exec -- sbcl --script tools/workspace-cli.lisp validate examples/owned-workspace.json
 ```
 
 Success reports schema `libtmux.lisp.workspace/2`, ID `demo-workspace`, two
-windows and three panes. Show the accepted options:
+windows and three panes. Without arguments the program prints the accepted
+options and exits 2:
 
 ```console
-$ bin/libtmux-workspace --help
+$ mise exec -- sbcl --script tools/workspace-cli.lisp
 ```
 
 Options:

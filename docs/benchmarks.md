@@ -96,5 +96,5 @@ lived connections.
 This small fixture does not establish large-server scaling, stream throughput,
 retained-graph memory cost or reconnect behavior. Those remain separate work.
 See the [native workload](../tools/benchmark.lisp),
-[reporter](../tools/benchmark.py), [control guide](control.md) and
+[reporter](../scripts/benchmark/benchmark.lisp), [control guide](control.md) and
 [verification coverage](../verification.md).

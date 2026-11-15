@@ -1,9 +1,8 @@
-;;; Native workloads for the optional transport comparison. The Python driver
-;;; owns evidence/provenance; every timed operation here uses the Lisp library.
-(require :asdf)
+;;; Native workloads for the optional transport comparison. The reporter in
+;;; scripts/benchmark owns evidence/provenance; every timed operation here uses the Lisp library.
+(load (merge-pathnames "load.lisp" *load-truename*))
 (setf *compile-verbose* nil *load-verbose* nil)
 (declaim (sb-ext:muffle-conditions sb-ext:compiler-note))
-(asdf:load-asd (truename (merge-pathnames "../libtmux.asd" *load-truename*)))
 (asdf:load-system "libtmux/control")
 
 (defpackage #:libtmux.benchmark
