@@ -519,10 +519,8 @@
           (signals libtmux:stale-target
             (libtmux:show-options-text other :scope :session :target session)))
         (uiop:run-program
-         (list "/usr/bin/python3" "-c"
-               "import os,sys; os.execvp(os.fsencode(sys.argv[1]), [os.fsencode(x) for x in sys.argv[1:]] + [bytes([255])])"
-               (or (uiop:getenv "LIBTMUX_TEST_TMUX") "tmux") "-S" (fixture-socket fixture)
-               "-N" "set-option" "-s" "@invalid-utf8")
+         (child-command "exec-with-byte" (or (uiop:getenv "LIBTMUX_TEST_TMUX") "tmux")
+                        "-S" (fixture-socket fixture) "-N" "set-option" "-s" "@invalid-utf8")
          :force-shell nil :input nil :output :string :error-output :string)
         (if (eq :direct
                 (libtmux.internal::configuration-option-profile

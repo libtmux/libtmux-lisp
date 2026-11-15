@@ -133,26 +133,16 @@
              (window (libtmux:outcome-value
                       (libtmux:new-window
                        client session
-                       :command (list "/usr/bin/python3" "-c"
-                                      "import os,subprocess,sys,tty
-tty.setraw(0)
-def signal(name):
-    subprocess.run([sys.argv[2], '-N', '-S', sys.argv[3], 'wait-for', '-S', name], check=True)
-signal('paste-ready')
-data = b''
-while len(data) < int(sys.argv[4]):
-    data += os.read(0, int(sys.argv[4]) - len(data))
-with open(sys.argv[1], 'wb') as stream:
-    stream.write(data)
-signal('paste-consumed')
-os.read(0, 1)
-" path (or (uiop:getenv "LIBTMUX_TEST_TMUX") "tmux")
-                                      (fixture-socket fixture) (write-to-string (length data))))))
+                       :command (child-command "raw-read" path
+                                               (or (uiop:getenv "LIBTMUX_TEST_TMUX") "tmux")
+                                               (fixture-socket fixture)
+                                               "paste-ready" "paste-consumed"
+                                               (write-to-string (length data))))))
              (pane (aref (libtmux:panes window) 0)))
-        (libtmux:run-command client '("wait-for" "paste-ready") :effect :read :timeout 0.5)
+        (libtmux:run-command client '("wait-for" "paste-ready") :effect :read :timeout 5)
         (libtmux:set-buffer client data :name "payload")
         (is (eq :succeeded (libtmux:outcome-status
                            (libtmux:paste-buffer client pane :name "payload" :verbatim t :delete t))))
-        (libtmux:run-command client '("wait-for" "paste-consumed") :effect :read :timeout 0.5)
+        (libtmux:run-command client '("wait-for" "paste-consumed") :effect :read :timeout 5)
         (is (equalp data (read-file-octets path)))
         (is (zerop (length (libtmux:list-buffers client))))))))

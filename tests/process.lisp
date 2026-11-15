@@ -3,10 +3,7 @@
 (in-suite transport-integration)
 
 (defun process-arguments (mode &rest extra)
-  (append (list "/usr/bin/python3" "-u"
-                (namestring (asdf:system-relative-pathname "libtmux" "tests/process-child.py"))
-                mode)
-          extra))
+  (apply #'child-command mode extra))
 
 (defun process-case (mode &rest options)
   (let (process)

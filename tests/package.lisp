@@ -4,6 +4,13 @@
 
 (in-package #:libtmux.tests)
 
+(defun child-command (mode &rest arguments)
+  "Return argv that runs tests/child.lisp in MODE on this SBCL runtime and core."
+  (list* (uiop:native-namestring sb-ext:*runtime-pathname*) "--core" (uiop:native-namestring sb-ext:*core-pathname*)
+         "--script" (uiop:native-namestring
+                     (asdf:system-relative-pathname "libtmux" "tests/child.lisp"))
+         mode arguments))
+
 (defun public-workspace-function (name)
   (multiple-value-bind (symbol visibility) (find-symbol (string name) :libtmux.workspace)
     (unless (and (eq visibility :external) (fboundp symbol))

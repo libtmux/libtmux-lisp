@@ -180,12 +180,19 @@
           (is (search "SBCL on Linux x86-64" (libtmux:error-message condition))))))))
 
 (test script-program-error-identifies-selected-path
-  (let* ((path (namestring (asdf:system-relative-pathname "libtmux" "tools/lisp.sh")))
-         (condition (handler-case (libtmux.internal::native-program path)
-                      (libtmux:invalid-argument (condition) condition))))
-    (is (typep condition 'libtmux:invalid-argument))
-    (is (search path (libtmux:error-message condition)))
-    (is (search ":PROGRAM" (libtmux:error-message condition)))))
+  (let ((directory (sb-posix:mkdtemp "/tmp/libtmux-lisp-script-XXXXXX")))
+    (unwind-protect
+         (let* ((path (concatenate 'string directory "/not-native"))
+                (condition (progn
+                             (uiop:with-output-file (stream path)
+                               (write-line ";;; A script, not a native executable." stream))
+                             (sb-posix:chmod path #o700)
+                             (handler-case (libtmux.internal::native-program path)
+                               (libtmux:invalid-argument (condition) condition)))))
+           (is (typep condition 'libtmux:invalid-argument))
+           (is (search path (libtmux:error-message condition)))
+           (is (search ":PROGRAM" (libtmux:error-message condition))))
+      (uiop:delete-directory-tree (uiop:ensure-directory-pathname directory) :validate t))))
 
 (test platform-probe-failure-retains-cause-before-program-resolution
   (let ((original (symbol-function 'libtmux.internal::ensure-process-platform))

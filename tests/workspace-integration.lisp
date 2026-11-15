@@ -139,45 +139,42 @@
           (is (equal paths (map 'list #'libtmux:current-path
                                 (libtmux:panes large-window)))))))))
 
+(defun record-command (name)
+  "Shell source that execs the record child; the shell expands $WS_VALUE."
+  (format nil "exec ~{~A~^ ~} \"$WS_VALUE\""
+          (mapcar #'uiop:escape-sh-token (child-command "record" name))))
+
 (test workspace-explicit-shell-environment-and-custom-layout
   (with-tmux-fixture (fixture)
     (with-fixture-client (client fixture)
       (let* ((directory (namestring (fixture-directory fixture)))
-             (script (concatenate 'string directory "record.py"))
              (program (or (uiop:getenv "LIBTMUX_TEST_TMUX") "tmux"))
              (value "λ$; literal")
              (layout (libtmux:field-value
                       (aref (libtmux:windows (libtmux:fetch-snapshot client)) 0)
                       :window/layout)))
-        (with-open-file (stream script :direction :output :if-exists :error)
-          (write-string "import os, subprocess, sys
-with open(os.path.join(os.environ['WS_DIRECTORY'], sys.argv[1]), 'w') as stream:
-    stream.write(os.environ['WS_VALUE'] + '\\n' + sys.argv[2])
-subprocess.run([os.environ['WS_PROGRAM'], '-N', '-S', os.environ['WS_SOCKET'], 'wait-for', '-S', 'workspace-' + sys.argv[1]], check=True)
-sys.stdin.buffer.read()
-" stream))
         (let* ((workspace
                  (libtmux.workspace:make-workspace
                   `(:schema "libtmux.lisp.workspace/1"
                     :session
                     (:name "creation-inputs"
                      :environment ,(vector (cons "WS_VALUE" value)
-                                           (cons "WS_SCRIPT" script)
                                            (cons "WS_DIRECTORY" directory)
                                            (cons "WS_PROGRAM" program)
                                            (cons "WS_SOCKET" (fixture-socket fixture)))
                      :windows
                      #((:name "first"
-                        :panes #((:shell-command "exec /usr/bin/python3 \"$WS_SCRIPT\" first \"$WS_VALUE\"")
-                                 (:command ,(vector "/usr/bin/python3" script "split" "$WS_VALUE"))))
+                        :panes #((:shell-command ,(record-command "first"))
+                                 (:command ,(coerce (child-command "record" "split" "$WS_VALUE")
+                                                    'vector))))
                        (:name "second" :layout (:custom ,layout)
-                        :panes #((:shell-command "exec /usr/bin/python3 \"$WS_SCRIPT\" window \"$WS_VALUE\""))))))))
+                        :panes #((:shell-command ,(record-command "window")))))))))
                (result (libtmux.workspace:apply-workspace client workspace)))
           (is (every (lambda (outcome) (eq :succeeded (libtmux:outcome-status outcome)))
                      (libtmux.workspace:result-outcomes result)))
           (dolist (name '("first" "split" "window"))
             (libtmux:run-command client (list "wait-for" (concatenate 'string "workspace-" name))
-                                       :effect :read :timeout 0.5)
+                                       :effect :read :timeout 5)
             (is (string= (format nil "~A~%~A" value
                                  (if (string= name "split") "$WS_VALUE" value))
                          (uiop:read-file-string (concatenate 'string directory name)))))

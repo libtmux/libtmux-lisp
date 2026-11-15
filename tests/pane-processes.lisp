@@ -48,34 +48,23 @@
              (window (libtmux:outcome-value
                       (libtmux:new-window
                        client session
-                       :command (list "/usr/bin/python3" "-c"
-                                      "import os,subprocess,sys,tty
-tty.setraw(0)
-subprocess.run([sys.argv[1], '-N', '-S', sys.argv[2], 'wait-for', '-S', 'pane-pipe-ready'], check=True)
-os.read(0,1)
-os.write(1,sys.argv[3].encode())
-os.read(0,1)
-" binary (fixture-socket fixture) payload))))
+                       :command (child-command "raw-write" binary (fixture-socket fixture)
+                                               "pane-pipe-ready" payload))))
              (pane (aref (libtmux:panes window) 0))
-             (program "import subprocess,sys
-subprocess.run([sys.argv[2], '-N', '-S', sys.argv[3], 'wait-for', '-S', 'pipe-reader-ready'], check=True)
-data=sys.stdin.buffer.read(int(sys.argv[4]))
-with open(sys.argv[1], 'wb') as stream:
-    stream.write(data+sys.argv[5].encode())
-subprocess.run([sys.argv[2], '-N', '-S', sys.argv[3], 'wait-for', '-S', 'pipe-reader-consumed'], check=True)
-")
              (shell (format nil "~{~A~^ ~}"
                             (mapcar #'uiop:escape-sh-token
-                                    (list "/usr/bin/python3" "-c" program path binary
-                                          (fixture-socket fixture)
-                                          (write-to-string (length (libtmux.internal::encode-utf8 payload)))
-                                          literal)))))
-        (libtmux:run-command client '("wait-for" "pane-pipe-ready") :effect :read :timeout 0.5)
+                                    (child-command "pipe-reader" path binary
+                                                   (fixture-socket fixture)
+                                                   "pipe-reader-ready" "pipe-reader-consumed"
+                                                   (write-to-string
+                                                    (length (libtmux.internal::encode-utf8 payload)))
+                                                   literal)))))
+        (libtmux:run-command client '("wait-for" "pane-pipe-ready") :effect :read :timeout 5)
         (is (eq :succeeded (libtmux:outcome-status
                            (libtmux::pipe-pane client pane :shell-command shell))))
-        (libtmux:run-command client '("wait-for" "pipe-reader-ready") :effect :read :timeout 0.5)
+        (libtmux:run-command client '("wait-for" "pipe-reader-ready") :effect :read :timeout 5)
         (libtmux:send-text client pane "g")
-        (libtmux:run-command client '("wait-for" "pipe-reader-consumed") :effect :read :timeout 0.5)
+        (libtmux:run-command client '("wait-for" "pipe-reader-consumed") :effect :read :timeout 5)
         (is (equalp (libtmux.internal::encode-utf8 (concatenate 'string payload literal))
                     (read-file-octets path)))
         (is (eq :succeeded (libtmux:outcome-status (libtmux::pipe-pane client pane))))

@@ -125,8 +125,7 @@
 (test control-soft-timer-wakes-the-supervisor-without-aborting-the-process
   (let* ((start (libtmux.internal::monotonic-seconds))
          (job (libtmux.internal::make-process-job
-               :argv (libtmux.internal::argument-vector
-                      '("/usr/bin/python3" "-u" "-c" "print('ready', flush=True); input(); print('done', flush=True)"))
+               :argv (libtmux.internal::argument-vector (child-command "ready-done"))
                :input (libtmux.internal::octet-vector #()) :keep-input-open t
                :environment (libtmux.internal::process-environment)
                :token (libtmux:make-cancellation-token) :cap 1024
