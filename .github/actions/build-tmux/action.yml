@@ -18,11 +18,10 @@ runs:
   using: composite
   steps:
     - name: Install tmux build and runtime dependencies
-      shell: bash
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y --no-install-recommends \
-          autoconf automake byacc build-essential pkg-config libevent-dev libncurses-dev
+      uses: libtmux/.github/actions/apt-get@30f81842b1e639ea4e25f93f1f2543504178e228
+      with:
+        update: "true"
+        args: install --yes --no-install-recommends autoconf automake byacc build-essential pkg-config libevent-dev libncurses-dev
     - name: Identify the pinned source and build environment
       id: plan
       shell: bash
