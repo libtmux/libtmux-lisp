@@ -31,6 +31,8 @@ Start architecture or implementation only when requested.
   [.github/CONTRIBUTING.md](.github/CONTRIBUTING.md).
 - Documentation, comments, and commit messages:
   [.github/WRITING.md](.github/WRITING.md).
+- Support scripts: what may stay, their language, layout and checks:
+  [.github/SCRIPTS.md](.github/SCRIPTS.md).
 
 `CLAUDE.md` is a relative symlink to this file. Keep shared instructions here.
 
