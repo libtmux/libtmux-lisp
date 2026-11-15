@@ -102,11 +102,12 @@
            (setf ready (sb-posix:open ready-path (logior sb-posix:o-rdwr sb-posix:o-nonblock))
                  release (sb-posix:open release-path (logior sb-posix:o-rdwr sb-posix:o-nonblock)))
            (fixture-ok fixture "set-option" "-t" session "lock-command"
-                       (format nil "exec /bin/bash -c 'exec 3<>\"~A\"; printf \"%s\\n\" \"$$\" > \"~A\"; read -r -t 0.75 release <&3'"
-                               release-path ready-path))
+                       (format nil "exec ~{~A~^ ~}"
+                               (mapcar #'uiop:escape-sh-token
+                                       (child-command "lock-holder" ready-path release-path))))
            (funcall function
                     (lambda ()
-                      (unless (sb-sys:wait-until-fd-usable ready :input 0.5)
+                      (unless (sb-sys:wait-until-fd-usable ready :input 5)
                         (error "Owned lock command did not report readiness"))
                       (let* ((buffer (make-array 64 :element-type '(unsigned-byte 8)))
                              (length (sb-sys:with-pinned-objects (buffer)
@@ -121,7 +122,7 @@
              (when release
                (libtmux.internal::raw-write release (libtmux.internal::octet-vector #(120 10))))
              (when (and lock-pidfd (>= lock-pidfd 0))
-               (unless (sb-sys:wait-until-fd-usable lock-pidfd :input 0.5)
+               (unless (sb-sys:wait-until-fd-usable lock-pidfd :input 5)
                  (error "Owned lock command did not exit after release"))))
         (when (and lock-pidfd (>= lock-pidfd 0)) (sb-posix:close lock-pidfd))
         (when ready (sb-posix:close ready))

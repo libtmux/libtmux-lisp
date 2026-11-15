@@ -71,10 +71,9 @@
              (window (libtmux:outcome-value
                       (libtmux:new-window
                        client session
-                       :command (list "/bin/sh" "-c"
-                                      "cat; \"$1\" -N -S \"$2\" wait-for -S input-drained; exec cat"
-                                      "input-test" (or (uiop:getenv "LIBTMUX_TEST_TMUX") "tmux")
-                                      (fixture-socket fixture)))))
+                       :command (child-command "echo-until-eof"
+                                               (or (uiop:getenv "LIBTMUX_TEST_TMUX") "tmux")
+                                               (fixture-socket fixture) "input-drained"))))
              (pane (aref (libtmux:panes window) 0))
              (text "C-c literal #{pid}; λ$`"))
         (is (eq :succeeded (libtmux:outcome-status (libtmux:send-text client pane text :enter t))))

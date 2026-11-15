@@ -85,7 +85,7 @@
       (error "wait-for -S ~A failed" channel))))
 
 (defun make-raw ()
-  "Put standard input's terminal in raw mode, as Python's tty.setraw does."
+  "Put standard input's terminal in raw mode with cfmakeraw, after draining output and discarding unread input."
   (sb-alien:with-alien ((termios (array (sb-alien:unsigned 8) 128)))
     (let ((pointer (sb-alien:alien-sap termios)))
       (unless (zerop (sb-alien:alien-funcall
@@ -215,6 +215,25 @@
          (read-some 0 1)))
       ((string= mode "exec-with-byte")
        (exec-with-invalid-byte rest))
+      ((string= mode "echo-until-eof")
+       (destructuring-bind (program socket channel) rest
+         (flet ((echo ()
+                  (loop for chunk = (read-some 0 4096)
+                        until (zerop (length chunk))
+                        do (write-all 1 chunk))))
+           (echo)
+           (signal-channel program socket channel)
+           (echo))))
+      ((string= mode "record-environment")
+       (destructuring-bind (name path program socket channel) rest
+         (write-file-octets path (octets (or (sb-ext:posix-getenv name) "")))
+         (signal-channel program socket channel)))
+      ((string= mode "lock-holder")
+       (destructuring-bind (ready-path release-path) rest
+         (let ((release (sb-unix:unix-open release-path sb-unix:o_rdwr 0)))
+           (write-file-octets ready-path (octets (format nil "~D~%" (sb-unix:unix-getpid))))
+           (when (sb-sys:wait-until-fd-usable release :input 0.75)
+             (read-some release 1)))))
       ((string= mode "creation")
        (write-file-octets (sb-ext:posix-getenv "LIBTMUX_RESULT")
                           (join-with-nul (list* (sb-unix:posix-getcwd)

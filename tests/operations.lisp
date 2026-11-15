@@ -75,14 +75,14 @@
                 (program (or (uiop:getenv "LIBTMUX_TEST_TMUX") "tmux"))
                 (channel "environment-written"))
             (fixture-ok fixture "set-environment" "-u" "-t" "fixture" "LIBTMUX_ENCODING_TEST")
-            (fixture-ok fixture "new-window" "-d" "-t" "fixture" "/bin/sh" "-c"
-                        "printf '%s' \"$LIBTMUX_ENCODING_TEST\" > \"$1\" && exec \"$2\" -N -S \"$3\" wait-for -S \"$4\""
-                        "environment-probe" (namestring path) program (fixture-socket fixture) channel)
+            (apply #'fixture-ok fixture "new-window" "-d" "-t" "fixture"
+                   (child-command "record-environment" "LIBTMUX_ENCODING_TEST" (namestring path)
+                                  program (fixture-socket fixture) channel))
             (is (eq :succeeded
                     (libtmux:outcome-status
                      (libtmux.internal::run-process
                       (list program "-N" "-S" (fixture-socket fixture) "wait-for" channel)
-                      :timeout 0.5))))
+                      :timeout 5))))
             (is (equalp (libtmux.internal::encode-utf8 text) (read-file-octets path)))))))))
 
 (test successful-mutation-retains-failed-observation
