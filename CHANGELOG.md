@@ -15,6 +15,10 @@
 
 ### Fixed
 
+- Refuse a capability report when a socket handoff changes daemon identity
+  during acquisition. Preserve captured target authority and close temporary
+  witnesses on both success and refusal.
+
 - Run core and owned workspace examples in separate bounded child processes.
   Require both groups for passing source/archive evidence, preserving the
   60-second child cap and descendant cleanup checks. Negative tutorial tests
