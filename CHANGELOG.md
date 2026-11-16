@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+### Added
+
+- Inspect the responding daemon with `capabilities`, then use `capability`
+  and `supports-p` to choose an existing version-gated operation. Reports own
+  their metadata and remain historical after cleanup or replacement.
+- Queue the same observation with `libtmux.control:submit-capabilities` and
+  retrieve it with `await-capabilities`. Discovery preserves captured target
+  authority, starts no daemon and runs no hooks when its native
+  `list-commands` bootstrap spelling remains unaliased. The capability manifest
+  ships in the source archive. (#6)
+
 ### Fixed
 
 - Run core and owned workspace examples in separate bounded child processes.
