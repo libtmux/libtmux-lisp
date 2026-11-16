@@ -5,7 +5,8 @@
            #:error-connection #:open-connection #:close-connection #:with-connection
            #:connection-state #:connection-failure #:connection-cleanup-failures
            #:pending-cleanups #:submit-command #:await-request #:request-state
-           #:cancel-request #:next-event #:reconnect #:with-reconnection #:connection-stale)
+           #:cancel-request #:next-event #:reconnect #:with-reconnection #:connection-stale
+           #:capability-request #:submit-capabilities #:await-capabilities)
   (:documentation "Persistent native tmux commands and bounded byte events.
 Load the optional LIBTMUX/CONTROL system. The qualified backend requires the
 core SBCL/Linux profile and an actual tmux daemon >=3.8. Connections own a
@@ -36,6 +37,13 @@ See also: OPEN-CONNECTION, RECONNECT, CONNECTION-STATE, PENDING-CLEANUPS."))
   (:documentation "One queued command and its retained dispatch/result evidence.
 Keep this handle to await or cancel work. A wait timeout leaves it live.
 See also: SUBMIT-COMMAND, AWAIT-REQUEST, CANCEL-REQUEST."))
+
+(defclass capability-request (request)
+  ((witness :initarg :witness :reader %capability-witness))
+  (:documentation "A queued capability read bound to the original control daemon.
+Use AWAIT-CAPABILITIES for a typed report; AWAIT-REQUEST retains raw evidence.
+REQUEST-STATE and CANCEL-REQUEST have the ordinary request semantics.
+See also: SUBMIT-CAPABILITIES, AWAIT-CAPABILITIES, CANCEL-REQUEST."))
 
 (defgeneric error-connection (condition)
   (:documentation "Return the retained connection implicated in a CONNECTION-ERROR. No I/O.
@@ -286,6 +294,64 @@ See also: AWAIT-REQUEST, CANCEL-REQUEST."
     (libtmux.internal::with-control-lock
      (libtmux.internal::control-request-peer handle)
      (lambda () (libtmux.internal::control-request-state handle)))))
+
+(defun submit-capabilities (connection &key (timeout 5))
+  "Queue a daemon capability read and return a CAPABILITY-REQUEST immediately.
+The existing worker, bounded queue, reply limit and submission deadline own
+execution. No core-client lease or subprocess fallback is used; closing the
+original core client does not prevent this independent connection's read.
+
+The built-in list-commands spelling is trusted, as for LIBTMUX:CAPABILITIES.
+Neither this read nor its completion marker invokes after-hooks. No endpoint
+lookup or generation renewal occurs. A closed/full connection signals
+CONNECTION-CLOSED/CONNECTION-BUSY. TIMEOUT includes queue time in seconds.
+See also: AWAIT-CAPABILITIES, CANCEL-REQUEST, LIBTMUX:CAPABILITIES."
+  (check-type connection connection)
+  (let* ((peer (%peer connection))
+         (witness (libtmux.internal::with-control-lock
+                   peer (lambda () (libtmux.internal::owned-data
+                                    (libtmux.internal::control-peer-origin-witness peer)))))
+         (request (submit-command connection (rest (libtmux.internal::row-command :witness))
+                                  :effect :read :timeout timeout)))
+    (make-instance 'capability-request :handle (%handle request) :witness witness)))
+
+(defun await-capabilities (request &key (timeout 30))
+  "Return REPORT, :READY and raw RESULT when REQUEST's live proof succeeds.
+TIMEOUT follows AWAIT-REQUEST: zero polls, NIL waits without a limit, and a wait
+timeout returns NIL, :TIMEOUT, NIL without cancelling the request. A terminal
+failed/cancelled/timed-out/closed request returns NIL, :READY and its retained
+result; inspect :STATUS. No supported-looking report replaces failed work.
+
+Successful output must match the original daemon's PID, start time, socket
+and version. Malformed or mismatched data signals DECODING-ERROR or
+INCOMPLETE-SNAPSHOT; an unknown release signals UNSUPPORTED-TMUX. The request
+still retains its raw result through AWAIT-REQUEST. Repeated successful reads
+return independent reports and preserve captured core authority.
+See also: SUBMIT-CAPABILITIES, AWAIT-REQUEST, LIBTMUX:CAPABILITY-REPORT."
+  (check-type request capability-request)
+  (multiple-value-bind (result delivery) (await-request request :timeout timeout)
+    (unless (and (eq delivery :ready) (eq (getf result :status) :completed))
+      (return-from await-capabilities (values nil delivery result)))
+    (when (or (getf result :truncated-p) (plusp (length (getf result :wire-tail))))
+      (error 'libtmux:decoding-error :message "Capability reply contains incomplete control data"))
+    (let* ((rows (libtmux.internal::decode-rows :witness (getf result :output)
+                                             :row-limit 1 :field-limit 8192))
+           (expected (%capability-witness request)))
+      (unless (and (= 1 (length rows)) (= 8 (length expected)))
+        (libtmux.internal::inconsistent-capture "Expected one original control capability witness"))
+      (let ((row (aref rows 0)))
+        (unless (equal (list (libtmux.internal::row-value row :server/pid)
+                            (libtmux.internal::row-value row :server/start-time)
+                            (libtmux.internal::row-value row :server/socket-path)
+                            (libtmux.internal::row-value row :server/version))
+                       (list (first expected) (second expected) (third expected) (fifth expected)))
+          (libtmux.internal::inconsistent-capture "Capability reply differs from the original control daemon")))
+      (values (libtmux.internal::report-from-provenance
+               (list :server/pid (first expected) :server/start-time (second expected)
+                     :server/socket-path (third expected) :server/version (fifth expected)
+                     :server/socket-device (sixth expected) :server/socket-inode (seventh expected)
+                     :server/process-start (eighth expected)))
+              delivery result))))
 
 (defun await-request (request &key (timeout 30))
   "Wait for owned result/:READY, or return NIL/:TIMEOUT without cancelling.

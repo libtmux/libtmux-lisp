@@ -288,7 +288,7 @@ See also: SHOW-HOOKS-TEXT, SHOW-ENVIRONMENT-TEXT, SET-OPTION, ERROR-OUTCOME."
                     (when name
                       (list "--" (libtmux.internal::literal-format
                                   (libtmux.internal::text-argument name "Option reference" nil)))))
-     :targets targets :minimum-version (when format "3.8") :feature :option-listing-format
+     :targets targets :feature (when format :option-listing-format)
      :cancel-token cancel-token :timeout timeout :output-limit output-limit)))
 
 (defun show-hooks-text (client &key scope target name format monitors cancel-token timeout output-limit)
@@ -316,8 +316,7 @@ See also: SHOW-OPTIONS-TEXT, SET-HOOK, UNSET-HOOK, ERROR-OUTCOME."
                     (when name
                       (list "--" (libtmux.internal::literal-format
                                   (libtmux.internal::text-argument name "Hook reference" nil)))))
-     :targets targets :minimum-version (when (or format monitors) "3.8")
-     :feature (if monitors :hook-monitor-listing :hook-listing-format)
+     :targets targets :feature (cond (monitors :hook-monitor-listing) (format :hook-listing-format))
      :cancel-token cancel-token :timeout timeout :output-limit output-limit)))
 
 (defun show-environment-text (client &key scope target name hidden shell-format

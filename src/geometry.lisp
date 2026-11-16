@@ -89,7 +89,7 @@ See also: NEXT-LAYOUT, PREVIOUS-LAYOUT, OUTCOME-VALUE."
     (libtmux.internal::operate-on-target
      client window :window "select-layout" (list "--" argument) observe
      (append (list :cancel-token cancel-token :timeout timeout :output-limit output-limit)
-             (when json-p '(:minimum-version "3.8" :feature :json-layout))))))
+             (when json-p '(:feature :json-layout))))))
 
 (defun next-layout (client window &key (observe t) cancel-token timeout output-limit)
   "Cycle WINDOW to tmux's next layout; return an outcome and optional replacement.

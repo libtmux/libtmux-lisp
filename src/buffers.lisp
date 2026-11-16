@@ -140,7 +140,7 @@ or an operational condition."
            (libtmux.internal::buffer-name-arguments name)
            (when separator (list "-s" (libtmux.internal::text-argument separator "Paste separator")))
            (when (or raw verbatim) '("-r")) (when bracketed '("-p")) (when delete '("-d")))
-   :version-flags (when verbatim '(("3.7" "-S")))
+   :version-flags (when verbatim '((:verbatim-paste-flag "-S")))
    :cancel-token cancel-token :timeout timeout :output-limit output-limit))
 
 (defun delete-buffer (client &key name cancel-token timeout output-limit)
@@ -152,5 +152,5 @@ buffer. A name identifies the buffer at dispatch, not an earlier incarnation.
 Signals an operational condition on failure; never retries an unknown deletion."
   (libtmux.internal::perform-command
    client nil (append '("delete-buffer") (libtmux.internal::buffer-name-arguments name))
-   :minimum-version (when name "3.4") :feature :named-buffer-deletion
+   :feature (when name :named-buffer-deletion)
    :cancel-token cancel-token :timeout timeout :output-limit output-limit))

@@ -1,4 +1,53 @@
-# Capabilities and current limits
+# Capability reports and current limits
+
+Use [`libtmux:capabilities`](api.md#capabilities-function) to observe the selected
+daemon, then [`capability`](api.md#capability-function) to inspect a requirement
+or [`supports-p`](api.md#supports-p-function) to choose a native path. Run the
+[complete example](../examples/capabilities.lisp):
+
+```console
+$ mise exec -- sbcl --script examples/capabilities.lisp
+```
+
+The report contains the observed release, daemon provenance and feature plists.
+Each feature names its minimum release, affected APIs, native commands,
+support decision and handling. `:escaped-format` and `:raw-paste` identify
+existing fallbacks; `:reject` means the operation signals
+[`unsupported-capability`](api.md#unsupported-capability-type).
+An unknown feature signals [`invalid-argument`](api.md#invalid-argument-type).
+The generated [capability manifest](../capabilities.json) uses the same registry.
+
+Readers return owned copies without I/O. Reports remain historical after
+cleanup or daemon replacement; they do not renew captured targets, grant
+permission or bypass exact option, field and workspace schema checks.
+Discovery uses the daemon's live reply, not the cached executable release from
+[`tmux-version`](api.md#tmux-version-function).
+
+Core discovery blocks under the client's existing operation lease. Its timeout,
+cancellation token and output limit bound native work. It starts no daemon and
+invokes no after-hooks. Keep tmux's native `list-commands` spelling unaliased,
+including while discovery runs: an administrator who replaces that bootstrap
+command can execute arbitrary server code. Discovery does not audit aliases
+with `show-options`, because that command can itself invoke an after-hook.
+
+The optional control system offers
+[`submit-capabilities`](control-api.md#submit-capabilities-function) and
+[`await-capabilities`](control-api.md#await-capabilities-function). Submission
+returns a request promptly; retrieval returns three values: report, delivery
+and raw request result. A completed observation yields the report and `:ready`.
+A wait timeout yields `nil`, `:timeout`, `nil` and does not cancel the request.
+A terminal request failure yields `nil`, `:ready` and its failure result.
+Malformed or mismatched successful replies signal the existing decode or
+continuity condition; they never produce a report from cached peer data.
+
+Use [`cancel-request`](control-api.md#cancel-request-function) for explicit
+cancellation. Cancelling queued work removes it; cancelling active work closes
+the connection. Closing a connection settles its requests. Discovery stays on
+the original peer even if its socket path moves or its parent core client
+closes. It never rebinds to a replacement daemon. See
+[control ownership and bounds](control.md#submission-completion-and-cancellation).
+
+## Current surface
 
 Bounded, blocking tmux automation from SBCL on Linux.
 
@@ -23,8 +72,8 @@ Bounded, blocking tmux automation from SBCL on Linux.
 
 ## Concurrency
 
-- Public operations block their caller. There is no asyncio or event-loop
-  integration.
+- Core operations block their caller. Optional control submission uses its
+  existing worker; waiting for a result blocks only the waiting caller.
 - Independent clients can run independent operations. Their identity contexts
   differ: never pass one client's observations to another for mutation.
 - `pipe-pane` promises no terminal output stream and no lossless event replay.

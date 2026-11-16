@@ -298,6 +298,7 @@
             (example context "managed-daemon.lisp")
             (example context "drive-panes.lisp")
             (example context "configuration.lisp")
+            (example context "capabilities.lisp")
             (if (control-example-p context)
                 (progn (example context "control.lisp" :directory (context-root context))
                        (put "persistent_control" "PASS"))

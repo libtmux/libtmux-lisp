@@ -69,6 +69,11 @@ nicknames are `libtmux` and `libtmux.control`.
 
 ## Submission, completion and cancellation
 
+Use [`submit-capabilities`](control-api.md#submit-capabilities-function) for a
+typed observation of the connected daemon's version gates. It shares this
+request queue and cancellation policy. See the
+[report contract and runnable example](capabilities.md).
+
 [`submit-command`](control-api.md#submit-command-function) copies a finite tmux
 argv sequence and returns a request handle promptly.
 

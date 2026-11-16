@@ -1,0 +1,226 @@
+{
+  "schema": "libtmux-capabilities/1",
+  "port": "lisp",
+  "floor": {
+    "minimum": "3.3a"
+  },
+  "capabilities": [
+    {
+      "id": "named-buffer-deletion",
+      "name": "Named buffer deletion",
+      "summary": "Delete a selected paste buffer by name.",
+      "since": "3.4",
+      "handling": "refuse",
+      "error": "libtmux:unsupported-capability",
+      "apis": [
+        "libtmux:delete-buffer"
+      ],
+      "commands": [
+        {
+          "command": "delete-buffer",
+          "flags": [
+            "-b"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "literal-message-flag",
+      "name": "Literal message flag",
+      "summary": "Print a message without expanding tmux formats.",
+      "since": "3.4",
+      "handling": "fallback",
+      "error": false,
+      "fallback": "escaped-format",
+      "apis": [
+        "libtmux:display-message"
+      ],
+      "commands": [
+        {
+          "command": "display-message",
+          "flags": [
+            "-l"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "verbatim-paste-flag",
+      "name": "Verbatim paste flag",
+      "summary": "Paste without bracketed-paste markers.",
+      "since": "3.7",
+      "handling": "fallback",
+      "error": false,
+      "fallback": "raw-paste",
+      "apis": [
+        "libtmux:paste-buffer"
+      ],
+      "commands": [
+        {
+          "command": "paste-buffer",
+          "flags": [
+            "-S"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "key-listing-format",
+      "name": "Formatted key listings",
+      "summary": "Choose the format used to print key bindings.",
+      "since": "3.7",
+      "handling": "refuse",
+      "error": "libtmux:unsupported-capability",
+      "apis": [
+        "libtmux:list-keys"
+      ],
+      "commands": [
+        {
+          "command": "list-keys",
+          "flags": [
+            "-F"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "group-server-access",
+      "name": "Group server access",
+      "summary": "Inspect or change access for a Unix group.",
+      "since": "3.8",
+      "handling": "refuse",
+      "error": "libtmux:unsupported-capability",
+      "apis": [
+        "libtmux:server-access"
+      ],
+      "commands": [
+        {
+          "command": "server-access",
+          "flags": [
+            "-g"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "wait-channel-disconnect-cleanup",
+      "name": "Wait channel cleanup",
+      "summary": "Release blocked wait and lock operations when their client disconnects.",
+      "since": "3.8",
+      "handling": "refuse",
+      "error": "libtmux:unsupported-capability",
+      "apis": [
+        "libtmux:wait-for"
+      ],
+      "commands": [
+        {
+          "command": "wait-for",
+          "flags": [
+            "-L"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "control",
+      "name": "Persistent control connection",
+      "summary": "Submit bounded requests and receive pane output on one worker-owned connection.",
+      "since": "3.8",
+      "handling": "refuse",
+      "error": "libtmux:unsupported-capability",
+      "apis": [
+        "libtmux.control:open-connection",
+        "libtmux.control:reconnect"
+      ],
+      "commands": [
+        {
+          "command": "tmux",
+          "flags": [
+            "-C"
+          ]
+        },
+        {
+          "command": "attach-session",
+          "flags": [
+            "-E",
+            "-t"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "json-layout",
+      "name": "JSON window layouts",
+      "summary": "Apply a window layout represented as JSON.",
+      "since": "3.8",
+      "handling": "refuse",
+      "error": "libtmux:unsupported-capability",
+      "apis": [
+        "libtmux:select-layout"
+      ],
+      "commands": [
+        {
+          "command": "select-layout",
+          "flags": []
+        }
+      ]
+    },
+    {
+      "id": "option-listing-format",
+      "name": "Formatted option listings",
+      "summary": "Choose the format used by the native option printer.",
+      "since": "3.8",
+      "handling": "refuse",
+      "error": "libtmux:unsupported-capability",
+      "apis": [
+        "libtmux:show-options-text"
+      ],
+      "commands": [
+        {
+          "command": "show-options",
+          "flags": [
+            "-F"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "hook-listing-format",
+      "name": "Formatted hook listings",
+      "summary": "Choose the format used by the native hook printer.",
+      "since": "3.8",
+      "handling": "refuse",
+      "error": "libtmux:unsupported-capability",
+      "apis": [
+        "libtmux:show-hooks-text"
+      ],
+      "commands": [
+        {
+          "command": "show-hooks",
+          "flags": [
+            "-F"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "hook-monitor-listing",
+      "name": "Hook monitor listings",
+      "summary": "Include hook monitors in native hook inspection.",
+      "since": "3.8",
+      "handling": "refuse",
+      "error": "libtmux:unsupported-capability",
+      "apis": [
+        "libtmux:show-hooks-text"
+      ],
+      "commands": [
+        {
+          "command": "show-hooks",
+          "flags": [
+            "-B"
+          ]
+        }
+      ]
+    }
+  ]
+}

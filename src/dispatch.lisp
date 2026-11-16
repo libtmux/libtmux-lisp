@@ -203,9 +203,10 @@ Co-released consumers retain their original context across targetless operations
                            :required-version (libtmux:error-required-version condition)
                            :actual-version (libtmux:error-actual-version condition))))))))
 
-(defun check-command-capability (client feature minimum-version)
-  (let ((actual (server-witness-version (slot-value client 'libtmux::witness))))
-    (unless (version-at-least-p actual minimum-version)
+(defun check-command-capability (client feature)
+  (let ((actual (server-witness-version (slot-value client 'libtmux::witness)))
+        (minimum-version (getf (capability-entry feature) :minimum-version)))
+    (unless (feature-supported-p actual feature)
       (error 'libtmux:unsupported-capability :feature feature
              :required-version minimum-version :actual-version actual
              :message (format nil "~A requires tmux ~A or newer; live daemon is ~A"
@@ -213,13 +214,13 @@ Co-released consumers retain their original context across targetless operations
 
 (defun command-version-flags (client arguments version-flags)
   (let* ((actual (server-witness-version (slot-value client 'libtmux::witness)))
-         (flags (loop for (minimum . flags) in version-flags
-                      when (version-at-least-p actual minimum) append flags))
+         (flags (loop for (feature . flags) in version-flags
+                      when (feature-supported-p actual feature) append flags))
          (boundary (or (position "--" arguments :test #'string=) (length arguments))))
     (append (subseq arguments 0 boundary) flags (nthcdr boundary arguments))))
 
 (defun perform-command (client targets arguments &key input cancel-token timeout output-limit observe
-                                                    minimum-version feature version-flags raw-read
+                                                    feature version-flags raw-read
                                                     argument-builder
                        &aux (preconditions (owned-dispatch-preconditions *dispatch-preconditions*))
                          (context-check *dispatch-context-check*))
@@ -245,8 +246,7 @@ Co-released consumers retain their original context across targetless operations
               (budget (make-capture-budget :start start :deadline (+ start timeout)
                                            :remaining output-limit :row-limit 100000 :field-limit 1048576))
               (current (handler-case (prog1 (preflight-targets client targets token budget)
-                                      (when minimum-version
-                                        (check-command-capability client feature minimum-version)))
+                                      (when feature (check-command-capability client feature)))
                          (libtmux:libtmux-error (condition)
                            (preflight-failure client arguments start condition))))
               (witness (slot-value client 'libtmux::witness))

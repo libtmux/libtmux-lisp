@@ -27,7 +27,7 @@ README.
 | [Query JSON API](json-api.md) | Generated codec signatures and document conditions |
 | [Workspace API](workspace-api.md) | Generated workspace, plan, result, condition and CLI reference |
 | [Captured fields](fields.md) | Generated typed field/relation registry |
-| [Capabilities and limits](capabilities.md) | Platform, concurrency, planned modules, gaps |
+| [Capability reports and limits](capabilities.md) | Live daemon version gates, owned reports, control discovery and remaining gaps |
 | [Benchmarks](benchmarks.md) | Native read paths and acquisition cost |
 | [Testing](testing.md) | FiveAM workflow and isolated tmux |
 | [Source modules](modules.md) | Generated implementation responsibility map |

@@ -72,10 +72,68 @@
 (test supported-version-floor
   (signals libtmux:unsupported-tmux (libtmux.internal::supported-version "3.3"))
   (signals libtmux:unsupported-tmux (libtmux.internal::supported-version "3.2a"))
-  (signals libtmux:unsupported-tmux (libtmux.internal::supported-version "next-3.8"))
+  (signals libtmux:unsupported-tmux (libtmux.internal::supported-version "3.3-rc1"))
   (dolist (version '("3.3a" "3.4" "3.5" "3.5a" "3.6" "3.6a" "3.6b"
                      "3.7" "3.7a" "3.7b" "3.7c" "3.8"))
     (is (equal version (libtmux.internal::supported-version version)))))
+
+(test capabilities-are-public
+  (multiple-value-bind (symbol visibility) (find-symbol "CAPABILITIES" :libtmux)
+    (is (eq :external visibility))
+    (is (and symbol (fboundp symbol)))))
+
+(test release-ordering-is-anchored
+  (dolist (pair '(("3.8" "3.8-rc3") ("3.8-rc3" "3.8-rc2")
+                  ("3.8-rc2" "next-3.8") ("next-3.9" "3.8a")
+                  ("3.8a" "3.8") ("3.10" "3.9")))
+    (is (libtmux.internal::version-at-least-p (first pair) (second pair)))
+    (is (not (libtmux.internal::version-at-least-p (second pair) (first pair)))))
+  (dolist (version '(" 3.8" "3.8 " "tmux 3.8" "3.8-rc0" "3.8-rc" "next-next-3.8"))
+    (signals libtmux:unsupported-tmux (libtmux.internal::version-components version))))
+
+(test capability-reports-own-their-metadata
+  (let* ((source (list :server/version (copy-seq "3.3a") :server/pid 1))
+         (report (libtmux.internal::report-from-provenance source))
+         (feature (libtmux:capability report :named-buffer-deletion))
+         (features (libtmux:capability-features report))
+         (provenance (libtmux:capability-provenance report)))
+    (is (not (libtmux:supports-p report :named-buffer-deletion)))
+    (is (eq :reject (getf feature :handling)))
+    (is (eq :escaped-format (getf (libtmux:capability report :literal-message-flag) :handling)))
+    (is (eq :raw-paste (getf (libtmux:capability report :verbatim-paste-flag) :handling)))
+    (setf (char (getf source :server/version) 0) #\9
+          (char (getf provenance :server/version) 0) #\8
+          (char (getf feature :minimum-version) 0) #\7
+          (char (first (getf feature :apis)) 0) #\X
+          (getf (aref features 0) :supported-p) t)
+    (is (string= "3.3a" (libtmux:capability-version report)))
+    (is (string= "3.4" (getf (libtmux:capability report :named-buffer-deletion) :minimum-version)))
+    (is (string= "libtmux:delete-buffer" (first (getf (libtmux:capability report :named-buffer-deletion) :apis))))
+    (is (not (libtmux:supports-p report :named-buffer-deletion)))
+    (signals libtmux:invalid-argument (libtmux:capability report :unknown))
+    (signals libtmux:invalid-argument (libtmux:supports-p report "json-layout")))
+  (let ((report (libtmux.internal::report-from-provenance '(:server/version "3.8"))))
+    (is (every (lambda (entry) (getf entry :supported-p)) (libtmux:capability-features report))))
+  (let ((report (libtmux.internal::report-from-provenance '(:server/version "3.8-rc2"))))
+    (is (not (libtmux:supports-p report :json-layout)))
+    (is (libtmux:supports-p report :key-listing-format)))
+  (dolist (boundary '(("3.4-rc2" :named-buffer-deletion nil) ("3.4" :named-buffer-deletion t)
+                      ("3.7-rc2" :key-listing-format nil) ("3.7" :key-listing-format t)))
+    (destructuring-bind (version feature supported) boundary
+      (is (eq supported (libtmux:supports-p
+                         (libtmux.internal::report-from-provenance (list :server/version version))
+                         feature))))))
+
+(test capability-discovery-refuses-without-launching
+  (let ((client (make-instance 'libtmux:client))
+        (token (libtmux:make-cancellation-token))
+        (libtmux.internal::*process-launched-hook*
+          (lambda (job) (declare (ignore job)) (error "Refused discovery launched a process"))))
+    (libtmux:cancel token)
+    (signals libtmux:command-cancelled (libtmux:capabilities client :cancel-token token))
+    (signals libtmux:deadline-exceeded (libtmux:capabilities client :timeout 0))
+    (libtmux:close-client client)
+    (signals libtmux:client-closed (libtmux:capabilities client))))
 
 (test cancellation-without-resource-allocation
   (let ((token (libtmux:make-cancellation-token)))

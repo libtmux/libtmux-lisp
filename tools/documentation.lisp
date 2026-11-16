@@ -142,6 +142,7 @@
 
 (defparameter *index-groups*
   '(("Connect and manage lifetime" "client")
+    ("Discover daemon capabilities" "capabilities")
     ("Start and stop owned daemons" "daemon")
     ("Acquire, traverse and project captured graphs" "capture" "model")
     ("Inspect outcomes and cancel work" "transport")
@@ -752,6 +753,44 @@
                   (or (asdf/component:component-description component)
                       (error "Missing module description: ~A" component))))))))
 
+(defun render-capabilities ()
+  (with-output-to-string (stream)
+    (com.inuoe.jzon:with-writer (writer :stream stream :pretty t)
+      (com.inuoe.jzon:with-object writer
+        (com.inuoe.jzon:write-key writer "schema")
+        (com.inuoe.jzon:write-value writer "libtmux-capabilities/1")
+        (com.inuoe.jzon:write-key writer "port")
+        (com.inuoe.jzon:write-value writer "lisp")
+        (com.inuoe.jzon:write-key writer "floor")
+        (com.inuoe.jzon:with-object writer
+          (com.inuoe.jzon:write-key writer "minimum")
+          (com.inuoe.jzon:write-value writer "3.3a"))
+        (com.inuoe.jzon:write-key writer "capabilities")
+        (com.inuoe.jzon:with-array writer
+          (dolist (entry internal::*capability-registry*)
+            (com.inuoe.jzon:with-object writer
+              (dolist (pair (list (cons "id" (string-downcase (getf entry :feature)))
+                                 (cons "name" (getf entry :name))
+                                 (cons "summary" (getf entry :summary))
+                                 (cons "since" (getf entry :minimum-version))
+                                 (cons "handling" (if (getf entry :fallback) "fallback" "refuse"))
+                                 (cons "error" (unless (getf entry :fallback) "libtmux:unsupported-capability"))))
+                (com.inuoe.jzon:write-key writer (car pair))
+                (com.inuoe.jzon:write-value writer (cdr pair)))
+              (when (getf entry :fallback)
+                (com.inuoe.jzon:write-key writer "fallback")
+                (com.inuoe.jzon:write-value writer (string-downcase (getf entry :fallback))))
+              (com.inuoe.jzon:write-key writer "apis")
+              (write-string-array writer (getf entry :apis))
+              (com.inuoe.jzon:write-key writer "commands")
+              (com.inuoe.jzon:with-array writer
+                (dolist (command (getf entry :commands))
+                  (com.inuoe.jzon:with-object writer
+                    (com.inuoe.jzon:write-key writer "command")
+                    (com.inuoe.jzon:write-value writer (getf command :name))
+                    (com.inuoe.jzon:write-key writer "flags")
+                    (write-string-array writer (getf command :flags))))))))))))
+
 (defun synchronize (path text write-p)
   (let ((text (concatenate 'string (string-right-trim '(#\Newline) text)
                            (string #\Newline))))
@@ -773,5 +812,6 @@
   (synchronize "docs/workspace-api.md" (render-workspace-api) write-p)
   (synchronize "docs/fields.md" (render-fields) write-p)
   (synchronize "docs/modules.md" (render-modules) write-p)
+  (synchronize "capabilities.json" (render-capabilities) write-p)
   (when artifact-p (write-api-artifact artifact-path))
   (format t "Public docstrings, API signatures, fields and module documentation: PASS~%"))

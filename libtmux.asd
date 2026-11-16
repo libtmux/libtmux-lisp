@@ -34,6 +34,8 @@
                       :description "Server generation authority using socket and Linux process identities.")
                (:file "src/capture"
                       :description "Explicit bounded acquisition and replacement observations.")
+               (:file "src/capabilities"
+                      :description "Live daemon reports and shared native command requirements.")
                (:file "src/daemon"
                       :description "Owned daemon resources, startup diagnostics and lexical shutdown scopes.")
                (:file "src/daemon-sbcl" :if-feature (:and :sbcl :linux :x86-64)
@@ -270,6 +272,7 @@
                (:file "tests/process")
                (:file "tests/daemon")
                (:file "tests/capture")
+               (:file "tests/capabilities")
                (:file "tests/control-peer")
                (:file "tests/operations")
                (:file "tests/configuration-reads")

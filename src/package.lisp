@@ -55,6 +55,8 @@ See docs/index.md for the tutorial, API reference and current capability limits.
    #:cancellation-token #:make-cancellation-token #:cancel #:cancelled-p
    #:client #:open-client #:close-client #:with-client #:client-open-p
    #:client-cleanup-failures #:tmux-version #:run-command
+   #:capabilities #:capability-report #:capability-version #:capability-provenance
+   #:capability-features #:capability #:supports-p
    #:daemon #:start-daemon #:stop-daemon #:with-daemon #:daemon-state
    #:daemon-program #:daemon-socket-path #:daemon-failure #:daemon-cleanup-failures
    #:pending-daemon-cleanups #:daemon-start-failed #:daemon-cleanup-failed #:error-daemon))
