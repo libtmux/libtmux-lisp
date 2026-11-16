@@ -314,7 +314,9 @@ Starts no daemon, invokes no after-hooks and does not change cached executable
 version, captured generation or target authority. The built-in list-commands
 bootstrap spelling is trusted: its configured command-alias override may run
 arbitrary server code. Discovery does not audit aliases through show-options,
-which can itself run after-hooks. Each call observes the selected endpoint; a saved report remains historical after replacement.
+which can itself run after-hooks. Two temporary witnesses must agree within
+the same deadline and byte budget. This observes an acquisition interval;
+it does not reserve the endpoint. A saved report remains historical.
 
 Closed/busy clients, cancellation, deadlines, byte limits, malformed records,
 unsupported releases and lost continuity signal the existing typed conditions.

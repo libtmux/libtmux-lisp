@@ -25,7 +25,11 @@ Discovery uses the daemon's live reply, not the cached executable release from
 
 Core discovery blocks under the client's existing operation lease. Its timeout,
 cancellation token and output limit bound native work. It starts no daemon and
-invokes no after-hooks. Keep tmux's native `list-commands` spelling unaliased,
+invokes no after-hooks. Two temporary witnesses must agree within the same
+deadline and combined byte budget. This observes an acquisition interval; it
+does not reserve the endpoint or keep a returned report live.
+
+Keep tmux's native `list-commands` spelling unaliased,
 including while discovery runs: an administrator who replaces that bootstrap
 command can execute arbitrary server code. Discovery does not audit aliases
 with `show-options`, because that command can itself invoke an after-hook.

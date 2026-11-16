@@ -126,7 +126,9 @@ Starts no daemon, invokes no after-hooks and does not change cached executable
 version, captured generation or target authority. The built-in list-commands
 bootstrap spelling is trusted: its configured command-alias override may run
 arbitrary server code. Discovery does not audit aliases through show-options,
-which can itself run after-hooks. Each call observes the selected endpoint; a saved report remains historical after replacement.
+which can itself run after-hooks. Two temporary witnesses must agree within
+the same deadline and byte budget. This observes an acquisition interval;
+it does not reserve the endpoint. A saved report remains historical.
 
 Closed/busy clients, cancellation, deadlines, byte limits, malformed records,
 unsupported releases and lost continuity signal the existing typed conditions.
@@ -142,14 +144,18 @@ report. See also: CAPABILITY, CAPABILITY-PROVENANCE, FETCH-SNAPSHOT."
               (budget (libtmux.internal::make-capture-budget
                        :start start :deadline (+ start timeout) :remaining output-limit
                        :row-limit 1 :field-limit 8192))
-              (witness nil))
+              (before nil) (after nil))
          (unwind-protect
-              (progn
-                (let ((rows (libtmux.internal::capture-command client :witness token budget)))
-                  (unless (= 1 (length rows))
-                    (libtmux.internal::inconsistent-capture "Expected exactly one capability witness"))
-                  (setf witness (libtmux.internal::witness-from-row client (aref rows 0))))
+              (flet ((observe ()
+                       (let ((rows (libtmux.internal::capture-command client :witness token budget)))
+                         (unless (= 1 (length rows))
+                           (libtmux.internal::inconsistent-capture "Expected exactly one capability witness"))
+                         (libtmux.internal::witness-from-row client (aref rows 0)))))
+                (setf before (observe) after (observe))
+                (unless (libtmux.internal::same-witness-p before after)
+                  (libtmux.internal::inconsistent-capture "Tmux server changed during capability acquisition"))
                 (libtmux.internal::check-capture-budget budget token)
                 (libtmux.internal::report-from-provenance
-                 (libtmux.internal::witness-provenance witness)))
-           (libtmux.internal::close-witness witness)))))))
+                 (libtmux.internal::witness-provenance after)))
+           (libtmux.internal::close-witness before)
+           (libtmux.internal::close-witness after)))))))

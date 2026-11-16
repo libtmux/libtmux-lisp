@@ -50,6 +50,58 @@
         (libtmux:close-client client)
         (is (string= live-version (libtmux:capability-version report)))))))
 
+(test native-capabilities-reject-a-socket-handoff-during-acquisition
+  (with-tmux-fixture (original)
+    (with-tmux-fixture (replacement)
+      (libtmux:with-client (client :program (or (uiop:getenv "LIBTMUX_TEST_TMUX") "tmux")
+                                   :socket-path (fixture-socket original))
+        (libtmux:fetch-snapshot client)
+        (let* ((generation (slot-value client 'libtmux::generation))
+               (authority (slot-value client 'libtmux::witness))
+               (version (libtmux:tmux-version client))
+               (old-path (fixture-socket original))
+               (new-path (fixture-socket replacement))
+               (backup (concatenate 'string old-path ".before-handoff"))
+               (new-identity (libtmux.internal::socket-identity new-path))
+               (native (symbol-function 'libtmux.internal::witness-from-row))
+               (old-moved nil) (new-moved nil) (alias-created nil)
+               (fired nil) (temporary nil))
+          (unwind-protect
+               (progn
+                 (setf (symbol-function 'libtmux.internal::witness-from-row)
+                       (lambda (selected row)
+                         ;; Keep both daemons alive while replacing the selected socket.
+                         (unless fired
+                           (setf fired t)
+                           (sb-posix:rename old-path backup)
+                           (setf old-moved t)
+                           (sb-posix:rename new-path old-path)
+                           (setf new-moved t)
+                           (is (equal new-identity (libtmux.internal::socket-identity old-path)))
+                           ;; Keep the replacement's reported path valid for its witness.
+                           (sb-posix:symlink old-path new-path)
+                           (setf alias-created t))
+                         (let ((witness (funcall native selected row)))
+                           (push witness temporary)
+                           witness)))
+                 (signals libtmux:incomplete-snapshot
+                   (libtmux:capabilities client :timeout 0.9))
+                 (is (not (null fired)))
+                 (is (= 2 (length temporary)))
+                 (is (every (lambda (witness)
+                              (null (libtmux.internal::server-witness-fd witness)))
+                            temporary))
+                 (is (= generation (slot-value client 'libtmux::generation)))
+                 (is (eq authority (slot-value client 'libtmux::witness)))
+                 (is (string= version (libtmux:tmux-version client))))
+            (setf (symbol-function 'libtmux.internal::witness-from-row) native)
+            (when alias-created (sb-posix:unlink new-path))
+            (when new-moved (sb-posix:rename old-path new-path))
+            (when old-moved (sb-posix:rename backup old-path)))
+          (is (= (fixture-pid original)
+                 (getf (libtmux:capability-provenance (libtmux:capabilities client))
+                       :server/pid))))))))
+
 (test native-capabilities-do-not-start-cold-endpoints
   (let* ((directory (sb-posix:mkdtemp "/tmp/libtmux-lisp-caps-XXXXXX"))
          (socket (concatenate 'string directory "/socket")))
