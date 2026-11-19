@@ -14,7 +14,7 @@
            (libtmux:panes (libtmux:fetch-snapshot client))))))
 ;;; docs:end
 
-(let ((panes (inspect-owned-workspace :program (or (uiop:getenv "LIBTMUX_PROGRAM") "tmux"))))
+(let ((panes (inspect-owned-workspace)))
   (assert (= 1 (length panes)))
   (assert (getf (first panes) :pane/active))
   (assert (stringp (getf (first panes) :pane/id)))

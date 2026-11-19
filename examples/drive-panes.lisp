@@ -26,7 +26,7 @@
                   :pane-width (libtmux:width narrow))))))))
 ;;; docs:end
 
-(let ((results (drive-panes :program (or (uiop:getenv "LIBTMUX_PROGRAM") "tmux"))))
+(let ((results (drive-panes)))
   (assert (search "hello from Lisp" (getf results :text)))
   (assert (equal '(100 30) (getf results :window-size)))
   (assert (= 20 (getf results :pane-width)))

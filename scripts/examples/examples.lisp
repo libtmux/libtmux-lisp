@@ -327,15 +327,18 @@
                               (cons "decoded_configuration" "PASS")))
                 evidence))))
 
-(defun make-context (root)
+(defun make-context (root bin)
+  "Build the run context. The examples start the library's default `tmux`, so BIN
+gets a `tmux` link to the selected binary and leads their PATH."
   (let* ((program (or (find-program (or (uiop:getenv "LIBTMUX_TEST_TMUX") "tmux"))
                       (fail "Install tmux or set LIBTMUX_TEST_TMUX to a native binary")))
-         (environment (merge-environment "TMUX" nil "TMUX_PANE" nil "LC_ALL" "C.UTF-8"
-                                         "LIBTMUX_PROGRAM" (uiop:native-namestring program)
-                                         "PATH" (format nil "~A:~A"
-                                                        (string-right-trim "/" (uiop:native-namestring
-                                                                                (uiop:pathname-directory-pathname program)))
-                                                        (or (uiop:getenv "PATH") "")))))
+         (environment (progn
+                        (sb-posix:symlink (uiop:native-namestring program)
+                                          (uiop:native-namestring (merge-pathnames "tmux" bin)))
+                        (merge-environment "TMUX" nil "TMUX_PANE" nil "LC_ALL" "C.UTF-8"
+                                           "PATH" (format nil "~A:~A"
+                                                          (string-right-trim "/" (uiop:native-namestring bin))
+                                                          (or (uiop:getenv "PATH") ""))))))
     (build-context :root root :program (uiop:native-namestring program) :environment environment
                   :version (string-trim '(#\Newline)
                                         (nth-value 1 (run (list (uiop:native-namestring program) "-V")
@@ -391,12 +394,13 @@
          (evidence (second (member "--evidence" arguments :test #'string=))))
     (cond ((null group) (orchestrate root) 0)
           ((member group '("core" "owned-workspace") :test #'string=)
-           (let* ((record (cons :object (run-group (make-context root) group)))
-                  (path (or (and evidence (merge-pathnames evidence (uiop:getcwd)))
-                            (merge-pathnames (format nil "dist/examples-evidence-~A.json" group) root))))
-             (json-write-file path record)
-             (format t "~A~%" (json-string record :indent nil))
-             0))
+           (with-temporary-directory (bin "libtmux-lisp-tmux")
+             (let* ((record (cons :object (run-group (make-context root bin) group)))
+                    (path (or (and evidence (merge-pathnames evidence (uiop:getcwd)))
+                              (merge-pathnames (format nil "dist/examples-evidence-~A.json" group) root))))
+               (json-write-file path record)
+               (format t "~A~%" (json-string record :indent nil))
+               0)))
           (t (fail "Unknown group ~A" group)))))
 
 (main-when-script #'main)

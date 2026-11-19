@@ -10,7 +10,7 @@
       (error "The operation did not return an observation"))
     value))
 
-(libtmux:with-daemon (daemon :program (or (uiop:getenv "LIBTMUX_PROGRAM") "tmux"))
+(libtmux:with-daemon (daemon)
   (libtmux:with-client (client :program (libtmux:daemon-program daemon)
                                :socket-path (libtmux:daemon-socket-path daemon))
     (observed-value (libtmux:new-session client :name "demo" :window-name "editor"
