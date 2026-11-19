@@ -2890,6 +2890,114 @@ Direct supertypes: [entity](#entity-type).
 
 A captured physical tmux session.
 
+A session is one observation from a snapshot. Calls that only read it take no
+client, never contact tmux and keep working after the client closes. Calls
+that change a session take a client first and the captured session next.
+
+#### What is on here
+
+Calls that take a session, or that return one, fall into these groups:
+
+**Finding sessions.** `libtmux:fetch-sessions` captures a fresh snapshot and
+returns every session in it, while `libtmux:sessions` reads them from a
+snapshot you already hold. `libtmux:session/function` returns the session that
+a window link or an attached client belongs to. `libtmux:refresh` returns the
+same session from a new capture and signals `libtmux:stale-target` when it has
+gone.
+
+`libtmux:fetch-sessions`, `libtmux:sessions`, `libtmux:session/function` and
+`libtmux:refresh`
+
+**Reading what a capture recorded.** `libtmux:name` returns the captured name
+and whether the capture had one, and `libtmux:id` returns the tmux identity, a
+string such as `$0`. `libtmux:field-value` reaches any other registered field,
+such as the creation time, the attached count and the window link count, and
+`libtmux:entity-data` returns every captured field as a fresh plist.
+`libtmux:entity-model` names the kind of entity,
+`libtmux:provenance` reports the capture it came from, and
+`libtmux:same-entity-p` compares identity, not field values. None of them
+contacts tmux.
+
+`libtmux:name`, `libtmux:id`, `libtmux:field-value`, `libtmux:entity-data`,
+`libtmux:entity-model`, `libtmux:provenance` and `libtmux:same-entity-p`
+
+**Walking to its windows and terminals.** `libtmux:windows` returns the
+session's windows, one per link, so a window linked twice appears twice.
+`libtmux:window-links` returns the links, each with an index and an active
+flag, and `libtmux:clients` returns the terminals attached to the session.
+
+`libtmux:windows`, `libtmux:window-links` and `libtmux:clients`
+
+**Creating, renaming and removing.** `libtmux:new-session` creates a detached
+session on a daemon that is already running; it never starts or replaces one,
+and `libtmux:outcome-value` supplies the new session from the result.
+`libtmux:new-window` adds a window to a captured session, and
+`libtmux:rename-session` renames one, with tmux enforcing its name
+restrictions and uniqueness. `libtmux:kill-session` deletes exactly the
+captured session after checking its live identity, and never retries.
+
+`libtmux:new-session`, `libtmux:new-window`, `libtmux:rename-session`,
+`libtmux:kill-session` and `libtmux:outcome-value`
+
+**Placing windows.** `libtmux:move-window` moves a window link into the
+session at a free index, `libtmux:link-window` links a window there as well,
+and `libtmux:break-pane` breaks a pane out into a free index of the session.
+None of them overwrites an occupied index.
+
+`libtmux:move-window`, `libtmux:link-window` and `libtmux:break-pane`
+
+**Selecting windows and terminals.** `libtmux:next-window`,
+`libtmux:previous-window` and `libtmux:last-window` select a window link in the
+session, and `libtmux:last-window` signals an error when tmux has no last
+window. `libtmux:switch-client` points an attached terminal at the session, and
+`libtmux:lock-session` asks the session's attached terminals to run their lock
+command. A lock call's success acknowledges the request, not the terminal's
+reaction.
+
+`libtmux:next-window`, `libtmux:previous-window`, `libtmux:last-window`,
+`libtmux:switch-client` and `libtmux:lock-session`
+
+**Options, hooks and environment.** Give each call `:scope :session` and the
+captured session as `:target`. `libtmux:set-option` and `libtmux:unset-option`
+write or clear one option, `libtmux:show-option` and `libtmux:show-options`
+return decoded values, and `libtmux:show-options-text` returns tmux's printer
+text. `libtmux:set-hook`, `libtmux:unset-hook`, `libtmux:show-hooks` and
+`libtmux:show-hooks-text` do the same for hooks, and `libtmux:set-environment`,
+`libtmux:unset-environment`, `libtmux:remove-environment`,
+`libtmux:show-environment` and `libtmux:show-environment-text` do it for the
+session's environment table.
+
+`libtmux:set-option`, `libtmux:unset-option`, `libtmux:show-option`,
+`libtmux:show-options`, `libtmux:show-options-text`, `libtmux:set-hook`,
+`libtmux:unset-hook`, `libtmux:show-hooks`, `libtmux:show-hooks-text`,
+`libtmux:set-environment`, `libtmux:unset-environment`,
+`libtmux:remove-environment`, `libtmux:show-environment` and
+`libtmux:show-environment-text`
+
+**Messages and control connections.** `libtmux:display-message` prints a
+message in the context of a captured session, and expands tmux formats only
+when you ask. `libtmux.control:open-connection` and
+`libtmux.control:with-connection` attach a separate control connection to a
+captured session, which needs a daemon at tmux 3.8 or newer.
+
+`libtmux:display-message`, `libtmux.control:open-connection` and
+`libtmux.control:with-connection`
+
+**Filtering sessions.** The separately loaded `libtmux/query` system filters
+captured sessions locally. `libtmux.query:compile-filter` compiles a filter
+form for the `:session` model without evaluating it as Lisp, and
+`libtmux.query:matching` returns the sessions that it accepts.
+`libtmux.query:one` and `libtmux.query:one-or-none` take the single result.
+`libtmux.query:from` copies sessions into a query set, `libtmux.query:where`,
+`libtmux.query:where-if` and `libtmux.query:order-by` narrow and order it,
+`libtmux.query:items` returns its members, and `libtmux.query:fields` lists the
+fields that a session filter can name.
+
+`libtmux.query:compile-filter`, `libtmux.query:matching`, `libtmux.query:one`,
+`libtmux.query:one-or-none`, `libtmux.query:from`, `libtmux.query:where`,
+`libtmux.query:where-if`, `libtmux.query:order-by`, `libtmux.query:items` and
+`libtmux.query:fields`
+
 [Source](../src/model.lisp)
 
 Direct supertypes: [entity](#entity-type).
