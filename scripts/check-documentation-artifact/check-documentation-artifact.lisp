@@ -17,7 +17,7 @@
 
 (defpackage #:libtmux.scripts.check-documentation-artifact
   (:use #:cl #:libtmux.scripts)
-  (:export #:check-artifact))
+  (:export #:check-artifact #:check-directory))
 
 (in-package #:libtmux.scripts.check-documentation-artifact)
 
@@ -58,6 +58,45 @@
                   :case-insensitive-mode t :multi-line-mode t)))
     (loop for (start nil) on (cl-ppcre:all-matches scanner source) by #'cddr
           collect (1+ (count #\Newline source :end start)))))
+
+(defun required-parameters (signature)
+  "Return the names a printed lambda list requires, before any keyword."
+  (let ((registers (nth-value 1 (cl-ppcre:scan-to-strings
+                                 "^\\(\\S+((?: [^\\s&(][^\\s)]*)*)" signature))))
+    (and registers (remove "" (cl-ppcre:split "\\s+" (aref registers 0))
+                           :test #'string=))))
+
+(defun entity-operations (symbols noun ancestors)
+  "Return the identities of the functions in SYMBOLS that take a NOUN.
+A function takes one when a required parameter is named NOUN or ends in -NOUN,
+or when a method specializes on one of ANCESTORS."
+  (loop for symbol in symbols
+        when (and (equal "function" (field symbol "kind"))
+                  (or (some (lambda (name)
+                              (or (string-equal name noun)
+                                  (uiop:string-suffix-p name (format nil "-~A" noun))))
+                            (required-parameters (field symbol "signature" "")))
+                      (some (lambda (method)
+                              (intersection ancestors
+                                            (coerce (field method "specializers" (vector)) 'list)
+                                            :test #'equal))
+                            (field symbol "methods" (vector)))))
+          collect (field symbol "id")))
+
+(defun check-directory (id body ids operations)
+  "Require BODY, the docstring body of class ID, to hold one capability directory.
+It may name only public symbols from IDS and must name every one of OPERATIONS."
+  (multiple-value-bind (runs strays) (libtmux.scripts.api-directory:fold body)
+    (require-that (and (= 1 (length runs)) (null strays))
+                  "~A lost its capability directory: need three or more bold-led paragraphs, each followed by a references-only paragraph (folded ~D, left as prose ~S)"
+                  id (length runs) strays)
+    (let* ((listed (loop for (nil references) in (first runs) append references))
+           (unknown (set-difference listed ids :test #'equal))
+           (missing (set-difference operations listed :test #'equal)))
+      (require-that (null unknown) "~A directory references unknown symbols: ~S"
+                    id (sort unknown #'string<))
+      (require-that (null missing) "~A directory omits operations that take it: ~S"
+                    id (sort missing #'string<)))))
 
 (defun check-artifact (artifact root &key (revision (git root "rev-parse" "HEAD")))
   "Check parsed ARTIFACT against the checkout at ROOT; return a one-line summary."
@@ -169,28 +208,23 @@
                                      "libtmux:outcome-phase")
                                    see-also :test #'equal)
                           "workspace CLI lost authored references to another public package"))
-          (multiple-value-bind (runs strays)
-              (libtmux.scripts.api-directory:fold
-               (field (field (symbol-for "libtmux:client") "documentation") "body" ""))
-            (require-that (and (= 1 (length runs)) (null strays))
-                          "libtmux:client lost its capability directory: need three or more bold-led paragraphs, each followed by a references-only paragraph (folded ~D, left as prose ~S)"
-                          (length runs) strays)
-            (let* ((listed (loop for (nil references) in (first runs) append references))
-                   (unknown (set-difference listed ids :test #'equal))
-                   (operations
-                     (loop for symbol in symbols
-                           for id = (field symbol "id")
-                           when (and (equal "function" (field symbol "kind"))
-                                     (uiop:string-prefix-p "libtmux:" id)
-                                     (cl-ppcre:scan "^\\([^ )]+ client[ )]"
-                                                    (field symbol "signature" "")))
-                             collect id))
-                   (missing (set-difference operations listed :test #'equal)))
-              (require-that (null unknown) "directory references unknown symbols: ~S"
-                            (sort unknown #'string<))
-              (require-that (null missing)
-                            "operations that take a client are missing from the directory: ~S"
-                            (sort missing #'string<))))
+          (flet ((directory-body (id)
+                   (field (field (symbol-for id) "documentation") "body" "")))
+            (check-directory
+             "libtmux:client" (directory-body "libtmux:client") ids
+             (loop for symbol in symbols
+                   for id = (field symbol "id")
+                   when (and (equal "function" (field symbol "kind"))
+                             (uiop:string-prefix-p "libtmux:" id)
+                             (cl-ppcre:scan "^\\([^ )]+ client[ )]"
+                                            (field symbol "signature" "")))
+                     collect id))
+            (loop for (id noun) in '(("libtmux:session/type" "session")
+                                     ("libtmux:window/type" "window")
+                                     ("libtmux:pane" "pane"))
+                  do (check-directory
+                      id (directory-body id) ids
+                      (entity-operations symbols noun (list id "libtmux:entity")))))
           (let ((reference (read-text (merge-pathnames "docs/workspace-api.md" root))))
             (dolist (anchor '("outcome-status-function" "outcome-phase-function"))
               (require-that (search (format nil "(api.md#~A)" anchor) reference)
