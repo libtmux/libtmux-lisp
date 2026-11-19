@@ -2880,6 +2880,116 @@ Direct supertypes: [outcome-unknown](#outcome-unknown-type).
 
 A physical pane belonging to one captured window.
 
+A pane is one observation from a snapshot. Calls that only read it take no
+client, never contact tmux and keep working after the client closes. Calls
+that read the screen or change a pane take a client first and the captured pane
+next.
+
+#### What is on here
+
+Calls that take a pane, or that return one, fall into these groups:
+
+**Finding panes.** `libtmux:fetch-panes` captures a fresh snapshot and returns
+each physical pane once, and `libtmux:panes` reads them from a snapshot you
+already hold. Given a window, `libtmux:panes` returns that window's panes in
+captured order. `libtmux:window/function` goes the other way, from a pane to
+its window, and `libtmux:refresh` returns the same pane from a new capture and
+signals `libtmux:stale-target` when it has gone.
+
+`libtmux:fetch-panes`, `libtmux:panes`, `libtmux:window/function` and
+`libtmux:refresh`
+
+**Reading what a capture recorded.** `libtmux:index`, `libtmux:width` and
+`libtmux:height` return the captured position and size, `libtmux:active-p`
+whether the pane was active and `libtmux:dead-p` tmux's dead flag.
+`libtmux:current-command` and `libtmux:current-path` return what the pane was
+running and where, and `libtmux:title` returns its title. Each returns the
+value and whether the capture had it. `libtmux:id` returns the tmux identity, a
+string such as `%0`, and `libtmux:field-value` reaches any other registered
+field, such as the process ID and the start command. `libtmux:entity-data`
+returns every captured field as a fresh plist, `libtmux:entity-model` names the
+kind of entity, `libtmux:provenance` reports the capture it came from, and
+`libtmux:same-entity-p` compares identity, not field values. None of them
+contacts tmux.
+
+`libtmux:index`, `libtmux:width`, `libtmux:height`, `libtmux:active-p`,
+`libtmux:dead-p`, `libtmux:current-command`, `libtmux:current-path`,
+`libtmux:title`, `libtmux:id`, `libtmux:field-value`, `libtmux:entity-data`,
+`libtmux:entity-model`, `libtmux:provenance` and `libtmux:same-entity-p`
+
+**Reading the screen.** `libtmux:capture-pane` reads the pane now, not from the
+snapshot, and returns strict UTF-8 text, signalling `libtmux:decoding-error`
+for anything else. `libtmux:capture-pane-bytes` returns the octets unchanged.
+Both also return the command outcome.
+
+`libtmux:capture-pane` and `libtmux:capture-pane-bytes`
+
+**Driving a pane.** `libtmux:send-text` sends literal text, so C-c stays
+literal, and `libtmux:send-keys` interprets tmux key names such as C-c and
+Enter. `libtmux:send-prefix` sends the session's prefix key, and
+`libtmux:paste-buffer` pastes a tmux buffer. `libtmux:clear-history` clears the
+pane's retained history, `libtmux:copy-mode` enters or leaves copy mode, and
+`libtmux:pipe-pane` configures a tmux-owned pipe. A completed send means tmux
+processed the request, not that the application consumed it.
+
+`libtmux:send-text`, `libtmux:send-keys`, `libtmux:send-prefix`,
+`libtmux:paste-buffer`, `libtmux:clear-history`, `libtmux:copy-mode` and
+`libtmux:pipe-pane`
+
+**Splitting, restarting and removing.** `libtmux:split-pane` splits a captured
+pane, and `libtmux:outcome-value` supplies the new pane from the result.
+`libtmux:respawn-pane` restarts the pane's process and replaces a running one
+only when you pass `:kill`. `libtmux:kill-pane` deletes exactly the captured
+pane and keeps the others.
+
+`libtmux:split-pane`, `libtmux:respawn-pane`, `libtmux:kill-pane` and
+`libtmux:outcome-value`
+
+**Selecting and arranging.** `libtmux:select-pane` selects a pane in its
+window, and `libtmux:last-pane` selects the window's last active pane.
+`libtmux:resize-pane` sets a size, resizes in a direction or toggles zoom, and
+`libtmux:swap-panes` swaps two panes. `libtmux:move-pane` and
+`libtmux:join-pane` place one pane beside another, destroying a source window
+that this empties, and `libtmux:break-pane` breaks a pane out into a free index
+of a session.
+
+`libtmux:select-pane`, `libtmux:last-pane`, `libtmux:resize-pane`,
+`libtmux:swap-panes`, `libtmux:move-pane`, `libtmux:join-pane` and
+`libtmux:break-pane`
+
+**Options and hooks.** Give each call `:scope :pane` and the captured pane as
+`:target`. `libtmux:set-option` and `libtmux:unset-option` write or clear one
+option, `libtmux:show-option` and `libtmux:show-options` return decoded values,
+and `libtmux:show-options-text` returns tmux's printer text.
+`libtmux:set-hook`, `libtmux:unset-hook`, `libtmux:show-hooks` and
+`libtmux:show-hooks-text` do the same for hooks. The environment calls accept
+only `:global` and `:session` scope.
+
+`libtmux:set-option`, `libtmux:unset-option`, `libtmux:show-option`,
+`libtmux:show-options`, `libtmux:show-options-text`, `libtmux:set-hook`,
+`libtmux:unset-hook`, `libtmux:show-hooks` and `libtmux:show-hooks-text`
+
+**Printing a message.** `libtmux:display-message` prints a message in the
+context of a captured pane, and expands tmux formats only when you ask. A
+physical pane leaves its session context to tmux.
+
+`libtmux:display-message`
+
+**Filtering panes.** The separately loaded `libtmux/query` system filters
+captured panes locally. `libtmux.query:compile-filter` compiles a filter form
+for the `:pane` model without evaluating it as Lisp, and
+`libtmux.query:matching` returns the panes that it accepts.
+`libtmux.query:one` and `libtmux.query:one-or-none` take the single result.
+`libtmux.query:from` copies panes into a query set, `libtmux.query:where`,
+`libtmux.query:where-if` and `libtmux.query:order-by` narrow and order it,
+`libtmux.query:items` returns its members, and `libtmux.query:fields` lists the
+fields that a pane filter can name.
+
+`libtmux.query:compile-filter`, `libtmux.query:matching`, `libtmux.query:one`,
+`libtmux.query:one-or-none`, `libtmux.query:from`, `libtmux.query:where`,
+`libtmux.query:where-if`, `libtmux.query:order-by`, `libtmux.query:items` and
+`libtmux.query:fields`
+
 [Source](../src/model.lisp)
 
 Direct supertypes: [entity](#entity-type).
@@ -2889,6 +2999,114 @@ Direct supertypes: [entity](#entity-type).
 ### session
 
 A captured physical tmux session.
+
+A session is one observation from a snapshot. Calls that only read it take no
+client, never contact tmux and keep working after the client closes. Calls
+that change a session take a client first and the captured session next.
+
+#### What is on here
+
+Calls that take a session, or that return one, fall into these groups:
+
+**Finding sessions.** `libtmux:fetch-sessions` captures a fresh snapshot and
+returns every session in it, while `libtmux:sessions` reads them from a
+snapshot you already hold. `libtmux:session/function` returns the session that
+a window link or an attached client belongs to. `libtmux:refresh` returns the
+same session from a new capture and signals `libtmux:stale-target` when it has
+gone.
+
+`libtmux:fetch-sessions`, `libtmux:sessions`, `libtmux:session/function` and
+`libtmux:refresh`
+
+**Reading what a capture recorded.** `libtmux:name` returns the captured name
+and whether the capture had one, and `libtmux:id` returns the tmux identity, a
+string such as `$0`. `libtmux:field-value` reaches any other registered field,
+such as the creation time, the attached count and the window link count, and
+`libtmux:entity-data` returns every captured field as a fresh plist.
+`libtmux:entity-model` names the kind of entity,
+`libtmux:provenance` reports the capture it came from, and
+`libtmux:same-entity-p` compares identity, not field values. None of them
+contacts tmux.
+
+`libtmux:name`, `libtmux:id`, `libtmux:field-value`, `libtmux:entity-data`,
+`libtmux:entity-model`, `libtmux:provenance` and `libtmux:same-entity-p`
+
+**Walking to its windows and terminals.** `libtmux:windows` returns the
+session's windows, one per link, so a window linked twice appears twice.
+`libtmux:window-links` returns the links, each with an index and an active
+flag, and `libtmux:clients` returns the terminals attached to the session.
+
+`libtmux:windows`, `libtmux:window-links` and `libtmux:clients`
+
+**Creating, renaming and removing.** `libtmux:new-session` creates a detached
+session on a daemon that is already running; it never starts or replaces one,
+and `libtmux:outcome-value` supplies the new session from the result.
+`libtmux:new-window` adds a window to a captured session, and
+`libtmux:rename-session` renames one, with tmux enforcing its name
+restrictions and uniqueness. `libtmux:kill-session` deletes exactly the
+captured session after checking its live identity, and never retries.
+
+`libtmux:new-session`, `libtmux:new-window`, `libtmux:rename-session`,
+`libtmux:kill-session` and `libtmux:outcome-value`
+
+**Placing windows.** `libtmux:move-window` moves a window link into the
+session at a free index, `libtmux:link-window` links a window there as well,
+and `libtmux:break-pane` breaks a pane out into a free index of the session.
+None of them overwrites an occupied index.
+
+`libtmux:move-window`, `libtmux:link-window` and `libtmux:break-pane`
+
+**Selecting windows and terminals.** `libtmux:next-window`,
+`libtmux:previous-window` and `libtmux:last-window` select a window link in the
+session, and `libtmux:last-window` signals an error when tmux has no last
+window. `libtmux:switch-client` points an attached terminal at the session, and
+`libtmux:lock-session` asks the session's attached terminals to run their lock
+command. A lock call's success acknowledges the request, not the terminal's
+reaction.
+
+`libtmux:next-window`, `libtmux:previous-window`, `libtmux:last-window`,
+`libtmux:switch-client` and `libtmux:lock-session`
+
+**Options, hooks and environment.** Give each call `:scope :session` and the
+captured session as `:target`. `libtmux:set-option` and `libtmux:unset-option`
+write or clear one option, `libtmux:show-option` and `libtmux:show-options`
+return decoded values, and `libtmux:show-options-text` returns tmux's printer
+text. `libtmux:set-hook`, `libtmux:unset-hook`, `libtmux:show-hooks` and
+`libtmux:show-hooks-text` do the same for hooks, and `libtmux:set-environment`,
+`libtmux:unset-environment`, `libtmux:remove-environment`,
+`libtmux:show-environment` and `libtmux:show-environment-text` do it for the
+session's environment table.
+
+`libtmux:set-option`, `libtmux:unset-option`, `libtmux:show-option`,
+`libtmux:show-options`, `libtmux:show-options-text`, `libtmux:set-hook`,
+`libtmux:unset-hook`, `libtmux:show-hooks`, `libtmux:show-hooks-text`,
+`libtmux:set-environment`, `libtmux:unset-environment`,
+`libtmux:remove-environment`, `libtmux:show-environment` and
+`libtmux:show-environment-text`
+
+**Messages and control connections.** `libtmux:display-message` prints a
+message in the context of a captured session, and expands tmux formats only
+when you ask. `libtmux.control:open-connection` and
+`libtmux.control:with-connection` attach a separate control connection to a
+captured session, which needs a daemon at tmux 3.8 or newer.
+
+`libtmux:display-message`, `libtmux.control:open-connection` and
+`libtmux.control:with-connection`
+
+**Filtering sessions.** The separately loaded `libtmux/query` system filters
+captured sessions locally. `libtmux.query:compile-filter` compiles a filter
+form for the `:session` model without evaluating it as Lisp, and
+`libtmux.query:matching` returns the sessions that it accepts.
+`libtmux.query:one` and `libtmux.query:one-or-none` take the single result.
+`libtmux.query:from` copies sessions into a query set, `libtmux.query:where`,
+`libtmux.query:where-if` and `libtmux.query:order-by` narrow and order it,
+`libtmux.query:items` returns its members, and `libtmux.query:fields` lists the
+fields that a session filter can name.
+
+`libtmux.query:compile-filter`, `libtmux.query:matching`, `libtmux.query:one`,
+`libtmux.query:one-or-none`, `libtmux.query:from`, `libtmux.query:where`,
+`libtmux.query:where-if`, `libtmux.query:order-by`, `libtmux.query:items` and
+`libtmux.query:fields`
 
 [Source](../src/model.lisp)
 
@@ -2965,6 +3183,116 @@ Direct supertypes: [libtmux-error](#libtmux-error-type).
 ### window
 
 A physical window shared by zero or more captured links.
+
+A window is one observation from a snapshot. A session holds it at a link, a
+session and an index with the window's ID, so one window can sit in several
+sessions. Calls that only read a window take no client, never contact tmux and
+keep working after the client closes. Calls that change one take a client
+first.
+
+#### What is on here
+
+Calls that take a window, or that return one, fall into these groups:
+
+**Finding windows.** `libtmux:fetch-windows` captures a fresh snapshot and
+returns each physical window once, and `libtmux:windows` reads them from a
+snapshot you already hold. Given a session, `libtmux:windows` returns one
+window per link instead. `libtmux:window/function` returns the window of a pane
+or a window link, and `libtmux:refresh` returns the same window from a new
+capture and signals `libtmux:stale-target` when it has gone.
+
+`libtmux:fetch-windows`, `libtmux:windows`, `libtmux:window/function` and
+`libtmux:refresh`
+
+**Reading what a capture recorded.** `libtmux:name`, `libtmux:width` and
+`libtmux:height` return the captured name and size, each with whether the
+capture had it, and `libtmux:id` returns the tmux identity, a string such as
+`@0`. `libtmux:field-value` reaches any other registered field, such as the
+layout string and the pane count, and `libtmux:entity-data` returns every
+captured field as a fresh plist. `libtmux:entity-model` names the kind of
+entity, `libtmux:provenance` reports the capture it came from, and
+`libtmux:same-entity-p` compares identity, not field values. None of them
+contacts tmux.
+
+`libtmux:name`, `libtmux:width`, `libtmux:height`, `libtmux:id`,
+`libtmux:field-value`, `libtmux:entity-data`, `libtmux:entity-model`,
+`libtmux:provenance` and `libtmux:same-entity-p`
+
+**Walking to its panes and links.** `libtmux:panes` returns the window's panes
+in captured order, and `libtmux:window-links` returns every link to it, one for
+each session and index that holds the window.
+
+`libtmux:panes` and `libtmux:window-links`
+
+**Creating, renaming, restarting and removing.** `libtmux:new-window` adds a
+window to a captured session, and `libtmux:outcome-value` supplies the new
+window from the result. `libtmux:rename-window` renames one, and tmux may
+normalize or reject the name. `libtmux:respawn-window` restarts a window as a
+single pane, keeping its first pane and destroying the rest, and replaces
+running processes only when you pass `:kill`. `libtmux:kill-window` deletes
+exactly the captured window and every link to it.
+
+`libtmux:new-window`, `libtmux:rename-window`, `libtmux:respawn-window`,
+`libtmux:kill-window` and `libtmux:outcome-value`
+
+**Layout, size and pane order.** `libtmux:select-layout` applies a named or
+custom layout, and `libtmux:next-layout` and `libtmux:previous-layout` cycle
+through tmux's layouts; all three unzoom the window. `libtmux:resize-window`
+sets cell dimensions or fits the window to the smallest or largest attached
+client, and it sets the window-size option to manual. `libtmux:rotate-window`
+rotates the positions of the panes, and `libtmux:last-pane` selects the
+window's last active pane.
+
+`libtmux:select-layout`, `libtmux:next-layout`, `libtmux:previous-layout`,
+`libtmux:resize-window`, `libtmux:rotate-window` and `libtmux:last-pane`
+
+**Selecting and placing window links.** A window sits in a session at a link,
+so these calls take links from `libtmux:window-links`, or a session.
+`libtmux:select-window` selects one link, and `libtmux:next-window`,
+`libtmux:previous-window` and `libtmux:last-window` move a session's
+selection. `libtmux:swap-windows`, `libtmux:move-window` and
+`libtmux:link-window` change where windows sit, and `libtmux:break-pane` breaks
+a pane out into a free index. `libtmux:unlink-window` removes one link, and
+tmux refuses to remove the last link to a window unless you pass
+`:kill-if-last`.
+
+`libtmux:select-window`, `libtmux:next-window`, `libtmux:previous-window`,
+`libtmux:last-window`, `libtmux:swap-windows`, `libtmux:move-window`,
+`libtmux:link-window`, `libtmux:break-pane` and `libtmux:unlink-window`
+
+**Options and hooks.** Give each call `:scope :window` and the captured window
+as `:target`. `libtmux:set-option` and `libtmux:unset-option` write or clear
+one option, `libtmux:show-option` and `libtmux:show-options` return decoded
+values, and `libtmux:show-options-text` returns tmux's printer text.
+`libtmux:set-hook`, `libtmux:unset-hook`, `libtmux:show-hooks` and
+`libtmux:show-hooks-text` do the same for hooks. The environment calls accept
+only `:global` and `:session` scope.
+
+`libtmux:set-option`, `libtmux:unset-option`, `libtmux:show-option`,
+`libtmux:show-options`, `libtmux:show-options-text`, `libtmux:set-hook`,
+`libtmux:unset-hook`, `libtmux:show-hooks` and `libtmux:show-hooks-text`
+
+**Printing a message.** `libtmux:display-message` prints a message in the
+context of a captured window, and expands tmux formats only when you ask. A
+physical window leaves its session context to tmux, so pass a window link when
+the session and index matter.
+
+`libtmux:display-message`
+
+**Filtering windows.** The separately loaded `libtmux/query` system filters
+captured windows locally. `libtmux.query:compile-filter` compiles a filter form
+for the `:window` model without evaluating it as Lisp, and
+`libtmux.query:matching` returns the windows that it accepts.
+`libtmux.query:one` and `libtmux.query:one-or-none` take the single result.
+`libtmux.query:from` copies windows into a query set, `libtmux.query:where`,
+`libtmux.query:where-if` and `libtmux.query:order-by` narrow and order it,
+`libtmux.query:items` returns its members, and `libtmux.query:fields` lists the
+fields that a window filter can name.
+
+`libtmux.query:compile-filter`, `libtmux.query:matching`, `libtmux.query:one`,
+`libtmux.query:one-or-none`, `libtmux.query:from`, `libtmux.query:where`,
+`libtmux.query:where-if`, `libtmux.query:order-by`, `libtmux.query:items` and
+`libtmux.query:fields`
 
 [Source](../src/model.lisp)
 

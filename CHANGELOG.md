@@ -46,6 +46,12 @@
 
 ### Added
 
+- Add a "What is on here" capability directory to the session, window and pane
+  reference entries, as the client entry has. Each lists the calls that take
+  the type, grouped by task. `mise run check` fails when a directory omits a
+  call that takes its class, names an unknown symbol or stops folding into
+  rows.
+
 - Add owned workspace/2 construction, bounded file loading, explicit state
   acquisition and local previews. Stable logical IDs map to recorded physical
   entities; legacy workspace/1 keeps its topology-only reuse contract.

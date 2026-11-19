@@ -29,3 +29,22 @@
              (artifact-failure (artifact-header :port "ruby"))))
   (is (equal "documentation artifact: stale source hash for tools/documentation.lisp"
              (artifact-failure (artifact-header)))))
+
+(defparameter *check-directory-rows*
+  (format nil "**One.** Does one.~%~%`libtmux:a`~%~%**Two.** Does two.~%~%`libtmux:b`~%~%**Three.** Does three.~%~%`libtmux:c`~%"))
+
+(defun directory-check-failure (body &optional (operations '("libtmux:a" "libtmux:c")))
+  (handler-case
+      (progn (libtmux.scripts.check-documentation-artifact:check-directory
+              "libtmux:pane" body '("libtmux:a" "libtmux:b" "libtmux:c") operations)
+             nil)
+    (libtmux.scripts:script-failure (condition) (princ-to-string condition))))
+
+(test directory-check-rejects-a-missing-unknown-or-incomplete-directory
+  (is (null (directory-check-failure *check-directory-rows*)))
+  (is (search "lost its capability directory"
+              (directory-check-failure (format nil "Two rows only.~%~%**One.** Does one.~%~%`libtmux:a`~%~%**Two.** Does two.~%~%`libtmux:b`~%"))))
+  (is (search "unknown symbols"
+              (directory-check-failure (concatenate 'string *check-directory-rows*
+                                              (format nil "~%**Four.** Does four.~%~%`libtmux:z`~%")))))
+  (is (search "omits operations" (directory-check-failure *check-directory-rows* '("libtmux:d")))))
