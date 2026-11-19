@@ -44,6 +44,10 @@
 - Reduce nonempty capture acquisition from seven tmux launches to five, keeping
   fresh daemon witnesses, per-listing bounds and contradiction retries.
 
+- Start the `tmux` on `PATH` in the shipped examples, which no longer read
+  `LIBTMUX_PROGRAM`. The example runner links the tmux it selects into the
+  examples' `PATH`, so `LIBTMUX_TEST_TMUX` still chooses the binary under test.
+
 ### Added
 
 - Add owned workspace/2 construction, bounded file loading, explicit state
