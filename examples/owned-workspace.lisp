@@ -137,9 +137,8 @@
                                  (getf (getf (ws:result-data failure) :record) :revision)))
                 (inspect-stopped-workspace client invalid)))))))))
 
-(let ((program (or (uiop:getenv "LIBTMUX_PROGRAM") "tmux"))
-      (document (merge-pathnames "owned-workspace.json" *load-truename*)))
-  (tm:with-daemon (daemon :program program)
+(let ((document (merge-pathnames "owned-workspace.json" *load-truename*)))
+  (tm:with-daemon (daemon)
     (tm:with-client (client :program (tm:daemon-program daemon) :socket-path (tm:daemon-socket-path daemon))
       (exercise-owned-workspace client (tm:daemon-program daemon)
                                 (tm:daemon-socket-path daemon) document)))

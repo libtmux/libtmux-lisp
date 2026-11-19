@@ -16,15 +16,10 @@ The runner:
 
 - creates a private temporary directory and socket, and clears inherited tmux
   variables
-- starts an empty-configuration daemon and runs the shipped Lisp examples
+- starts an empty-configuration daemon of the `tmux` on your `PATH` and runs
+  the shipped Lisp examples
 - stops its own server
 - exits nonzero on any failure
-
-Use another tmux binary:
-
-```console
-$ LIBTMUX_TEST_TMUX=/usr/bin/tmux mise run examples
-```
 
 ## Work at the REPL
 

@@ -21,7 +21,7 @@
                                                            :names '("PROJECT_TOKEN")))))))
 ;;; docs:end
 
-(let* ((report (inspect-configuration :program (or (uiop:getenv "LIBTMUX_PROGRAM") "tmux")))
+(let* ((report (inspect-configuration))
        (options (getf report :options))
        (environment (aref (getf report :environment) 0)))
   (assert (getf (aref options 0) :present-p))

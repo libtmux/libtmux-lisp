@@ -37,8 +37,8 @@ From a source checkout ([setup](../.github/CONTRIBUTING.md#setup)):
 $ mise exec -- sbcl --script examples/managed-daemon.lisp
 ```
 
-Success prints `MANAGED DAEMON PASS` and one pane record. Set
-`LIBTMUX_PROGRAM` to choose the tmux binary.
+Success prints `MANAGED DAEMON PASS` and one pane record. The program runs
+the `tmux` on your `PATH`.
 
 ## Startup and lifetime
 

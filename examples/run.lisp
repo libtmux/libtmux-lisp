@@ -7,7 +7,7 @@
 (assert (find-package :com.inuoe.jzon))
 (assert (not (find-package :bt2)))
 
-(let* ((program (or (uiop:getenv "LIBTMUX_PROGRAM") "tmux"))
+(let* ((program "tmux")
        (daemon (libtmux:start-daemon :program program))
        (socket-path (libtmux:daemon-socket-path daemon)))
   (libtmux:with-client (client :program (libtmux:daemon-program daemon) :socket-path socket-path)

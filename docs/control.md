@@ -15,7 +15,7 @@ pane-output stream should share one connection.
 ## Run a complete example
 
 After [contributor setup](../.github/CONTRIBUTING.md#setup), run this program
-from the checkout. Set `LIBTMUX_PROGRAM` to the native tmux binary when needed.
+from the checkout. It runs the `tmux` on your `PATH`.
 
 ```console
 $ mise exec -- sbcl --script examples/control.lisp
