@@ -31,6 +31,15 @@ See docs/index.md for the tutorial, API reference and current capability limits.
 [tmux-version](#tmux-version-function)
 [with-client](#with-client-function)
 
+**Discover daemon capabilities**
+
+[capabilities](#capabilities-function)
+[capability](#capability-function)
+[capability-features](#capability-features-function)
+[capability-provenance](#capability-provenance-function)
+[capability-version](#capability-version-function)
+[supports-p](#supports-p-function)
+
 **Start and stop owned daemons**
 
 [daemon-cleanup-failures](#daemon-cleanup-failures-function)
@@ -289,6 +298,92 @@ a mutation. Inspect the operation's outcome and dispatch phase.
 Return whether TOKEN has been cancelled, without external I/O.
 
 [Source](../src/transport.lisp)
+
+<a id="capabilities-function"></a>
+
+### capabilities
+
+`(capabilities client &key cancel-token (timeout (slot-value client (quote timeout))) (output-limit (slot-value client (quote output-limit))))`
+
+Observe CLIENT's responding daemon and return an owned CAPABILITY-REPORT.
+Blocks under CLIENT's single-operation lease. TIMEOUT bounds total native
+reads in seconds; OUTPUT-LIMIT bounds their combined stdout/stderr. CANCEL-TOKEN
+and closing the client stop owned work through the normal transport.
+
+Starts no daemon, invokes no after-hooks and does not change cached executable
+version, captured generation or target authority. The built-in list-commands
+bootstrap spelling is trusted: its configured command-alias override may run
+arbitrary server code. Discovery does not audit aliases through show-options,
+which can itself run after-hooks. Two temporary witnesses must agree within
+the same deadline and byte budget. This observes an acquisition interval;
+it does not reserve the endpoint. A saved report remains historical.
+
+Closed/busy clients, cancellation, deadlines, byte limits, malformed records,
+unsupported releases and lost continuity signal the existing typed conditions.
+Temporary process witnesses close before return. No failure returns a fallback
+report. See also: CAPABILITY, CAPABILITY-PROVENANCE, FETCH-SNAPSHOT.
+
+[Source](../src/capabilities.lisp)
+
+<a id="capability-function"></a>
+
+### capability
+
+`(capability report feature)`
+
+Return an owned feature plist from REPORT, or signal INVALID-ARGUMENT.
+FEATURE is a keyword from CAPABILITY-FEATURES. This local lookup does no I/O;
+an unknown feature never looks like an unsupported known feature.
+
+See also: [capability-features](#capability-features-function), [supports-p](#supports-p-function).
+
+[Source](../src/capabilities.lisp)
+
+<a id="capability-features-function"></a>
+
+### capability-features
+
+`(capability-features report)`
+
+Return an owned vector of REPORT's feature plists in registry order. No I/O.
+Each has :FEATURE, :NAME, :SUMMARY, :MINIMUM-VERSION, :APIS, :COMMANDS, :SUPPORTED-P and
+:HANDLING; :FALLBACK appears when the operation has an older-daemon path.
+:COMMANDS contains name/flags plists. :HANDLING is :NATIVE, :REJECT,
+:ESCAPED-FORMAT or :RAW-PASTE. A flag can be unsupported while its operation
+uses the stated fallback. Requirements describe this port's implemented API,
+not the first tmux release that offered a lower-level command.
+
+See also: [capability](#capability-function), [supports-p](#supports-p-function).
+
+[Source](../src/capabilities.lisp)
+
+<a id="capability-provenance-function"></a>
+
+### capability-provenance
+
+`(capability-provenance report)`
+
+Return an owned plist of REPORT's daemon identity. No I/O.
+Keys are :SERVER/PID, :SERVER/START-TIME, :SERVER/SOCKET-PATH, :SERVER/VERSION,
+:SERVER/SOCKET-DEVICE, :SERVER/SOCKET-INODE and :SERVER/PROCESS-START. These
+describe acquisition; they do not prove that the daemon is still alive.
+
+See also: [capabilities](#capabilities-function), [capability-version](#capability-version-function).
+
+[Source](../src/capabilities.lisp)
+
+<a id="capability-version-function"></a>
+
+### capability-version
+
+`(capability-version report)`
+
+Return an owned copy of REPORT's observed daemon release. No I/O.
+This is not the executable release returned by TMUX-VERSION.
+
+See also: [capabilities](#capabilities-function), [capability-provenance](#capability-provenance-function).
+
+[Source](../src/capabilities.lisp)
 
 <a id="capture-pane-function"></a>
 
@@ -2215,6 +2310,20 @@ See also: [daemon-cleanup-failures](#daemon-cleanup-failures-function), [pending
 
 [Source](../src/daemon.lisp)
 
+<a id="supports-p-function"></a>
+
+### supports-p
+
+`(supports-p report feature)`
+
+Return whether REPORT's daemon meets FEATURE's native version requirement.
+Unknown names signal INVALID-ARGUMENT. No I/O or configuration permission
+check occurs; operations still validate their live targets and exact schemas.
+
+See also: [capabilities](#capabilities-function), [capability](#capability-function).
+
+[Source](../src/capabilities.lisp)
+
 <a id="suspend-client-function"></a>
 
 ### suspend-client
@@ -2514,6 +2623,21 @@ One-way cancellation state; idle tokens own no OS descriptors.
 
 Direct supertypes: `standard-object`.
 
+<a id="capability-report-type"></a>
+
+### capability-report
+
+A retained observation of one daemon and the library's version gates.
+Readers return owned values without I/O. The report survives client cleanup and
+does not grant operation authority or refresh captured targets. Exact option,
+field and workspace schemas retain their independent source-qualified checks.
+
+See also: [capabilities](#capabilities-function), [capability-provenance](#capability-provenance-function), [capability](#capability-function), [supports-p](#supports-p-function).
+
+[Source](../src/capabilities.lisp)
+
+Direct supertypes: `standard-object`.
+
 <a id="cleanup-failed-type"></a>
 
 ### cleanup-failed
@@ -2553,6 +2677,13 @@ which needs a daemon at tmux 3.8 or newer.
 `libtmux:open-client`, `libtmux:with-client`, `libtmux:close-client`,
 `libtmux:tmux-version`, `libtmux:client-open-p`,
 `libtmux:client-cleanup-failures` and `libtmux.control:open-connection`
+
+**Checking feature support.** `libtmux:capabilities` observes the responding
+daemon and returns an owned report. `libtmux:capability` and
+`libtmux:supports-p` inspect its version requirements without I/O. Reports
+remain historical after replacement and do not refresh captured targets.
+
+`libtmux:capabilities`, `libtmux:capability` and `libtmux:supports-p`
 
 **Capturing and querying.** `libtmux:fetch-snapshot` captures sessions,
 windows, panes, window links and attached clients as one graph that stays

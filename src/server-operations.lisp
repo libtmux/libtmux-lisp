@@ -32,7 +32,7 @@ See also: LIST-SERVER-ACCESS, FETCH-CLIENTS, REFRESH, ERROR-OUTCOME."
     (libtmux.internal::perform-command
      client nil (append (list "server-access" flag) (when group-p '("-g"))
                         (list "--" (libtmux.internal::literal-format principal)))
-     :minimum-version (when group-p "3.8") :feature :group-server-access
+     :feature (when group-p :group-server-access)
      :cancel-token cancel-token :timeout timeout :output-limit output-limit)))
 
 (defun list-server-access (client &key cancel-token timeout output-limit)
@@ -85,8 +85,9 @@ See also: RUN-COMMAND, CAPTURE-PANE, SET-HOOK, OUTCOME-STDOUT, ERROR-OUTCOME."
             (lambda (witness current)
               (declare (ignore current))
               (let ((literal-flag (and (not format-p)
-                                       (libtmux.internal::version-at-least-p
-                                        (libtmux.internal::server-witness-version witness) "3.4"))))
+                                       (libtmux.internal::feature-supported-p
+                                        (libtmux.internal::server-witness-version witness)
+                                        :literal-message-flag))))
                 (append prefix (when literal-flag '("-l"))
                         (list "--" (if (or format-p literal-flag)
                                        message
@@ -156,5 +157,5 @@ See also: CLOSE-CLIENT, CANCEL, ERROR-OUTCOME, OUTCOME-STATUS, UNSUPPORTED-CAPAB
          (blocking (member operation '(:wait :lock))))
     (libtmux.internal::perform-command
      client nil (append (list "wait-for") (when flag (list flag)) (list "--" channel))
-     :minimum-version (when blocking "3.8") :feature :wait-channel-disconnect-cleanup
+     :feature (when blocking :wait-channel-disconnect-cleanup)
      :cancel-token cancel-token :timeout timeout :output-limit output-limit)))

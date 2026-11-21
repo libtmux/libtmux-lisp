@@ -24,7 +24,7 @@
 (in-package #:libtmux.scripts.package)
 
 (defparameter *root-files*
-  '("libtmux.asd" "LICENSE" "README.md" "CHANGELOG.md" "qlfile" "qlfile.lock" "mise.toml"
+  '("libtmux.asd" "LICENSE" "README.md" "CHANGELOG.md" "capabilities.json" "qlfile" "qlfile.lock" "mise.toml"
     ".tool-versions" "AGENTS.md" "verification.md"))
 
 (defparameter *system-readmes*

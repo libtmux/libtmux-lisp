@@ -13,30 +13,36 @@
                     :cancel-token cancel-token :keep-input-open keep-input-open))
 
 (defun version-components (text)
-  (let* ((version (string-trim '(#\Space #\Tab #\Newline #\Return) text))
-         (dot (position #\. version))
-         (suffix (and dot (position-if-not #'digit-char-p version :start (1+ dot)))))
-    (unless (and dot (plusp dot)
-                 (every #'digit-char-p (subseq version 0 dot))
-                 (< (1+ dot) (or suffix (length version)))
-                 (or (null suffix)
-                     (and (= suffix (1- (length version)))
-                          (char<= #\a (char version suffix) #\z))))
-      (error 'libtmux:unsupported-tmux
-             :message (format nil "Cannot identify the tmux release ~S" text)))
-    (list (parse-integer version :end dot)
-          (parse-integer version :start (1+ dot) :end suffix)
-          (if suffix (1+ (- (char-code (char version suffix)) (char-code #\a))) 0))))
+  (labels ((refuse ()
+             (error 'libtmux:unsupported-tmux
+                    :message (format nil "Cannot identify the tmux release ~S" text)))
+           (number-at (start end)
+             (unless (and (< start end)
+                          (loop for index from start below end
+                                always (char<= #\0 (char text index) #\9)))
+               (refuse))
+             (parse-integer text :start start :end end)))
+    (unless (and (stringp text) (<= 3 (length text) 64)) (refuse))
+    (let* ((development (and (> (length text) 5) (string= "next-" text :end2 5)))
+           (start (if development 5 0))
+           (candidate (search "-rc" text :start2 start))
+           (end (or candidate (length text)))
+           (patch (and (> end start) (char<= #\a (char text (1- end)) #\z)))
+           (numeric-end (if patch (1- end) end))
+           (dot (position #\. text :start start :end numeric-end))
+           (candidate-number (if candidate (number-at (+ candidate 3) (length text)) 0)))
+      (unless (and dot (not (and development candidate))
+                   (or (not candidate) (plusp candidate-number)))
+        (refuse))
+      (list (number-at start dot) (number-at (1+ dot) numeric-end)
+            (if patch (1+ (- (char-code (char text (1- end))) (char-code #\a))) 0)
+            (cond (development -2) (candidate -1) (t 0)) candidate-number))))
 
 (defun supported-version (text)
-  (let ((components (version-components text)))
-    (unless (loop for actual in components for minimum in '(3 3 1)
-                  when (> actual minimum) return t
-                  when (< actual minimum) return nil
-                  finally (return t))
-      (error 'libtmux:unsupported-tmux
-             :message (format nil "tmux 3.3a or newer is required; found ~A" text)))
-    (copy-seq text)))
+  (unless (version-at-least-p text "3.3a")
+    (error 'libtmux:unsupported-tmux
+           :message (format nil "tmux 3.3a or newer is required; found ~A" text)))
+  (copy-seq text))
 
 (defun version-at-least-p (actual minimum)
   (loop for value in (version-components actual) for bound in (version-components minimum)
@@ -94,6 +100,13 @@ which needs a daemon at tmux 3.8 or newer.
 `libtmux:open-client`, `libtmux:with-client`, `libtmux:close-client`,
 `libtmux:tmux-version`, `libtmux:client-open-p`,
 `libtmux:client-cleanup-failures` and `libtmux.control:open-connection`
+
+**Checking feature support.** `libtmux:capabilities` observes the responding
+daemon and returns an owned report. `libtmux:capability` and
+`libtmux:supports-p` inspect its version requirements without I/O. Reports
+remain historical after replacement and do not refresh captured targets.
+
+`libtmux:capabilities`, `libtmux:capability` and `libtmux:supports-p`
 
 **Capturing and querying.** `libtmux:fetch-snapshot` captures sessions,
 windows, panes, window links and attached clients as one graph that stays

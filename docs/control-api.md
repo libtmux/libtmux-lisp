@@ -20,6 +20,28 @@ See also: WITH-CONNECTION, WITH-RECONNECTION, SUBMIT-COMMAND, NEXT-EVENT.
 
 ## Functions
 
+<a id="await-capabilities-function"></a>
+
+### await-capabilities
+
+`(await-capabilities request &key (timeout 30))`
+
+Return REPORT, :READY and raw RESULT when REQUEST's live proof succeeds.
+TIMEOUT follows AWAIT-REQUEST: zero polls, NIL waits without a limit, and a wait
+timeout returns NIL, :TIMEOUT, NIL without cancelling the request. A terminal
+failed/cancelled/timed-out/closed request returns NIL, :READY and its retained
+result; inspect :STATUS. No supported-looking report replaces failed work.
+
+Successful output must match the original daemon's PID, start time, socket
+and version. Malformed or mismatched data signals DECODING-ERROR or
+INCOMPLETE-SNAPSHOT; an unknown release signals UNSUPPORTED-TMUX. The request
+still retains its raw result through AWAIT-REQUEST. Repeated successful reads
+return independent reports and preserve captured core authority.
+
+See also: [await-request](#await-request-function), [libtmux:capability-report](api.md#capability-report-type), [submit-capabilities](#submit-capabilities-function).
+
+[Source](../src/control.lisp)
+
 <a id="await-request-function"></a>
 
 ### await-request
@@ -231,6 +253,26 @@ See also: [await-request](#await-request-function), [cancel-request](#cancel-req
 
 [Source](../src/control.lisp)
 
+<a id="submit-capabilities-function"></a>
+
+### submit-capabilities
+
+`(submit-capabilities connection &key (timeout 5))`
+
+Queue a daemon capability read and return a CAPABILITY-REQUEST immediately.
+The existing worker, bounded queue, reply limit and submission deadline own
+execution. No core-client lease or subprocess fallback is used; closing the
+original core client does not prevent this independent connection's read.
+
+The built-in list-commands spelling is trusted, as for LIBTMUX:CAPABILITIES.
+Neither this read nor its completion marker invokes after-hooks. No endpoint
+lookup or generation renewal occurs. A closed/full connection signals
+CONNECTION-CLOSED/CONNECTION-BUSY. TIMEOUT includes queue time in seconds.
+
+See also: [await-capabilities](#await-capabilities-function), [cancel-request](#cancel-request-function), [libtmux:capabilities](api.md#capabilities-function).
+
+[Source](../src/control.lisp)
+
 <a id="submit-command-function"></a>
 
 ### submit-command
@@ -284,6 +326,20 @@ See also: [connection-cleanup-failures](#connection-cleanup-failures-function), 
 ## Classes and conditions
 
 These resources and conditions retain native connection/request state; their slots are private.
+
+<a id="capability-request-type"></a>
+
+### capability-request
+
+A queued capability read bound to the original control daemon.
+Use AWAIT-CAPABILITIES for a typed report; AWAIT-REQUEST retains raw evidence.
+REQUEST-STATE and CANCEL-REQUEST have the ordinary request semantics.
+
+See also: [await-capabilities](#await-capabilities-function), [cancel-request](#cancel-request-function), [submit-capabilities](#submit-capabilities-function).
+
+[Source](../src/control.lisp)
+
+Direct supertypes: `request`.
 
 <a id="connection-type"></a>
 

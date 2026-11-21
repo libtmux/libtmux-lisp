@@ -32,6 +32,7 @@ with plain sequences, changed through an explicit [`client`][api-client].
 [Query](#query-a-snapshot) ·
 [Workspaces](#build-a-workspace) ·
 [Control](#stream-pane-output) ·
+[Capabilities](#check-the-daemons-capabilities) ·
 [Systems](#choose-an-asdf-system) ·
 [Status](#support-and-status) ·
 [Guides](#find-the-right-guide)
@@ -94,6 +95,49 @@ $ mise exec -- sbcl --script examples/managed-daemon.lisp
 
 Prints `MANAGED DAEMON PASS` and a pane record. To reach an existing server,
 use `with-client` alone. More: [daemon scopes](docs/daemons.md).
+
+## Check the daemon's capabilities
+
+### [`libtmux:capabilities`](docs/api.md#capabilities-function): choose an available operation
+
+Read the responding daemon's release and inspect a feature with
+[`supports-p`](docs/api.md#supports-p-function). The report remains usable
+after its client and daemon close.
+
+<!-- example:capabilities -->
+```lisp
+(asdf:load-system "libtmux/control")
+
+(defun inspect-capabilities (&key (program "tmux"))
+  "Return a daemon report; use queued discovery when the daemon supports control."
+  (libtmux:with-daemon (daemon :program program)
+    (libtmux:with-client (client :program (libtmux:daemon-program daemon)
+                                 :socket-path (libtmux:daemon-socket-path daemon))
+      (let ((report (libtmux:capabilities client)))
+        (when (libtmux:supports-p report :control)
+          (let ((outcome (libtmux:new-session client :name "capabilities" :command '("/bin/cat"))))
+            (when (libtmux:outcome-observation-error outcome)
+              (error (libtmux:outcome-observation-error outcome))))
+          (let ((session (aref (libtmux:fetch-sessions client) 0)))
+            (libtmux.control:with-connection (connection client session)
+              (let ((request (libtmux.control:submit-capabilities connection)))
+                (multiple-value-bind (current delivery result)
+                    (libtmux.control:await-capabilities request :timeout 1)
+                  (unless (and (eq :ready delivery) current)
+                    (error "Capability request did not complete: ~S ~S" delivery result))
+                  (assert (equal (libtmux:capability-provenance report)
+                                 (libtmux:capability-provenance current))))))))
+        report))))
+```
+<!-- /example -->
+
+```console
+$ mise exec -- sbcl --script examples/capabilities.lisp
+```
+
+Prints `CAPABILITIES PASS`, the daemon release and whether control is supported.
+Keep tmux's native `list-commands` spelling unaliased for discovery.
+More: [capability reports and limits](docs/capabilities.md).
 
 ## Drive a pane
 

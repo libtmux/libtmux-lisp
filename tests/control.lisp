@@ -5,6 +5,27 @@
 (defun local-control-connection (&rest options)
   (libtmux.control::%connection-for-peer (apply #'local-control-peer options)))
 
+(test capability-result-requires-original-live-proof
+  (let* ((peer (local-control-peer))
+         (handle (libtmux.internal::make-control-request
+                   :peer peer :state :completed
+                   :output (libtmux.internal::encode-utf8
+                            (format nil "witness/1~C123~C456~C/tmp/socket~C3.8~%"
+                                    #\Tab #\Tab #\Tab #\Tab))))
+         (request (make-instance 'libtmux.control:capability-request :handle handle
+                                 :witness '(123 456 "/tmp/socket" "/tmp/socket" "3.8" 1 2 3))))
+    (multiple-value-bind (report delivery result) (libtmux.control:await-capabilities request :timeout 0)
+      (is (eq :ready delivery))
+      (is (eq :completed (getf result :status)))
+      (is (libtmux:supports-p report :json-layout)))
+    (setf (slot-value request 'libtmux.control::witness) '(321 456 "/tmp/socket" "/tmp/socket" "3.8" 1 2 3))
+    (signals libtmux:incomplete-snapshot (libtmux.control:await-capabilities request :timeout 0))
+    (setf (libtmux.internal::control-request-state handle) :cancelled)
+    (multiple-value-bind (report delivery result) (libtmux.control:await-capabilities request :timeout 0)
+      (is (null report))
+      (is (eq :ready delivery))
+      (is (eq :cancelled (getf result :status))))))
+
 (defclass admission-control-connection (libtmux.control:connection)
   ((closes :initform 0 :accessor admission-closes)))
 

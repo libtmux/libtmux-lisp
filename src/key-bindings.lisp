@@ -61,7 +61,7 @@ See also: BIND-KEY, UNBIND-KEY, LIST-COMMANDS, ERROR-OUTCOME."
                   (when table (list "-T" (libtmux.internal::text-argument table "Key table" nil)))
                   (when format (list "-F" (libtmux.internal::text-argument format "Key format")))
                   (when key (list "--" (libtmux.internal::text-argument key "Key" nil))))
-   :minimum-version (when format "3.7") :feature :key-listing-format
+   :feature (when format :key-listing-format)
    :cancel-token cancel-token :timeout timeout :output-limit output-limit))
 
 (defun bind-key (client key &key (table "prefix") repeat note

@@ -39,7 +39,8 @@
   (call-with-lock (control-peer-lock peer) function))
 
 (defun control-marker-input (marker)
-  (format nil "~A~%" (tmux-command-text (list "display-message" "-p" "-l" marker))))
+  ;; Completion markers must not invoke after-display-message hooks.
+  (format nil "~A~%" (tmux-command-text (list "list-commands" "-F" marker "list-sessions"))))
 
 (defun control-request-result (request)
   (list :status (control-request-state request)
@@ -540,7 +541,7 @@ must be >=3.8. CLIENT is borrowed, never closed by this resource."
                                          :remaining (slot-value client 'libtmux::output-limit)
                                          :row-limit 100000 :field-limit 1048576))
             (current (first (preflight-targets client (list session) token budget))))
-       (check-command-capability client :control "3.8")
+       (check-command-capability client :control)
        (attach-control-peer client current token budget (slot-value client 'libtmux::witness)
          :request-limit request-limit :event-limit event-limit
          :event-byte-limit event-byte-limit :reply-byte-limit reply-byte-limit)))))
