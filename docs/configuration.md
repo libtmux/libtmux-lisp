@@ -30,20 +30,29 @@ It prints `CONFIGURATION PASS`. The core function:
 (defun inspect-configuration (&key (program "tmux"))
   "Return owned option, hook and environment records from an isolated daemon."
   (libtmux:with-daemon (daemon :program program)
-    (libtmux:with-client (client :program (libtmux:daemon-program daemon)
-                                 :socket-path (libtmux:daemon-socket-path daemon))
-      (libtmux:new-session client :name "configuration" :command '("/bin/cat"))
-      (let ((session (aref (libtmux:fetch-sessions client) 0)))
-        (libtmux:set-option client "renumber-windows" nil :scope :session :target session)
-        (libtmux:set-option client "@project" "editor" :scope :global-session)
-        (libtmux:set-hook client "after-new-window" "display-message ready" :scope :session :target session)
-        (libtmux:set-environment client "PROJECT_TOKEN" "local-only" :scope :session :target session :hidden t)
-        (list :options (libtmux:show-options client :scope :session :target session
-                                                   :names '("renumber-windows" "@project" "@absent"))
-              :hooks (libtmux:show-hooks client :scope :session :target session
-                                               :names '("after-new-window"))
-              :environment (libtmux:show-environment client :scope :session :target session
-                                                           :names '("PROJECT_TOKEN")))))))
+    (let ((socket (libtmux:daemon-socket-path daemon)))
+      (libtmux:with-client (client :program (libtmux:daemon-program daemon)
+                                   :socket-path socket)
+        (libtmux:new-session client :name "configuration"
+                                    :command '("/bin/cat"))
+        (let ((session (aref (libtmux:fetch-sessions client) 0))
+              (names '("renumber-windows" "@project" "@absent")))
+          (libtmux:set-option client "renumber-windows" nil
+                              :scope :session :target session)
+          (libtmux:set-option client "@project" "editor" :scope :global-session)
+          (libtmux:set-hook client "after-new-window" "display-message ready"
+                            :scope :session :target session)
+          (libtmux:set-environment client "PROJECT_TOKEN" "local-only"
+                                   :scope :session :target session :hidden t)
+          (list :options (libtmux:show-options client :scope :session
+                                                      :target session
+                                                      :names names)
+                :hooks (libtmux:show-hooks client :scope :session
+                                                  :target session
+                                                  :names '("after-new-window"))
+                :environment (libtmux:show-environment
+                              client :scope :session :target session
+                              :names '("PROJECT_TOKEN"))))))))
 ```
 <!-- /example -->
 

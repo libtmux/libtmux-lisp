@@ -117,7 +117,7 @@ metadata changes:
 <!-- example:ownedreconcile -->
 ```lisp
 (defun reconcile-owned-description (client workspace)
-  "Preview permitted edits, then reacquire and apply them without replacing IDs."
+  "Preview permitted edits, then reacquire and apply without replacing IDs."
   (let* ((state (ws:fetch-workspace-state client workspace))
          (preview (ws:plan-workspace workspace state :reconcile t)))
     (assert (getf (ws:plan-data preview) :publish-p))
@@ -211,7 +211,8 @@ The separate `libtmux/workspace/cli` system ships
 [`tools/workspace-cli.lisp`](../tools/workspace-cli.lisp). Validation is local:
 
 ```console
-$ mise exec -- sbcl --script tools/workspace-cli.lisp validate examples/owned-workspace.json
+$ mise exec -- sbcl --script tools/workspace-cli.lisp \
+    validate examples/owned-workspace.json
 ```
 
 Success reports schema `libtmux.lisp.workspace/2`, ID `demo-workspace`, two

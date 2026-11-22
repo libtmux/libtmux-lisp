@@ -1,0 +1,24 @@
+width = 80
+markdown = ["**/*.md"]
+sources = ["examples/**/*.lisp", "examples/**/*.json"]
+allow_ceiling = 3
+shared_digest = "872d3f4cb1eb2b5cd9c5b7adc9cd140a153e4bbed3cb5bd0b7400a905e6dae4d"
+
+[[exclude]]
+glob = "scripts/examples/**/*.lisp"
+reason = "example runner harness and its FiveAM tests, not reader-facing examples"
+
+[[allow]]
+path = ".github/WRITING.md"
+line = "(map 'vector #'tm:entity-data (q:matching (q:compile-filter :pane '(:= :pane/active t)) (tm:panes snapshot)))"
+reason = "The deliberately wide Bad policy example demonstrates the problem."
+
+[[allow]]
+path = "docs/workspaces.md"
+line = '{"status":"valid","schema":"libtmux.lisp.workspace/1","session":"declared","windows":2,"panes":3}'
+reason = "machine-emitted single-line JSON output"
+
+[[allow]]
+path = "docs/workspaces.md"
+line = '{"status":"planned","steps":5,"actions":["create-session","move-window","split-pane","select-layout","create-window"]}'
+reason = "machine-emitted single-line JSON output"

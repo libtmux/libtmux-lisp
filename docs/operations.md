@@ -584,7 +584,7 @@ three printer views plus their diagnostic outcomes. The
 <!-- example:configuration -->
 ```lisp
 (defun configuration-report (client session)
-  "Read native configuration text; return an owned report and diagnostic outcomes."
+  "Read native configuration text; return an owned report and its outcomes."
   (let ((outcomes nil))
     (flet ((inspect-text (reader &rest options)
              (multiple-value-bind (text outcome) (apply reader client options)
@@ -596,8 +596,9 @@ three printer views plus their diagnostic outcomes. The
                                            :name "status" :include-inherited t)
                     :hooks (inspect-text #'tm:show-hooks-text
                                          :scope :session :target session)
-                    :environment (inspect-text #'tm:show-environment-text
-                                               :scope :session :target session))))
+                    :environment (inspect-text
+                                  #'tm:show-environment-text
+                                  :scope :session :target session))))
         (values report (coerce (nreverse outcomes) 'simple-vector))))))
 ```
 <!-- /example -->

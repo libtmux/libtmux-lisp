@@ -165,16 +165,20 @@ operation and observes it through raw notification bytes.
 ```lisp
 (defun observe-window-rename (client session window)
   "Rename explicitly and return its owned notification bytes."
-  (let ((captured-name (tm:name window))
-        (expected (map 'vector #'char-code
-                       (format nil "%window-renamed ~A event-editors" (tm:id window)))))
+  (let* ((captured-name (tm:name window))
+         (line (format nil "%window-renamed ~A event-editors" (tm:id window)))
+         (expected (map 'vector #'char-code line)))
     (control:with-connection (connection client session)
-      (let ((outcome (tm:rename-window client window "event-editors" :observe nil)))
+      (let ((outcome (tm:rename-window client window "event-editors"
+                                       :observe nil)))
         (assert (eq :succeeded (tm:outcome-status outcome))))
-      (let ((deadline (+ (get-internal-real-time) internal-time-units-per-second)))
-        (loop for remaining = (/ (- deadline (get-internal-real-time)) internal-time-units-per-second)
-              do (assert (plusp remaining))
-                 (multiple-value-bind (event delivery) (control:next-event connection :timeout remaining)
+      (let ((deadline (+ (get-internal-real-time)
+                         internal-time-units-per-second)))
+        (loop for left = (/ (- deadline (get-internal-real-time))
+                            internal-time-units-per-second)
+              do (assert (plusp left))
+                 (multiple-value-bind (event delivery)
+                     (control:next-event connection :timeout left)
                    (assert (eq :ready delivery))
                    (when (member (getf event :kind) '(:gap :end))
                      (error "Notification stream ended or lost data: ~S" event))
@@ -236,14 +240,15 @@ close.
 ```lisp
 (defun inspect-after-reconnect (client session)
   "Return owned pane data and provenance after an explicit generation change."
-  (let ((before (getf (tm:provenance session) :generation)))
+  (let ((before (getf (tm:provenance session) :generation))
+        (query '("display-message" "-p" "-l" "reconnected")))
     (control:with-connection (old client session)
       (control:with-reconnection (connection snapshot old)
         (assert (eq :closed (control:connection-state old)))
         (assert (> (getf (tm:provenance snapshot) :generation) before))
-        (let ((request (control:submit-command
-                        connection '("display-message" "-p" "-l" "reconnected") :effect :read)))
-          (multiple-value-bind (result delivery) (control:await-request request :timeout 1)
+        (let ((request (control:submit-command connection query :effect :read)))
+          (multiple-value-bind (result delivery)
+              (control:await-request request :timeout 1)
             (assert (eq :ready delivery))
             (assert (eq :completed (getf result :status)))))
         (values (map 'vector #'tm:entity-data (tm:panes snapshot))

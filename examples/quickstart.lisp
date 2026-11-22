@@ -13,7 +13,8 @@
 (libtmux:with-daemon (daemon)
   (libtmux:with-client (client :program (libtmux:daemon-program daemon)
                                :socket-path (libtmux:daemon-socket-path daemon))
-    (observed-value (libtmux:new-session client :name "demo" :window-name "editor"
+    (observed-value (libtmux:new-session client :name "demo"
+                                                :window-name "editor"
                                                 :command '("/bin/cat")))
     (let* ((before (libtmux:fetch-snapshot client))
            (demo (find "demo" (libtmux:sessions before)
@@ -41,7 +42,8 @@
               do (format t "session ~A~%" (libtmux:name session))
                  (loop for link across (libtmux:window-links session)
                        for each = (libtmux:window link)
-                       do (format t "  window ~D:~A:" (libtmux:index link) (libtmux:name each))
+                       do (format t "  window ~D:~A:"
+                                  (libtmux:index link) (libtmux:name each))
                           (loop for item across (libtmux:panes each)
                                 do (format t " ~A" (libtmux:id item)))
                           (terpri)))
