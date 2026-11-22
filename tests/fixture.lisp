@@ -11,8 +11,9 @@
 (defun fixture-command (fixture &rest arguments)
   (uiop:run-program
    (append (list "env" "-u" "TMUX" "-u" "TMUX_PANE"
+                 "-u" "LIBTMUX_SOCKET" "-u" "LIBTMUX_SOCKET_PATH"
                  "LC_ALL=C.UTF-8" "TERM=xterm-256color"
-                 (or (uiop:getenv "LIBTMUX_TEST_TMUX") "tmux")
+                 (test-tmux-program)
                  "-u" "-S" (fixture-socket fixture) "-f" "/dev/null")
            arguments)
    :force-shell nil :input nil :output :string :error-output :string
@@ -147,7 +148,7 @@
 (defun call-with-attached-terminal-client (fixture function)
   "Own an ordinary PTY client; never enter the control identification path."
   (let* ((client (make-terminal-client))
-         (program (or (uiop:getenv "LIBTMUX_TEST_TMUX") "tmux"))
+         (program (test-tmux-program))
          (channel (format nil "terminal-ready-~A" (gensym)))
          (finished nil))
     (unwind-protect

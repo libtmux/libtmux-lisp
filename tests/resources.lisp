@@ -213,3 +213,85 @@
              (is (null (libtmux:error-client condition)))
              (is (null (libtmux:error-outcome condition)))))
       (setf (symbol-function 'libtmux.internal::ensure-process-platform) original))))
+
+(test default-socket-selection-and-explicit-precedence
+  (let ((original-platform (symbol-function 'libtmux.internal::ensure-process-platform))
+        (original-program (symbol-function 'libtmux.internal::native-program))
+        (original-execute (symbol-function 'libtmux.internal::execute-tmux))
+        (dispatched-argv nil))
+    (unwind-protect
+         (progn
+           (setf (symbol-function 'libtmux.internal::ensure-process-platform) (lambda () t)
+                 (symbol-function 'libtmux.internal::native-program)
+                 (lambda (program)
+                   (unless (and (stringp program) (plusp (length program)))
+                     (libtmux.internal::invalid-argument "Invalid program"))
+                   program)
+                 (symbol-function 'libtmux.internal::execute-tmux)
+                 (lambda (client arguments token timeout output-limit input &key keep-input-open)
+                   (declare (ignore token timeout output-limit input keep-input-open))
+                   (setf dispatched-argv (libtmux.internal::client-argv client arguments))
+                   (libtmux.internal::make-outcome
+                    (coerce dispatched-argv 'simple-vector) :succeeded :exited 0
+                    :stdout (libtmux.internal::encode-utf8 (format nil "tmux 3.8~%"))
+                    :stderr #() :code 0)))
+           (flet ((probe (bindings &rest options)
+                    (call-with-environment-bindings
+                     bindings
+                     (lambda ()
+                       (setf dispatched-argv nil)
+                       (libtmux:with-client (client :program "/bin/tmux"
+                                                    :socket-name (getf options :socket-name)
+                                                    :socket-path (getf options :socket-path))
+                         (declare (ignore client))
+                         dispatched-argv)))))
+             (is (equal '("/bin/tmux" "-u" "-V")
+                        (probe '(("LIBTMUX_SOCKET_PATH" . nil)
+                                 ("LIBTMUX_SOCKET" . nil)
+                                 ("TMUX" . nil)))))
+             (dolist (blank-tmux '("" ",1234,0" "   " "  ,1234,0"))
+               (is (equal '("/bin/tmux" "-u" "-V")
+                          (probe `(("LIBTMUX_SOCKET_PATH" . "")
+                                   ("LIBTMUX_SOCKET" . ,(format nil " ~C~% " #\Tab))
+                                   ("TMUX" . ,blank-tmux))))))
+             (is (equal '("/bin/tmux" "-u" "-S" "/tmp/from-tmux.sock" "-V")
+                        (probe '(("LIBTMUX_SOCKET_PATH" . "   ")
+                                 ("LIBTMUX_SOCKET" . "")
+                                 ("TMUX" . "/tmp/from-tmux.sock,4321,0")))))
+             (is (equal '("/bin/tmux" "-u" "-S" "/tmp/no-comma.sock" "-V")
+                        (probe '(("LIBTMUX_SOCKET_PATH" . nil)
+                                 ("LIBTMUX_SOCKET" . nil)
+                                 ("TMUX" . "/tmp/no-comma.sock")))))
+             (is (equal '("/bin/tmux" "-u" "-L" " padded/name " "-V")
+                        (probe '(("LIBTMUX_SOCKET_PATH" . "  ")
+                                 ("LIBTMUX_SOCKET" . " padded/name ")
+                                 ("TMUX" . "/tmp/from-tmux.sock,4321,0")))))
+             (let ((expected-relative (libtmux.internal::absolute-native-path " rel/socket.sock ")))
+               (is (equal (list "/bin/tmux" "-u" "-S" expected-relative "-V")
+                          (probe '(("LIBTMUX_SOCKET_PATH" . " rel/socket.sock ")
+                                   ("LIBTMUX_SOCKET" . "ignored-name")
+                                   ("TMUX" . "/tmp/from-tmux.sock,4321,0"))))))
+             (is (equal '("/bin/tmux" "-u" "-S" "/explicit/socket.sock" "-V")
+                        (probe '(("LIBTMUX_SOCKET_PATH" . "/env/socket.sock")
+                                 ("LIBTMUX_SOCKET" . "env-name")
+                                 ("TMUX" . "/tmp/from-tmux.sock,4321,0"))
+                               :socket-path "/explicit/socket.sock")))
+             (is (equal '("/bin/tmux" "-u" "-L" "explicit-name" "-V")
+                        (probe '(("LIBTMUX_SOCKET_PATH" . "/env/socket.sock")
+                                 ("LIBTMUX_SOCKET" . "env-name")
+                                 ("TMUX" . "/tmp/from-tmux.sock,4321,0"))
+                               :socket-name "explicit-name")))
+             (call-with-environment-bindings
+              '(("LIBTMUX_SOCKET_PATH" . "/env/socket.sock") ("LIBTMUX_SOCKET" . "env-name"))
+              (lambda ()
+                (signals libtmux:invalid-argument
+                  (libtmux:open-client :program "/bin/tmux" :socket-name "a" :socket-path "/b"))
+                (signals libtmux:invalid-argument
+                  (libtmux:open-client :program "/bin/tmux" :socket-name ""))))))
+      (setf (symbol-function 'libtmux.internal::ensure-process-platform) original-platform
+            (symbol-function 'libtmux.internal::native-program) original-program
+            (symbol-function 'libtmux.internal::execute-tmux) original-execute)))
+  (let ((cleaned (libtmux.internal::bootstrap-environment
+                  '("PATH=/usr/bin" "TMUX=/tmp/s,1,0" "TMUX_PANE=%1"
+                    "LIBTMUX_SOCKET=ambient" "LIBTMUX_SOCKET_PATH=/ambient/sock"))))
+    (is (equal '("PATH=/usr/bin") cleaned))))

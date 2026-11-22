@@ -69,7 +69,8 @@
   (unless (zerop (%prctl +set-child-subreaper+ 1 0 0 0))
     (fail "Cannot enable the test-only subreaper"))
   (let* ((process (sb-ext:run-program (first command) (rest command) :search t :wait nil
-                                      :input nil :output t :error t))
+                                      :input nil :output t :error t
+                                      :environment (clean-test-environment)))
          (result 1))
     (unwind-protect
          (if (process-exited-p process deadline)

@@ -10,9 +10,10 @@
   (let* ((descriptors-before (length (directory "/proc/self/fdinfo/*")))
          (token (libtmux:make-cancellation-token))
          (owner (libtmux::start-daemon
-                 :program (or (uiop:getenv "LIBTMUX_TEST_TMUX") "tmux")
+                 :program (test-tmux-program)
                  :timeout 0.75 :output-limit 32768 :cancel-token token
-                 :environment '("LC_ALL=C" "PATH=/usr/bin:/bin" "LIBTMUX_DAEMON_TEST=owned")))
+                 :environment '("LC_ALL=C" "PATH=/usr/bin:/bin" "LIBTMUX_DAEMON_TEST=owned"
+                                "LIBTMUX_SOCKET=ambient" "LIBTMUX_SOCKET_PATH=/ambient/sock")))
          (socket (libtmux::daemon-socket-path owner))
          (program (libtmux::daemon-program owner))
          (before nil))
@@ -28,10 +29,12 @@
                                      (getf (libtmux:provenance capture) :server/pid))))
                  (setf before (libtmux:provenance capture)))
                (when (zerop visit)
-                 (let ((outcome (libtmux:run-command client '("-N" "show-environment" "-g" "LC_ALL")
+                 (let ((outcome (libtmux:run-command client '("-N" "show-environment" "-g")
                                                    :effect :read)))
-                   (is (string= (format nil "LC_ALL=C~%")
-                                (libtmux.internal::strict-text (libtmux:outcome-stdout outcome)))))
+                   (let ((text (libtmux.internal::strict-text (libtmux:outcome-stdout outcome))))
+                     (is (search (format nil "LC_ALL=C~%") text))
+                     (is (not (search "LIBTMUX_SOCKET=" text)))
+                     (is (not (search "LIBTMUX_SOCKET_PATH=" text)))))
                  (is (eq :succeeded
                          (libtmux:outcome-status
                           (libtmux:new-session client :name "owned" :command '("/bin/cat"))))))))

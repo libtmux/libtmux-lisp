@@ -139,8 +139,7 @@
                    "--no-same-owner"))
         (let* ((extracted (merge-pathnames "libtmux/" destination))
                (environment
-                 (environment-with
-                  (sb-ext:posix-environ)
+                 (clean-test-environment
                   "CL_SOURCE_REGISTRY" (format nil "(:source-registry (:directory ~S) :ignore-inherited-configuration)"
                                                (uiop:native-namestring extracted))
                   "ASDF_OUTPUT_TRANSLATIONS" (format nil "(:output-translations (t ~S) :ignore-inherited-configuration)"

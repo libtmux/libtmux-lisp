@@ -15,6 +15,7 @@
            #:run #:process-exited-p #:descriptor-readable-p #:pidfd-open
            #:read-text #:write-text #:sha256-file #:git #:find-program
            #:with-temporary-directory #:environment-with #:merge-environment
+           #:nonblank-env #:clean-test-environment
            #:obj #:jref #:jhas #:jset #:json-equal #:json-parse #:json-string
            #:json-write-file #:json-read-file))
 
@@ -141,6 +142,23 @@ A NIL value removes the name."
 (defun merge-environment (&rest names-and-values)
   "Return this process's environment with the given NAME VALUE pairs set."
   (apply #'environment-with (sb-ext:posix-environ) names-and-values))
+
+(defun nonblank-env (name)
+  "Return environment variable NAME when it contains a non-whitespace character."
+  (let ((value (uiop:getenv name)))
+    (and value
+         (some (lambda (char)
+                 (not (member char '(#\Space #\Tab #\Newline #\Return #\Vt #\Page))))
+               value)
+         value)))
+
+(defun clean-test-environment (&rest extra-names-and-values)
+  "Return an environment with ambient server selectors and blank LIBTMUX_TEST_TMUX cleared."
+  (apply #'merge-environment
+         "TMUX" nil "TMUX_PANE" nil
+         "LIBTMUX_SOCKET" nil "LIBTMUX_SOCKET_PATH" nil
+         "LIBTMUX_TEST_TMUX" (nonblank-env "LIBTMUX_TEST_TMUX")
+         extra-names-and-values))
 
 (defun destination (value)
   "Translate a RUN output designator for SB-EXT:RUN-PROGRAM; second value is a temp path."

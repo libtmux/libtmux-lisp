@@ -3,8 +3,11 @@
 `open-client` checks the selected tmux executable and returns a connection
 scope. It does not start a daemon.
 
-- Choose one of `:socket-name` or `:socket-path`. Omit both for tmux's default
-  endpoint.
+- Choose one of `:socket-name` or `:socket-path`. When both are omitted,
+  `open-client` uses non-blank `LIBTMUX_SOCKET_PATH` (`-S`), else non-blank
+  `LIBTMUX_SOCKET` (`-L`), else the socket path before the first comma in
+  `TMUX`, else tmux's default socket. Blank values count as unset; non-blank
+  values are used untrimmed.
 - `:config-file` is passed explicitly when given.
 - Configuration strings are copied.
 
@@ -126,8 +129,10 @@ Launch:
 Environment:
 
 - Ordinary commands force `LC_ALL=C.UTF-8`, clear `TMUX` and `TMUX_PANE`, and
-  normalize the Bash startup variables its fixed launcher uses. This is not a
-  byte-for-byte environment transfer.
+  normalize the Bash startup variables its fixed launcher uses. Clearing `TMUX`
+  in the child lets detached session creation reach a server selected from
+  `TMUX` without nested-session refusal. This is not a byte-for-byte
+  environment transfer.
 - Each private process job owns its environment and any explicit child working
   directory. Preparing or launching it leaves the Lisp process's environment
   and working directory alone.
