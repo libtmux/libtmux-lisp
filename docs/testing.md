@@ -130,6 +130,9 @@ $ LIBTMUX_TEST_TMUX=/path/to/tmux mise run integration
 
 This outer loop uses a dedicated process owner and subreaper.
 
+- Test and example runners clear inherited `TMUX`, `TMUX_PANE`,
+  `LIBTMUX_SOCKET` and `LIBTMUX_SOCKET_PATH`; blank `LIBTMUX_TEST_TMUX` counts
+  as unset.
 - No test-owned child or daemon may survive the Lisp image.
 - Tests wait on application signals. A send acknowledgment alone does not show
   the application consumed the input.

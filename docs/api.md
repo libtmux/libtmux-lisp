@@ -1312,10 +1312,14 @@ Checks the runtime profile and required OS facilities before resolving PROGRAM.
 An unsupported profile or facility signals UNSUPPORTED-PLATFORM; ERROR-FEATURE
 identifies the requirement. PROGRAM must resolve to a native x86_64 ELF tmux
 executable; pass the underlying binary when PATH selects a script or shim.
-SOCKET-NAME and SOCKET-PATH are mutually exclusive; omission selects tmux's
-default socket. No daemon is started. TIMEOUT is seconds; OUTPUT-LIMIT bounds
-combined stdout/stderr bytes per command. Signals an operational condition on
-version/launch failure. Returned configuration strings are owned by the client.
+SOCKET-NAME and SOCKET-PATH are mutually exclusive. When both are omitted,
+non-blank LIBTMUX_SOCKET_PATH selects SOCKET-PATH, else non-blank
+LIBTMUX_SOCKET selects SOCKET-NAME, else TMUX selects the current server's
+socket path, else tmux uses its default socket. Blank values count as unset;
+non-blank values are used untrimmed. No daemon is started. TIMEOUT is seconds;
+OUTPUT-LIMIT bounds combined stdout/stderr bytes per command. Signals an
+operational condition on version/launch failure. Returned configuration strings
+are owned by the client.
 
 See also: [close-client](#close-client-function), [error-feature](#error-feature-function), [unsupported-platform](#unsupported-platform-type), [with-client](#with-client-function).
 

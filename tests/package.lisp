@@ -11,6 +11,24 @@
                      (asdf:system-relative-pathname "libtmux" "tests/child.lisp"))
          mode arguments))
 
+(defun test-tmux-program ()
+  (let ((value (uiop:getenv "LIBTMUX_TEST_TMUX")))
+    (if (and value (some (lambda (char)
+                           (not (member char '(#\Space #\Tab #\Newline #\Return #\Vt #\Page))))
+                         value))
+        value
+        "tmux")))
+
+(defun call-with-environment-bindings (bindings function)
+  (let ((saved (mapcar (lambda (pair) (cons (car pair) (uiop:getenv (car pair)))) bindings)))
+    (unwind-protect
+         (progn
+           (loop for (name . value) in bindings
+                 do (if value (sb-posix:setenv name value 1) (sb-posix:unsetenv name)))
+           (funcall function))
+      (loop for (name . value) in saved
+            do (if value (sb-posix:setenv name value 1) (sb-posix:unsetenv name))))))
+
 (defun public-workspace-function (name)
   (multiple-value-bind (symbol visibility) (find-symbol (string name) :libtmux.workspace)
     (unless (and (eq visibility :external) (fboundp symbol))

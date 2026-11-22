@@ -330,15 +330,16 @@
 (defun make-context (root bin)
   "Build the run context. The examples start the library's default `tmux`, so BIN
 gets a `tmux` link to the selected binary and leads their PATH."
-  (let* ((program (or (find-program (or (uiop:getenv "LIBTMUX_TEST_TMUX") "tmux"))
+  (let* ((program (or (find-program (or (nonblank-env "LIBTMUX_TEST_TMUX") "tmux"))
                       (fail "Install tmux or set LIBTMUX_TEST_TMUX to a native binary")))
          (environment (progn
                         (sb-posix:symlink (uiop:native-namestring program)
                                           (uiop:native-namestring (merge-pathnames "tmux" bin)))
-                        (merge-environment "TMUX" nil "TMUX_PANE" nil "LC_ALL" "C.UTF-8"
-                                           "PATH" (format nil "~A:~A"
-                                                          (string-right-trim "/" (uiop:native-namestring bin))
-                                                          (or (uiop:getenv "PATH") ""))))))
+                        (clean-test-environment
+                         "LC_ALL" "C.UTF-8"
+                         "PATH" (format nil "~A:~A"
+                                        (string-right-trim "/" (uiop:native-namestring bin))
+                                        (or (uiop:getenv "PATH") ""))))))
     (build-context :root root :program (uiop:native-namestring program) :environment environment
                   :version (string-trim '(#\Newline)
                                         (nth-value 1 (run (list (uiop:native-namestring program) "-V")
@@ -386,6 +387,10 @@ gets a `tmux` link to the selected binary and leads their PATH."
         (format t "~A~%" (json-string evidence :indent nil))))))
 
 (defun main ()
+  (dolist (name '("TMUX" "TMUX_PANE" "LIBTMUX_SOCKET" "LIBTMUX_SOCKET_PATH"))
+    (sb-posix:unsetenv name))
+  (unless (nonblank-env "LIBTMUX_TEST_TMUX")
+    (sb-posix:unsetenv "LIBTMUX_TEST_TMUX"))
   (let* ((arguments (rest sb-ext:*posix-argv*))
          (root (uiop:ensure-directory-pathname
                 (truename (or (second (member "--source-root" arguments :test #'string=))

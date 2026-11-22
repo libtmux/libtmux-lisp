@@ -29,3 +29,30 @@
   (multiple-value-bind (code message) (apply #'supervise-command (child-command "inherited-pipes"))
     (is (eql 1 code))
     (is (search "1 owned descendants survived the test image" message))))
+
+(test supervisor-clears-ambient-selectors-and-blank-test-tmux
+  (let ((script (uiop:native-namestring
+                 (asdf:system-relative-pathname
+                  "libtmux" "scripts/test-processes/test-processes.lisp")))
+        (probe (child-command "context" "TMUX" "TMUX_PANE"
+                              "LIBTMUX_SOCKET" "LIBTMUX_SOCKET_PATH" "LIBTMUX_TEST_TMUX")))
+    (multiple-value-bind (code stdout stderr)
+        (libtmux.scripts:run
+         (list* "sbcl" "--script" script probe)
+         :environment (libtmux.scripts:merge-environment
+                       "TMUX" "/ambient/sock,1,0" "TMUX_PANE" "%9"
+                       "LIBTMUX_SOCKET" "ambient" "LIBTMUX_SOCKET_PATH" "/ambient/path"
+                       "LIBTMUX_TEST_TMUX" (format nil " ~C " #\Tab)))
+      (is (eql 0 code))
+      (is (string= "" stderr))
+      (is (equal '("<absent>" "<absent>" "<absent>" "<absent>" "<absent>")
+                 (butlast (uiop:split-string stdout :separator '(#\Null))))))
+    (multiple-value-bind (code stdout stderr)
+        (libtmux.scripts:run
+         (list* "sbcl" "--script" script probe)
+         :environment (libtmux.scripts:merge-environment
+                       "LIBTMUX_SOCKET" "ambient" "LIBTMUX_TEST_TMUX" "/custom/tmux"))
+      (is (eql 0 code))
+      (is (string= "" stderr))
+      (is (equal '("<absent>" "<absent>" "<absent>" "<absent>" "/custom/tmux")
+                 (butlast (uiop:split-string stdout :separator '(#\Null))))))))

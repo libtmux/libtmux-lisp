@@ -301,6 +301,44 @@ failure signals CLEANUP-FAILED; the active owner still retains cleanup duty."))
             (when name (list "-L" name)) (when path (list "-S" path))
             (when config (list "-f" config)) (coerce arguments 'list))))
 
+(defun whitespace-char-p (char)
+  (member char '(#\Space #\Tab #\Newline #\Return #\Vt #\Page)))
+
+(defun nonblank-string-p (value)
+  (and (stringp value) (some (complement #'whitespace-char-p) value)))
+
+(defun check-client-string (value)
+  (unless (and (stringp value) (plusp (length value)) (not (find #\Null value)))
+    (invalid-argument "Socket/configuration values must be nonempty strings without NUL")))
+
+(defun resolve-socket-selection (socket-name socket-path &optional (lookup #'uiop:getenv))
+  (when (and socket-name socket-path)
+    (invalid-argument "Specify socket-name or socket-path, not both"))
+  (dolist (value (list socket-name socket-path))
+    (when value (check-client-string value)))
+  (cond
+    (socket-path (values nil (absolute-native-path socket-path)))
+    (socket-name (values (copy-seq socket-name) nil))
+    (t
+     (let ((env-path (funcall lookup "LIBTMUX_SOCKET_PATH")))
+       (if (nonblank-string-p env-path)
+           (progn
+             (check-client-string env-path)
+             (values nil (absolute-native-path env-path)))
+           (let ((env-name (funcall lookup "LIBTMUX_SOCKET")))
+             (if (nonblank-string-p env-name)
+                 (progn
+                   (check-client-string env-name)
+                   (values (copy-seq env-name) nil))
+                 (let* ((tmux (funcall lookup "TMUX"))
+                        (tmux-path (and (stringp tmux)
+                                        (subseq tmux 0 (position #\, tmux)))))
+                   (if (nonblank-string-p tmux-path)
+                       (progn
+                         (check-client-string tmux-path)
+                         (values nil (absolute-native-path tmux-path)))
+                       (values nil nil))))))))))
+
 (defun execute-tmux (client arguments token timeout output-limit input &key keep-input-open)
   (execute-command (slot-value client 'libtmux::transport)
                    (client-argv client arguments) :input input :timeout timeout
@@ -365,43 +403,44 @@ Checks the runtime profile and required OS facilities before resolving PROGRAM.
 An unsupported profile or facility signals UNSUPPORTED-PLATFORM; ERROR-FEATURE
 identifies the requirement. PROGRAM must resolve to a native x86_64 ELF tmux
 executable; pass the underlying binary when PATH selects a script or shim.
-SOCKET-NAME and SOCKET-PATH are mutually exclusive; omission selects tmux's
-default socket. No daemon is started. TIMEOUT is seconds; OUTPUT-LIMIT bounds
-combined stdout/stderr bytes per command. Signals an operational condition on
-version/launch failure. Returned configuration strings are owned by the client.
+SOCKET-NAME and SOCKET-PATH are mutually exclusive. When both are omitted,
+non-blank LIBTMUX_SOCKET_PATH selects SOCKET-PATH, else non-blank
+LIBTMUX_SOCKET selects SOCKET-NAME, else TMUX selects the current server's
+socket path, else tmux uses its default socket. Blank values count as unset;
+non-blank values are used untrimmed. No daemon is started. TIMEOUT is seconds;
+OUTPUT-LIMIT bounds combined stdout/stderr bytes per command. Signals an
+operational condition on version/launch failure. Returned configuration strings
+are owned by the client.
 See also: WITH-CLIENT, CLOSE-CLIENT, UNSUPPORTED-PLATFORM, ERROR-FEATURE."
   (libtmux.internal::require-process-profile)
   (libtmux.internal::check-limits timeout output-limit)
-  (when (and socket-name socket-path)
-    (libtmux.internal::invalid-argument "Specify socket-name or socket-path, not both"))
-  (dolist (value (list socket-name socket-path config-file))
-    (when value
-      (unless (and (stringp value) (plusp (length value)) (not (find #\Null value)))
-        (libtmux.internal::invalid-argument "Socket/configuration values must be nonempty strings without NUL"))))
-  (libtmux.internal::ensure-process-platform)
-  (let ((client (make-instance 'client
-                 :program (libtmux.internal::native-program program)
-                 :socket-name (and socket-name (copy-seq socket-name))
-                 :socket-path (and socket-path (libtmux.internal::absolute-native-path socket-path))
-                 :config-file (and config-file (libtmux.internal::absolute-native-path config-file))
-                 :timeout timeout :output-limit output-limit))
-        (opened nil))
-    (unwind-protect
-         (handler-bind ((libtmux-error
-                          (lambda (condition) (setf (slot-value condition 'client) client))))
-           (let* ((outcome (run-command client '("-V") :effect :read))
-                  (text (string-trim '(#\Newline #\Return)
-                                      (libtmux.internal::strict-text (outcome-stdout outcome)))))
-             (unless (and (>= (length text) 5) (string= "tmux " text :end2 5))
-               (error 'unsupported-tmux :outcome outcome
-                      :message "The selected executable did not report a tmux release"))
-             (setf (slot-value client 'version)
-                   (libtmux.internal::supported-version (subseq text 5))))
-           (setf opened t)
-           client)
-      (unless opened
-        (handler-case (close-client client)
-          (error (condition) (libtmux.internal::record-cleanup-failure client condition)))))))
+  (when config-file (libtmux.internal::check-client-string config-file))
+  (multiple-value-bind (resolved-name resolved-path)
+      (libtmux.internal::resolve-socket-selection socket-name socket-path)
+    (libtmux.internal::ensure-process-platform)
+    (let ((client (make-instance 'client
+                   :program (libtmux.internal::native-program program)
+                   :socket-name resolved-name
+                   :socket-path resolved-path
+                   :config-file (and config-file (libtmux.internal::absolute-native-path config-file))
+                   :timeout timeout :output-limit output-limit))
+          (opened nil))
+      (unwind-protect
+           (handler-bind ((libtmux-error
+                            (lambda (condition) (setf (slot-value condition 'client) client))))
+             (let* ((outcome (run-command client '("-V") :effect :read))
+                    (text (string-trim '(#\Newline #\Return)
+                                        (libtmux.internal::strict-text (outcome-stdout outcome)))))
+               (unless (and (>= (length text) 5) (string= "tmux " text :end2 5))
+                 (error 'unsupported-tmux :outcome outcome
+                        :message "The selected executable did not report a tmux release"))
+               (setf (slot-value client 'version)
+                     (libtmux.internal::supported-version (subseq text 5))))
+             (setf opened t)
+             client)
+        (unless opened
+          (handler-case (close-client client)
+            (error (condition) (libtmux.internal::record-cleanup-failure client condition))))))))
 
 (defmacro with-client ((name &rest options) &body body)
   "Bind NAME to a client and close the original resource on every exit.

@@ -37,8 +37,8 @@
   (remove-if
    (lambda (entry)
      (member (subseq entry 0 (position #\= entry))
-             '("TMUX" "TMUX_PANE" "TMUX_TMPDIR" "LISTEN_PID" "LISTEN_FDS"
-               "LISTEN_FDNAMES" "BASH_COMPAT" "BASH_XTRACEFD")
+             '("TMUX" "TMUX_PANE" "TMUX_TMPDIR" "LIBTMUX_SOCKET" "LIBTMUX_SOCKET_PATH"
+               "LISTEN_PID" "LISTEN_FDS" "LISTEN_FDNAMES" "BASH_COMPAT" "BASH_XTRACEFD")
              :test #'string=))
    (owned-process-environment environment)))
 

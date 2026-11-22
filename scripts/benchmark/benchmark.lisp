@@ -241,7 +241,7 @@ The bootstrap is deterministic; the tail is reported from twenty observations."
                           (princ-to-string samples) (princ-to-string commands)
                           (princ-to-string panes) (uiop:native-namestring records))
                     :directory root
-                    :environment (merge-environment "TMUX" nil "TMUX_PANE" nil)
+                    :environment (clean-test-environment)
                     :output (merge-pathnames "run.log" directory)
                     :error-output :output :check nil)))
     (funcall report "exit_code" code)
@@ -273,7 +273,7 @@ The bootstrap is deterministic; the tail is reported from twenty observations."
          (commands (option arguments "--commands" 8 1 32))
          (panes (option arguments "--panes" 4 1 16))
          (program (or (find-program (or (second (member "--program" arguments :test #'string=))
-                                        (uiop:getenv "LIBTMUX_TEST_TMUX") "tmux"))
+                                        (nonblank-env "LIBTMUX_TEST_TMUX") "tmux"))
                       (fail "Select a native tmux binary with --program")))
          (lock-path (merge-pathnames "libtmux-lisp/benchmark.lock"
                                      (uiop:ensure-directory-pathname

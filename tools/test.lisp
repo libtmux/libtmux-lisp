@@ -1,3 +1,13 @@
+(require :sb-posix)
+(dolist (name '("TMUX" "TMUX_PANE" "LIBTMUX_SOCKET" "LIBTMUX_SOCKET_PATH"))
+  (sb-posix:unsetenv name))
+(let ((tmux (sb-ext:posix-getenv "LIBTMUX_TEST_TMUX")))
+  (when (and tmux
+             (every (lambda (char)
+                      (member char '(#\Space #\Tab #\Newline #\Return #\Vt #\Page)))
+                    tmux))
+    (sb-posix:unsetenv "LIBTMUX_TEST_TMUX")))
+
 (load (merge-pathnames "load.lisp" *load-truename*))
 (let* ((arguments (uiop:command-line-arguments))
        (suites (mapcar

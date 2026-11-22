@@ -61,8 +61,9 @@ The runner loads pinned ASDF before `.qlot/setup.lisp` to avoid redundant
 ASDF upgrades. It does not install dependencies during a check.
 
 Integration tests require tmux. Set `LIBTMUX_TEST_TMUX` to select a particular
-binary; it defaults to `tmux` on PATH. The supported range is 3.3a through 3.8.
-CI tests only those two endpoints to reduce build time.
+binary; empty or whitespace-only values count as unset and default to `tmux` on
+PATH. The supported range is 3.3a through 3.8. CI tests only those two
+endpoints to reduce build time.
 
 ## Verification
 
@@ -182,9 +183,12 @@ fail for review. A neighboring version's catalog is not a fallback.
 ## Tmux fixtures
 
 Each test or probe must own a unique `libtmux-lisp-` socket and temporary
-directory. Address the socket explicitly, clear inherited `TMUX` and
-`TMUX_PANE`, and clean up only resources created by that run. Never use or
-kill the default server. Record the exact tmux version and verify cleanup.
+directory. Address the socket explicitly, clear inherited `TMUX`, `TMUX_PANE`,
+`LIBTMUX_SOCKET` and `LIBTMUX_SOCKET_PATH`, and clean up only resources created
+by that run. Default-selection tests that route sockets through `TMUX_TMPDIR`
+must use a private `0700` directory paired with `LIBTMUX_TEST_SANDBOX`. Never
+use or kill the default server. Record the exact tmux version and verify
+cleanup.
 
 ## Pull requests
 
