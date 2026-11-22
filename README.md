@@ -1,8 +1,8 @@
 <!-- libtmux-logo -->
 <div align="center">
   <picture>
-    <source srcset="docs/assets/logo.svg" type="image/svg+xml">
-    <img src="docs/assets/logo-512.png" width="128" height="128" alt="libtmux for Common Lisp">
+    <source srcset="assets/logo.svg" type="image/svg+xml">
+    <img src="assets/logo.png" width="128" height="128" alt="libtmux for Common Lisp">
   </picture>
 </div>
 <!-- /libtmux-logo -->
@@ -569,7 +569,7 @@ Validates, previews and applies a workspace against an explicit endpoint.
 For changes, read [Contributing](.github/CONTRIBUTING.md) and
 [Writing](.github/WRITING.md). Licensed under [MIT](LICENSE).
 
-[Branding assets](docs/branding.md) include the logo, icons, and social cards.
+[Artwork](assets/README.md) records the library logo and provenance.
 
 [api-apply-workspace]: https://libtmux.org/en/lisp/latest/workspace/reference/libtmux-workspace-apply-workspace/
 [api-await-request]: https://libtmux.org/en/lisp/latest/reference/libtmux-control-await-request/

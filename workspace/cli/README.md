@@ -1,8 +1,8 @@
 <!-- libtmux-logo -->
 <div align="center">
   <picture>
-    <source srcset="../../docs/assets/logo.svg" type="image/svg+xml">
-    <img src="../../docs/assets/logo-512.png" width="128" height="128" alt="libtmux for Common Lisp">
+    <source srcset="../../assets/logo.svg" type="image/svg+xml">
+    <img src="../../assets/logo.png" width="128" height="128" alt="libtmux for Common Lisp">
   </picture>
 </div>
 <!-- /libtmux-logo -->

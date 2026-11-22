@@ -32,7 +32,7 @@
     "workspace/README.md" "workspace/cli/README.md"))
 
 (defparameter *trees*
-  '("src/**/*.lisp" "tests/**/*.lisp" "docs/**/*.md" "data/*.json" "docs/assets/**/*.*"
+  '("src/**/*.lisp" "tests/**/*.lisp" "docs/**/*.md" "data/*.json" "assets/**/*.*"
     "examples/*.*" "tools/*.*" "scripts/**/*.*" ".github/**/*.*"))
 
 (defun source-files (root)
