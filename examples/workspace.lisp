@@ -142,7 +142,7 @@ The caller owns the isolated daemon; repeating this recipe there is an error."
 
 ;;; docs:explain
 (defun filter-execution (filter)
-  "Report that FILTER runs locally and acquires nothing, with the fields it reads."
+  "Report that FILTER runs locally without I/O, and list the fields it reads."
   (let ((report (q:explain filter)))
     (list :execution (getf report :execution)
           :acquires-p (getf report :acquires-p)

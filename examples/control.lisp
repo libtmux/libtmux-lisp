@@ -12,33 +12,41 @@
 (defun echo-through-control (client session pane)
   "Send literal text and collect pane-output bytes on one scoped connection."
   (control:with-connection (connection client session)
-    (let ((write (control:submit-command
-                  connection (list "send-keys" "-t" (tm:id pane) "-l" "hello from control")
-                  :effect :mutation))
-          (enter (control:submit-command
-                  connection (list "send-keys" "-t" (tm:id pane) "Enter")
-                  :effect :mutation)))
+    (let* ((id (tm:id pane))
+           (text "hello from control")
+           (write (control:submit-command
+                   connection (list "send-keys" "-t" id "-l" text)
+                   :effect :mutation))
+           (enter (control:submit-command
+                   connection (list "send-keys" "-t" id "Enter")
+                   :effect :mutation)))
       (dolist (request (list write enter))
-        (multiple-value-bind (result delivery) (control:await-request request :timeout 1)
+        (multiple-value-bind (result delivery)
+            (control:await-request request :timeout 1)
           (assert (eq :ready delivery))
-          (assert (eq :completed (getf result :status))))))
-    (let ((bytes (make-array 0 :element-type '(unsigned-byte 8)
-                              :adjustable t :fill-pointer 0))
-          (expected (map 'vector #'char-code "hello from control"))
-          (deadline (+ (get-internal-real-time) internal-time-units-per-second)))
-      (loop repeat 64
-            until (search expected bytes)
-            for remaining = (/ (- deadline (get-internal-real-time)) internal-time-units-per-second)
-            do (assert (plusp remaining))
-               (multiple-value-bind (event delivery) (control:next-event connection :timeout remaining)
-                 (assert (eq :ready delivery))
-                 (case (getf event :kind)
-                   (:output
-                    (assert (string= (tm:id pane) (getf event :pane)))
-                    (loop for byte across (getf event :data) do (vector-push-extend byte bytes)))
-                   ((:gap :end) (error "Output stream ended or lost data: ~S" event)))))
-      (assert (search expected bytes))
-      (coerce bytes '(simple-array (unsigned-byte 8) (*))))))
+          (assert (eq :completed (getf result :status)))))
+      (let ((bytes (make-array 0 :element-type '(unsigned-byte 8)
+                                 :adjustable t :fill-pointer 0))
+            (expected (map 'vector #'char-code text))
+            (deadline (+ (get-internal-real-time)
+                         internal-time-units-per-second)))
+        (loop repeat 64
+              until (search expected bytes)
+              for left = (/ (- deadline (get-internal-real-time))
+                            internal-time-units-per-second)
+              do (assert (plusp left))
+                 (multiple-value-bind (event delivery)
+                     (control:next-event connection :timeout left)
+                   (assert (eq :ready delivery))
+                   (case (getf event :kind)
+                     (:output
+                      (assert (string= id (getf event :pane)))
+                      (loop for byte across (getf event :data)
+                            do (vector-push-extend byte bytes)))
+                     ((:gap :end)
+                      (error "Output stream ended or lost data: ~S" event)))))
+        (assert (search expected bytes))
+        (coerce bytes '(simple-array (unsigned-byte 8) (*)))))))
 ;;; docs:end
 
 ;;; docs:controlnotifications
