@@ -1,5 +1,10 @@
 # Writing
 
+This guide governs documentation, user-facing text, comments, and commit
+messages alongside the shared organization rules in
+[`libtmux/.github/WRITING.md`](https://github.com/libtmux/.github/blob/main/WRITING.md).
+See [CONTRIBUTING.md](CONTRIBUTING.md) for setup and verification.
+
 Lead with the conclusion or observable behavior, then give the evidence needed
 to assess it. Use active voice, concrete nouns, and short sentences. Assume
 the reader has no conversation history; explain what an issue or commit is
@@ -77,7 +82,91 @@ objects, sequence inputs and conditions through their native contracts.
 Similar names across ports require their own semantic evidence. Document only
 tested implementation/platform combinations.
 
-## Executable examples
+## Examples
+
+<!-- shared:examples -->
+
+An example is code written for a reader: a program under `examples/`, code in
+a doc comment or docstring, and every fenced block in a README or docs page.
+Shell blocks also follow [Code blocks](#code-blocks).
+
+The text between the shared markers is the same in every libtmux port.
+Change it in all of them together.
+
+### Width
+
+- **Examples stay within 80 columns.** They render in fixed-width boxes that
+  scroll sideways, and 80 columns fits a libtmux.org code block in a
+  laptop-width window. Comments inside examples wrap at 80 too.
+- **The width check enforces it.** It reads the tracked files that
+  `.github/example-width.toml` names and fails on a wider line. It measures
+  the whole source line, so code in a doc comment counts its indent and
+  comment marker. It skips output (a fence tagged `text`, and what a
+  `console` block prints), hidden setup lines, and a line that is only a URL;
+  an untagged fence counts as code.
+- **A line that must stay wider is listed there with its reason.** An entry
+  that no longer matches a line fails the check, so no stale entry stays.
+- **The formatter's width is the hard limit for all other source.** Example
+  directories set their formatter to 80 where the formatter takes a width.
+
+### Reaching 80
+
+- **Change the code, not the line breaks.** A formatter rejoins any line that
+  fits its width. Name a sub-expression, use a short example name, hide setup
+  the reader does not need, or print less.
+- **Break at the outermost level when a break is still needed:** after an
+  opening parenthesis with one argument per line, one call per line in a
+  chain, one field per line in a literal.
+- **Put a comment on its own line above the code it explains.** Never trail
+  one after code in an example, unless the repository's example runner reads
+  it there, as with an assertion marker.
+- **Break a long string at a word boundary,** never inside a tmux format
+  (`#{...}`) or an escape sequence; the joined text stays the same.
+- **Continue a long command in a `console` block the way its shell does:**
+  `\` after a `$ ` prompt, a backtick after `PS> `, one flag per continuation
+  line.
+
+### What never breaks
+
+- **Output a test compares.** Wrapping it changes what the test expects.
+- **A block copied from a source file.** Fix the width in the source and run
+  the sync command; never edit the copy.
+- **Marker lines and URLs,** which tools and readers take whole.
+
+<!-- /shared:examples -->
+
+### In this repository
+
+- **Hard limit:** examples use 80 columns, enforced by the
+  `check-example-width` action of `libtmux/.github` and
+  [`.github/example-width.toml`](example-width.toml).
+- **Not formatted:** Common Lisp has no repository-wide auto-formatter;
+  `examples/*.lisp` and Markdown code fences are maintained within 80 columns
+  by hand, and `scripts/check-source/check-source.lisp` checks whitespace and
+  newlines.
+- **Runs, compiles, exempt:** `mise run examples` executes `examples/*.lisp`
+  and every Lisp block in `docs/tutorial.md` against owned tmux daemons, and
+  `mise run package-examples` repeats them from an extracted source archive.
+  `docs/_build/` is generated output ignored by Git.
+- **Compared output and copied blocks:** `<!-- example:NAME -->` blocks in
+  `README.md`, secondary system READMEs, and `docs/*.md` are synced from
+  `;;; docs:NAME` regions in `examples/*.lisp` by `mise run docs`;
+  `scripts/doc-examples/doc-examples.lisp` rejects drift in `mise run check`.
+
+Bad, over 80:
+
+```lisp
+(map 'vector #'tm:entity-data (q:matching (q:compile-filter :pane '(:= :pane/active t)) (tm:panes snapshot)))
+```
+
+Good, name the compiled filter:
+
+```lisp
+(let ((active (q:compile-filter :pane '(:= :pane/active t))))
+  (map 'vector #'tm:entity-data (q:matching active (tm:panes snapshot))))
+```
+
+### Executable contracts
 
 A complete program shows loading/package setup, inputs, an entry point, its
 run command and an observable result. Do not require hidden aliases, variables
@@ -122,6 +211,8 @@ Use descriptive links, a blank line before lists, and a blank line after
 headings. Wrap repository prose at 80 columns where practical without breaking
 URLs, identifiers, or tables.
 
+### Code blocks
+
 Code blocks are paste-and-run units:
 
 - Put one command in each block; explicit chaining or continuation counts as
@@ -137,14 +228,16 @@ Code blocks are paste-and-run units:
 Use this format, with a lowercase scope unless it is a proper name:
 
 ```text
-scope(type[detail]) Concise description
+scope(type[detail]): concise description
 
 why: Explain the necessity or impact.
+
 what:
 - State the concrete change
 - Keep the commit focused on one topic
 ```
 
-Common types include `feat`, `fix`, `refactor`, `docs`, `chore`, and `test`.
-Explain what changed and why it matters. Keep temporary validation results in
-the review discussion. Do not add emojis or agent attribution.
+Keep subjects to 50 characters, excluding a trailing `(#NN)`, and body lines to
+72. Common types include `feat`, `fix`, `refactor`, `docs`, `chore`, and
+`test`. Explain what changed and why it matters. Keep temporary validation
+results in the review discussion. Do not add emojis or agent attribution.

@@ -10,14 +10,16 @@
 (let* ((program "tmux")
        (daemon (libtmux:start-daemon :program program))
        (socket-path (libtmux:daemon-socket-path daemon)))
-  (libtmux:with-client (client :program (libtmux:daemon-program daemon) :socket-path socket-path)
+  (libtmux:with-client (client :program (libtmux:daemon-program daemon)
+                               :socket-path socket-path)
     (libtmux.examples:observed-value
      (libtmux:new-session client :name "work" :window-name "editor"
                                  :width 120 :height 40 :command '("/bin/cat")))
     (let* ((snapshot (libtmux.examples:create-workspace client))
            (windows (libtmux:windows snapshot))
            (shared (find-if (lambda (window)
-                              (= 2 (length (libtmux:window-links window)))) windows))
+                              (= 2 (length (libtmux:window-links window))))
+                            windows))
            (before-name (libtmux:name shared))
            (renamed (libtmux.examples:observed-value
                      (libtmux:rename-window client shared "api #{literal}"))))
@@ -27,12 +29,15 @@
       (assert (= 4 (length (libtmux:panes snapshot))))
       (assert (= 2 (length (libtmux:panes shared))))
       (multiple-value-bind (report outcomes)
-          (libtmux.examples:configuration-report client (aref (libtmux:sessions snapshot) 0))
+          (libtmux.examples:configuration-report
+           client (aref (libtmux:sessions snapshot) 0))
         (assert (search "status" (getf report :options)))
         (assert (stringp (getf report :hooks)))
         (assert (stringp (getf report :environment)))
         (assert (= 3 (length outcomes)))
-        (assert (every (lambda (outcome) (eq :succeeded (libtmux:outcome-status outcome))) outcomes)))
+        (assert (every (lambda (outcome)
+                         (eq :succeeded (libtmux:outcome-status outcome)))
+                       outcomes)))
       (assert (libtmux:same-entity-p shared renamed))
       (assert (string= before-name (libtmux:name shared)))
       (assert (string= "api #{literal}" (libtmux:name renamed)))
@@ -43,18 +48,22 @@
              (second (libtmux:window (aref links 1))))
         (assert (libtmux:same-entity-p first second))
         (assert (not (libtmux:same-entity-p (aref links 0) (aref links 1)))))
-      (let ((false-pane (find-if-not #'libtmux:active-p (libtmux:panes snapshot))))
+      (let ((inactive (find-if-not #'libtmux:active-p
+                                   (libtmux:panes snapshot))))
         (multiple-value-bind (value present-p)
-            (libtmux:field-value false-pane :pane/active)
+            (libtmux:field-value inactive :pane/active)
           (assert (null value))
           (assert present-p)))
       (assert (libtmux.examples::wide-active-panes snapshot))
       (let ((native (libtmux.examples::wide-active-panes snapshot))
             (compiled (libtmux.examples::wide-active-pane-data snapshot)))
-        (assert (equal (mapcar (lambda (data) (getf data :pane/id)) native)
-                       (map 'list (lambda (data) (getf data :pane/id)) compiled))))
-      (assert (equalp '(:execution :local :acquires-p nil :fields #(:pane/active :pane/width))
-                      (libtmux.examples::filter-execution libtmux.examples::*wide-active-filter*)))
+        (assert (equal (mapcar (lambda (d) (getf d :pane/id)) native)
+                       (map 'list (lambda (d) (getf d :pane/id)) compiled))))
+      (let ((expected '(:execution :local :acquires-p nil
+                        :fields #(:pane/active :pane/width)))
+            (actual (libtmux.examples::filter-execution
+                     libtmux.examples::*wide-active-filter*)))
+        (assert (equalp expected actual)))
       (assert (= 2 (length (libtmux.examples::active-session-data snapshot))))
       (multiple-value-bind (document data)
           (libtmux.examples::round-trip-filter-document snapshot)
@@ -66,11 +75,13 @@
         (assert (not (string= "changed local data" (libtmux:id pane)))))
       (libtmux.examples::round-trip-bytes client)
       (let* ((session (aref (libtmux:sessions snapshot) 0))
+             (worker (namestring
+                      (truename (merge-pathnames "worker.lisp"
+                                                 *load-truename*))))
              (result (uiop:with-temporary-file (:pathname receipt :keep nil)
                        (libtmux.examples::drive-worker
                         client session socket-path program
-                        (namestring (truename (merge-pathnames "worker.lisp" *load-truename*)))
-                        (namestring receipt)))))
+                        worker (namestring receipt)))))
         (assert (string= "release #{literal}; λ" (getf result :consumed))))
       (assert (eq 'libtmux:command-cancelled
                   (getf (libtmux.examples::cancelled-read client) :condition)))
@@ -80,9 +91,9 @@
         (assert (eq :succeeded (libtmux:outcome-status outcome))))
       (let ((document (merge-pathnames "workspace.json" *load-truename*)))
         (assert (equalp (libtmux.workspace:workspace-data
-                        (libtmux.examples:workspace-description))
-                       (libtmux.workspace:workspace-data
-                        (libtmux.workspace:read-workspace document))))
+                         (libtmux.examples:workspace-description))
+                        (libtmux.workspace:workspace-data
+                         (libtmux.workspace:read-workspace document))))
         (multiple-value-bind (steps result)
             (libtmux.examples:apply-workspace-document client document)
           (assert (equal '(:create-session :move-window :split-pane
@@ -98,9 +109,13 @@
       (libtmux:close-client client)
       (assert (= 4 (length (libtmux:panes snapshot))))
       (assert (string= before-name (libtmux:name shared)))))
-  (assert (= 3 (length (libtmux.examples:inspect-workspace socket-path :program program))))
+  (let ((inventory (libtmux.examples:inspect-workspace socket-path
+                                                       :program program)))
+    (assert (= 3 (length inventory))))
   (libtmux.examples:terminate-owned-server socket-path :program program)
   (libtmux:stop-daemon daemon)
   (assert (not (probe-file (uiop:pathname-directory-pathname socket-path))))
   (assert (zerop (length (libtmux:pending-daemon-cleanups))))
-  (format t "EXAMPLES PASS: graph, links, native, compiled, relation, regex and JSON selection, declarative workspace, false/presence, ownership, refresh, bytes, capture, close, terminate, configuration printers~%"))
+  (format t "EXAMPLES PASS: ~A~A~%"
+          "graph, links, native, compiled, relation, regex and JSON queries, "
+          "workspaces, presence, ownership, refresh, bytes, close, terminate"))

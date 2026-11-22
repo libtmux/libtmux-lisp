@@ -8,7 +8,8 @@ authored cross-references and the capability directories of `libtmux:client`,
 `tools/documentation.lisp artifact`.
 
 ```console
-$ mise exec -- sbcl --script scripts/check-documentation-artifact/check-documentation-artifact.lisp
+$ mise exec -- sbcl --script \
+    scripts/check-documentation-artifact/check-documentation-artifact.lisp
 ```
 
 Tests: `mise run scripts`.

@@ -1,15 +1,15 @@
 <!-- libtmux-logo -->
 <div align="center">
   <picture>
-    <source srcset="docs/assets/logo.svg" type="image/svg+xml">
-    <img src="docs/assets/logo-512.png" width="128" height="128" alt="libtmux for Common Lisp">
+    <source srcset="assets/logo.svg" type="image/svg+xml">
+    <img src="assets/logo.png" width="128" height="128" alt="libtmux for Common Lisp">
   </picture>
 </div>
 <!-- /libtmux-logo -->
 
 <div align="center">
 
-# libtmux-lisp
+# libtmux for Common Lisp
 
 [![Native Lisp checks](https://github.com/libtmux/libtmux-lisp/actions/workflows/tests.yml/badge.svg)](https://github.com/libtmux/libtmux-lisp/actions/workflows/tests.yml)
 [![libtmux.org](https://img.shields.io/badge/docs-libtmux.org-0b7285)](https://libtmux.org/en/lisp/)
@@ -24,17 +24,6 @@ with plain sequences, changed through an explicit [`client`][api-client].
 [Documentation](https://libtmux.org/en/lisp/) ·
 [API reference](https://libtmux.org/en/lisp/latest/reference/) ·
 [REPL tutorial](docs/tutorial.md)
-
-**Contents** — [Install](#install-from-source) ·
-[Start a server](#start-a-private-server) ·
-[Drive a pane](#drive-a-pane) ·
-[Find things](#find-sessions-windows-and-panes) ·
-[Query](#query-a-snapshot) ·
-[Workspaces](#build-a-workspace) ·
-[Control](#stream-pane-output) ·
-[Systems](#choose-an-asdf-system) ·
-[Status](#support-and-status) ·
-[Guides](#find-the-right-guide)
 
 ## Install from source
 
@@ -76,15 +65,17 @@ The examples run on a private tmux socket, never your default server.
 <!-- example:managed -->
 ```lisp
 (defun inspect-owned-workspace (&key (program "tmux"))
-  "Start an isolated daemon; return owned pane data after closing both resources."
+  "Start a private daemon and return owned pane data after closing both."
   (libtmux:with-daemon (daemon :program program)
-    (libtmux:with-client (client :program (libtmux:daemon-program daemon)
-                                 :socket-path (libtmux:daemon-socket-path daemon))
-      (let ((outcome (libtmux:new-session client :name "demo" :command '("/bin/cat"))))
-        (when (libtmux:outcome-observation-error outcome)
-          (error (libtmux:outcome-observation-error outcome))))
-      (map 'list #'libtmux:entity-data
-           (libtmux:panes (libtmux:fetch-snapshot client))))))
+    (let ((socket (libtmux:daemon-socket-path daemon)))
+      (libtmux:with-client (client :program (libtmux:daemon-program daemon)
+                                   :socket-path socket)
+        (let ((outcome (libtmux:new-session client :name "demo"
+                                                   :command '("/bin/cat"))))
+          (when (libtmux:outcome-observation-error outcome)
+            (error (libtmux:outcome-observation-error outcome))))
+        (map 'list #'libtmux:entity-data
+             (libtmux:panes (libtmux:fetch-snapshot client)))))))
 ```
 <!-- /example -->
 
@@ -109,26 +100,33 @@ sizes in cells.
 (asdf:load-system "libtmux")
 
 (defun drive-panes (&key (program "tmux"))
-  "Split a pane, send it text, capture its screen and resize; return what tmux reports."
+  "Split a pane, send text, capture its screen and resize; return sizes."
   (libtmux:with-daemon (daemon :program program)
-    (libtmux:with-client (client :program (libtmux:daemon-program daemon)
-                                 :socket-path (libtmux:daemon-socket-path daemon))
-      (flet ((observed (outcome)
-               (when (libtmux:outcome-observation-error outcome)
-                 (error (libtmux:outcome-observation-error outcome)))
-               (values (libtmux:outcome-value outcome))))
-        (observed (libtmux:new-session client :name "demo" :command '("/bin/cat")))
-        (let* ((left (aref (libtmux:fetch-panes client) 0))
-               (right (observed (libtmux:split-pane client left :direction :horizontal
-                                                                :command '("/bin/cat")))))
-          (libtmux:send-text client right "hello from Lisp" :enter t)
-          (let* ((text (libtmux:capture-pane client right))
-                 (window (observed (libtmux:resize-window client (libtmux:window right)
-                                                          :width 100 :height 30)))
-                 (narrow (observed (libtmux:resize-pane client right :width 20))))
-            (list :text (string-right-trim '(#\Newline) text)
-                  :window-size (list (libtmux:width window) (libtmux:height window))
-                  :pane-width (libtmux:width narrow))))))))
+    (let ((socket (libtmux:daemon-socket-path daemon)))
+      (libtmux:with-client (client :program (libtmux:daemon-program daemon)
+                                   :socket-path socket)
+        (flet ((observed (outcome)
+                 (when (libtmux:outcome-observation-error outcome)
+                   (error (libtmux:outcome-observation-error outcome)))
+                 (values (libtmux:outcome-value outcome))))
+          (observed (libtmux:new-session client :name "demo"
+                                                :command '("/bin/cat")))
+          (let* ((left (aref (libtmux:fetch-panes client) 0))
+                 (right (observed
+                         (libtmux:split-pane client left
+                                             :direction :horizontal
+                                             :command '("/bin/cat")))))
+            (libtmux:send-text client right "hello from Lisp" :enter t)
+            (let* ((text (libtmux:capture-pane client right))
+                   (win (observed
+                         (libtmux:resize-window client (libtmux:window right)
+                                                :width 100 :height 30)))
+                   (narrow (observed
+                            (libtmux:resize-pane client right :width 20))))
+              (list :text (string-right-trim '(#\Newline) text)
+                    :window-size (list (libtmux:width win)
+                                       (libtmux:height win))
+                    :pane-width (libtmux:width narrow)))))))))
 ```
 <!-- /example -->
 
@@ -280,7 +278,7 @@ filters nothing for you.
 <!-- example:explain -->
 ```lisp
 (defun filter-execution (filter)
-  "Report that FILTER runs locally and acquires nothing, with the fields it reads."
+  "Report that FILTER runs locally without I/O, and list the fields it reads."
   (let ((report (q:explain filter)))
     (list :execution (getf report :execution)
           :acquires-p (getf report :acquires-p)
@@ -379,13 +377,14 @@ you pass.
 <!-- example:ownedapply -->
 ```lisp
 (defun apply-owned-description (client workspace)
-  "Acquire, preview and apply explicitly; return the result and its owned record."
+  "Acquire, preview and apply explicitly; return the result and owned record."
   (let* ((state (ws:fetch-workspace-state client workspace))
          (preview (ws:plan-workspace workspace state)))
     (assert (getf (ws:plan-data preview) :publish-p))
-    (let ((result (ws:apply-workspace client workspace :total-timeout 30)))
-      (assert (eq :succeeded (getf (ws:result-data result) :publication-status)))
-      (values result (getf (ws:result-data result) :record)))))
+    (let* ((result (ws:apply-workspace client workspace :total-timeout 30))
+           (data (ws:result-data result)))
+      (assert (eq :succeeded (getf data :publication-status)))
+      (values result (getf data :record)))))
 ```
 <!-- /example -->
 
@@ -419,33 +418,41 @@ request, [`await-request`][api-await-request] waits for its reply and
 (defun echo-through-control (client session pane)
   "Send literal text and collect pane-output bytes on one scoped connection."
   (control:with-connection (connection client session)
-    (let ((write (control:submit-command
-                  connection (list "send-keys" "-t" (tm:id pane) "-l" "hello from control")
-                  :effect :mutation))
-          (enter (control:submit-command
-                  connection (list "send-keys" "-t" (tm:id pane) "Enter")
-                  :effect :mutation)))
+    (let* ((id (tm:id pane))
+           (text "hello from control")
+           (write (control:submit-command
+                   connection (list "send-keys" "-t" id "-l" text)
+                   :effect :mutation))
+           (enter (control:submit-command
+                   connection (list "send-keys" "-t" id "Enter")
+                   :effect :mutation)))
       (dolist (request (list write enter))
-        (multiple-value-bind (result delivery) (control:await-request request :timeout 1)
+        (multiple-value-bind (result delivery)
+            (control:await-request request :timeout 1)
           (assert (eq :ready delivery))
-          (assert (eq :completed (getf result :status))))))
-    (let ((bytes (make-array 0 :element-type '(unsigned-byte 8)
-                              :adjustable t :fill-pointer 0))
-          (expected (map 'vector #'char-code "hello from control"))
-          (deadline (+ (get-internal-real-time) internal-time-units-per-second)))
-      (loop repeat 64
-            until (search expected bytes)
-            for remaining = (/ (- deadline (get-internal-real-time)) internal-time-units-per-second)
-            do (assert (plusp remaining))
-               (multiple-value-bind (event delivery) (control:next-event connection :timeout remaining)
-                 (assert (eq :ready delivery))
-                 (case (getf event :kind)
-                   (:output
-                    (assert (string= (tm:id pane) (getf event :pane)))
-                    (loop for byte across (getf event :data) do (vector-push-extend byte bytes)))
-                   ((:gap :end) (error "Output stream ended or lost data: ~S" event)))))
-      (assert (search expected bytes))
-      (coerce bytes '(simple-array (unsigned-byte 8) (*))))))
+          (assert (eq :completed (getf result :status)))))
+      (let ((bytes (make-array 0 :element-type '(unsigned-byte 8)
+                                 :adjustable t :fill-pointer 0))
+            (expected (map 'vector #'char-code text))
+            (deadline (+ (get-internal-real-time)
+                         internal-time-units-per-second)))
+        (loop repeat 64
+              until (search expected bytes)
+              for left = (/ (- deadline (get-internal-real-time))
+                            internal-time-units-per-second)
+              do (assert (plusp left))
+                 (multiple-value-bind (event delivery)
+                     (control:next-event connection :timeout left)
+                   (assert (eq :ready delivery))
+                   (case (getf event :kind)
+                     (:output
+                      (assert (string= id (getf event :pane)))
+                      (loop for byte across (getf event :data)
+                            do (vector-push-extend byte bytes)))
+                     ((:gap :end)
+                      (error "Output stream ended or lost data: ~S" event)))))
+        (assert (search expected bytes))
+        (coerce bytes '(simple-array (unsigned-byte 8) (*)))))))
 ```
 <!-- /example -->
 
@@ -530,6 +537,23 @@ Validates, previews and applies a workspace against an explicit endpoint.
 
 [API reference][api-cli] · [README](workspace/cli/README.md)
 
+## What it leaves out
+
+- **Live objects.** Captured [`session`][api-session], [`window`][api-window],
+  [`window-link`][api-window-link] and [`pane`][api-pane] instances keep what
+  tmux reported when read. Call [`fetch-snapshot`][api-fetch-snapshot] again to
+  observe later changes.
+- **A terminal emulator or `~/.tmux.conf` editor.**
+  [`capture-pane`][api-capture-pane] reads the screen tmux drew, control events
+  deliver raw bytes, and [`set-option`][api-set-option] updates a running
+  server rather than files on disk.
+- **tmuxp YAML and MCP.** [`libtmux/workspace`](workspace/README.md) reads its
+  own Lisp or JSON declarations, and Model Context Protocol servers are outside
+  this port's scope.
+- **Async event loops and source pushdown.** Core [`client`][api-client] calls
+  block their caller, and [`libtmux.query`](query/README.md) evaluates filters
+  locally over retained captures.
+
 ## Support and status
 
 - **Unreleased.** Load it from a checkout; the API may change.
@@ -567,9 +591,13 @@ Validates, previews and applies a workspace against an explicit endpoint.
 | Navigate all documentation | [Guide index](docs/index.md) |
 
 For changes, read [Contributing](.github/CONTRIBUTING.md) and
-[Writing](.github/WRITING.md). Licensed under [MIT](LICENSE).
+[Writing](.github/WRITING.md).
 
-[Branding assets](docs/branding.md) include the logo, icons, and social cards.
+Part of the [libtmux.org](https://libtmux.org/) family alongside Python
+[`libtmux`](https://github.com/tmux-python/libtmux), sibling
+[language ports](https://github.com/libtmux), and
+[tmux](https://github.com/tmux/tmux). [Artwork](assets/README.md) ·
+[MIT License](LICENSE).
 
 [api-apply-workspace]: https://libtmux.org/en/lisp/latest/workspace/reference/libtmux-workspace-apply-workspace/
 [api-await-request]: https://libtmux.org/en/lisp/latest/reference/libtmux-control-await-request/

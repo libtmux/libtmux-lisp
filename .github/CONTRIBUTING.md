@@ -161,7 +161,8 @@ does not alter that tmux checkout or install anything. Run it outside inner
 and mid loops:
 
 ```console
-$ mise exec -- sbcl --script scripts/options-catalog/extract-options-catalog.lisp \
+$ mise exec -- sbcl \
+    --script scripts/options-catalog/extract-options-catalog.lisp \
     --tmux-source "$TMUX_SOURCE"
 ```
 
@@ -169,7 +170,9 @@ The output and source-verification evidence go under `build/options-catalog/`.
 Review them, then import the verified catalog and regenerate the native file:
 
 ```console
-$ mise exec -- sbcl --script scripts/options-catalog/options-catalog.lisp import \
+$ mise exec -- sbcl \
+    --script scripts/options-catalog/options-catalog.lisp \
+    import \
     --source-catalog build/options-catalog/catalog.json
 ```
 

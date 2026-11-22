@@ -1,8 +1,8 @@
 <!-- libtmux-logo -->
 <div align="center">
   <picture>
-    <source srcset="../../docs/assets/logo.svg" type="image/svg+xml">
-    <img src="../../docs/assets/logo-512.png" width="128" height="128" alt="libtmux for Common Lisp">
+    <source srcset="../../assets/logo.svg" type="image/svg+xml">
+    <img src="../../assets/logo.png" width="128" height="128" alt="libtmux for Common Lisp">
   </picture>
 </div>
 <!-- /libtmux-logo -->
@@ -32,7 +32,8 @@ locked dependencies. Run from the checkout root.
 ### `tools/workspace-cli.lisp validate`: parse a file, no tmux
 
 ```console
-$ mise exec -- sbcl --script tools/workspace-cli.lisp validate examples/owned-workspace.json
+$ mise exec -- sbcl --script tools/workspace-cli.lisp \
+    validate examples/owned-workspace.json
 ```
 
 It reports `"status":"valid"`, schema `libtmux.lisp.workspace/2`, two windows

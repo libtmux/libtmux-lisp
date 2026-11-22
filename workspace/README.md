@@ -1,8 +1,8 @@
 <!-- libtmux-logo -->
 <div align="center">
   <picture>
-    <source srcset="../docs/assets/logo.svg" type="image/svg+xml">
-    <img src="../docs/assets/logo-512.png" width="128" height="128" alt="libtmux for Common Lisp">
+    <source srcset="../assets/logo.svg" type="image/svg+xml">
+    <img src="../assets/logo.png" width="128" height="128" alt="libtmux for Common Lisp">
   </picture>
 </div>
 <!-- /libtmux-logo -->
@@ -95,13 +95,14 @@ This previews locally, then applies:
 <!-- example:ownedapply -->
 ```lisp
 (defun apply-owned-description (client workspace)
-  "Acquire, preview and apply explicitly; return the result and its owned record."
+  "Acquire, preview and apply explicitly; return the result and owned record."
   (let* ((state (ws:fetch-workspace-state client workspace))
          (preview (ws:plan-workspace workspace state)))
     (assert (getf (ws:plan-data preview) :publish-p))
-    (let ((result (ws:apply-workspace client workspace :total-timeout 30)))
-      (assert (eq :succeeded (getf (ws:result-data result) :publication-status)))
-      (values result (getf (ws:result-data result) :record)))))
+    (let* ((result (ws:apply-workspace client workspace :total-timeout 30))
+           (data (ws:result-data result)))
+      (assert (eq :succeeded (getf data :publication-status)))
+      (values result (getf data :record)))))
 ```
 <!-- /example -->
 

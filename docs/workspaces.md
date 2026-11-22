@@ -52,7 +52,8 @@ APP_LABEL seeds the session environment, inherited by subsequent panes."
       :environment #(("APP_LABEL" . "declared"))
       :windows
       #((:name "code" :index 2 :layout :tiled
-         :panes #((:shell-command "test \"$APP_LABEL\" = declared && exec /bin/cat")
+         :panes #((:shell-command
+                   "test \"$APP_LABEL\" = declared && exec /bin/cat")
                   (:command #("/bin/cat"))))
         (:name "shell" :index 5
          :panes #((:command #("/bin/cat")))))))))
@@ -204,16 +205,22 @@ The source checkout ships `tools/workspace-cli.lisp`, a Lisp program run with
 planning do not contact tmux:
 
 ```console
-$ mise exec -- sbcl --script tools/workspace-cli.lisp validate examples/workspace.json
+$ mise exec -- sbcl --script tools/workspace-cli.lisp \
+    validate examples/workspace.json
 ```
+
+It prints:
 
 ```json
 {"status":"valid","schema":"libtmux.lisp.workspace/1","session":"declared","windows":2,"panes":3}
 ```
 
 ```console
-$ mise exec -- sbcl --script tools/workspace-cli.lisp plan examples/workspace.json
+$ mise exec -- sbcl --script tools/workspace-cli.lisp \
+    plan examples/workspace.json
 ```
+
+It prints:
 
 ```json
 {"status":"planned","steps":5,"actions":["create-session","move-window","split-pane","select-layout","create-window"]}
@@ -222,8 +229,9 @@ $ mise exec -- sbcl --script tools/workspace-cli.lisp plan examples/workspace.js
 Apply requires the socket pathname. It never falls back to the default server:
 
 ```console
-$ mise exec -- sbcl --script tools/workspace-cli.lisp apply examples/workspace.json \
-  --socket-path /path/to/owned/tmux.sock
+$ mise exec -- sbcl --script tools/workspace-cli.lisp \
+    apply examples/workspace.json \
+    --socket-path /path/to/owned/tmux.sock
 ```
 
 - `apply` prints one JSON response: whether the session was created and how

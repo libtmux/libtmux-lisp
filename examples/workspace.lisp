@@ -14,7 +14,7 @@
 
 ;;; docs:configuration
 (defun configuration-report (client session)
-  "Read native configuration text; return an owned report and diagnostic outcomes."
+  "Read native configuration text; return an owned report and its outcomes."
   (let ((outcomes nil))
     (flet ((inspect-text (reader &rest options)
              (multiple-value-bind (text outcome) (apply reader client options)
@@ -26,8 +26,9 @@
                                            :name "status" :include-inherited t)
                     :hooks (inspect-text #'tm:show-hooks-text
                                          :scope :session :target session)
-                    :environment (inspect-text #'tm:show-environment-text
-                                               :scope :session :target session))))
+                    :environment (inspect-text
+                                  #'tm:show-environment-text
+                                  :scope :session :target session))))
         (values report (coerce (nreverse outcomes) 'simple-vector))))))
 ;;; docs:end
 
@@ -49,16 +50,16 @@
 ;;; docs:end
 
 ;;; docs:worker
-(defun drive-worker (client session socket-path program worker-path receipt-path)
-  "Launch a worker through argv, wait for readiness and verify input consumption.
-WORKER-PATH names the shipped worker.lisp; RECEIPT-PATH is in the owned demo directory.
+(defun drive-worker (client session socket program worker-path receipt-path)
+  "Launch a worker via argv, wait for readiness and verify input consumption.
+WORKER-PATH names worker.lisp; RECEIPT-PATH is in the owned demo directory.
 Signals operational conditions without retrying a mutation. Calls block."
   (let* ((ready (symbol-name (gensym "example-ready-")))
          (consumed (symbol-name (gensym "example-consumed-")))
+         (argv (list "sbcl" "--script" worker-path program
+                     socket ready consumed receipt-path))
          (window (observed-value
-                  (tm:new-window client session :name "worker"
-                                 :command (list "sbcl" "--script" worker-path program
-                                                socket-path ready consumed receipt-path))))
+                  (tm:new-window client session :name "worker" :command argv)))
          (pane (aref (tm:panes window) 0))
          (message "release #{literal}; λ"))
     (tm:run-command client (list "-N" "wait-for" ready)
@@ -66,14 +67,15 @@ Signals operational conditions without retrying a mutation. Calls block."
     (tm:send-text client pane message :enter t)
     (tm:run-command client (list "-N" "wait-for" consumed)
                     :effect :read :timeout 30 :output-limit 4096)
-    (let ((receipt (uiop:read-file-string receipt-path :external-format :utf-8)))
+    (let ((receipt (uiop:read-file-string receipt-path
+                                          :external-format :utf-8)))
       (assert (string= message receipt))
       (list :consumed receipt :pane (tm:id pane)))))
 ;;; docs:end
 
 ;;; docs:condition
 (defun cancelled-read (client)
-  "Demonstrate typed failure evidence using a read cancelled before acquisition."
+  "Demonstrate typed failure evidence on a read cancelled before acquisition."
   (let ((token (tm:make-cancellation-token)))
     (tm:cancel token)
     (handler-case
@@ -103,13 +105,15 @@ Signals operational conditions without retrying a mutation. Calls block."
 Creates a logs window, a second editor pane, a review session and a shared link.
 The caller owns the isolated daemon; repeating this recipe there is an error."
   (let* ((before (tm:fetch-snapshot client))
-         (work (find "work" (tm:sessions before) :key #'tm:name :test #'string=)))
+         (work (find "work" (tm:sessions before)
+                     :key #'tm:name :test #'string=)))
     (unless work (error "Start the demo's WORK session first"))
     (let* ((editor-link (aref (tm:window-links work) 0))
            (editor (tm:window editor-link))
            (pane (aref (tm:panes editor) 0))
            (logs (observed-value
-                  (tm:new-window client work :name "logs" :command '("/bin/cat"))))
+                  (tm:new-window client work :name "logs"
+                                             :command '("/bin/cat"))))
            (review (observed-value
                     (tm:new-session client :name "review" :window-name "notes"
                                           :command '("/bin/cat")))))
@@ -142,7 +146,7 @@ The caller owns the isolated daemon; repeating this recipe there is an error."
 
 ;;; docs:explain
 (defun filter-execution (filter)
-  "Report that FILTER runs locally and acquires nothing, with the fields it reads."
+  "Report that FILTER runs locally without I/O, and list the fields it reads."
   (let ((report (q:explain filter)))
     (list :execution (getf report :execution)
           :acquires-p (getf report :acquires-p)
@@ -200,7 +204,8 @@ APP_LABEL seeds the session environment, inherited by subsequent panes."
       :environment #(("APP_LABEL" . "declared"))
       :windows
       #((:name "code" :index 2 :layout :tiled
-         :panes #((:shell-command "test \"$APP_LABEL\" = declared && exec /bin/cat")
+         :panes #((:shell-command
+                   "test \"$APP_LABEL\" = declared && exec /bin/cat")
                   (:command #("/bin/cat"))))
         (:name "shell" :index 5
          :panes #((:command #("/bin/cat")))))))))
@@ -233,7 +238,7 @@ shares a 30-second budget; file loading and the preview precede that budget."
 
 ;;; docs:termination
 (defun terminate-owned-server (socket-path &key (program "tmux"))
-  "Terminate the explicitly selected owned server and return its proven outcome."
+  "Terminate the explicitly selected server and return its proven outcome."
   (tm:with-client (client :program program :socket-path socket-path)
     (let ((outcome (tm:kill-server client)))
       (assert (eq :succeeded (tm:outcome-status outcome)))

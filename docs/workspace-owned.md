@@ -83,13 +83,14 @@ then applies through the same explicit client:
 <!-- example:ownedapply -->
 ```lisp
 (defun apply-owned-description (client workspace)
-  "Acquire, preview and apply explicitly; return the result and its owned record."
+  "Acquire, preview and apply explicitly; return the result and owned record."
   (let* ((state (ws:fetch-workspace-state client workspace))
          (preview (ws:plan-workspace workspace state)))
     (assert (getf (ws:plan-data preview) :publish-p))
-    (let ((result (ws:apply-workspace client workspace :total-timeout 30)))
-      (assert (eq :succeeded (getf (ws:result-data result) :publication-status)))
-      (values result (getf (ws:result-data result) :record)))))
+    (let* ((result (ws:apply-workspace client workspace :total-timeout 30))
+           (data (ws:result-data result)))
+      (assert (eq :succeeded (getf data :publication-status)))
+      (values result (getf data :record)))))
 ```
 <!-- /example -->
 
@@ -116,7 +117,7 @@ metadata changes:
 <!-- example:ownedreconcile -->
 ```lisp
 (defun reconcile-owned-description (client workspace)
-  "Preview permitted edits, then reacquire and apply them without replacing IDs."
+  "Preview permitted edits, then reacquire and apply without replacing IDs."
   (let* ((state (ws:fetch-workspace-state client workspace))
          (preview (ws:plan-workspace workspace state :reconcile t)))
     (assert (getf (ws:plan-data preview) :publish-p))
@@ -210,7 +211,8 @@ The separate `libtmux/workspace/cli` system ships
 [`tools/workspace-cli.lisp`](../tools/workspace-cli.lisp). Validation is local:
 
 ```console
-$ mise exec -- sbcl --script tools/workspace-cli.lisp validate examples/owned-workspace.json
+$ mise exec -- sbcl --script tools/workspace-cli.lisp \
+    validate examples/owned-workspace.json
 ```
 
 Success reports schema `libtmux.lisp.workspace/2`, ID `demo-workspace`, two

@@ -74,7 +74,16 @@ Writing returns a fresh string by default:
 The native schema is `libtmux.lisp.filter/1`:
 
 ```json
-{"schema":"libtmux.lisp.filter/1","model":"pane","registryVersion":1,"expression":["and",["=","pane/active",false],["in","pane/current-command",[]]]}
+{
+  "schema": "libtmux.lisp.filter/1",
+  "model": "pane",
+  "registryVersion": 1,
+  "expression": [
+    "and",
+    ["=", "pane/active", false],
+    ["in", "pane/current-command", []]
+  ]
+}
 ```
 
 - The root object is closed and needs exactly the named members.

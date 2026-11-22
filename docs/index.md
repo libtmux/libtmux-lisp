@@ -38,6 +38,7 @@ Reproduce and verify:
 - [Toolchain and dependency setup](../.github/CONTRIBUTING.md#setup)
 - [Source examples](../examples/workspace.lisp)
 - [Workflow](../.github/workflows/tests.yml)
+- [Logo assets](../assets/README.md)
 
 At the REPL, call `documentation` on a public function or class. SLY and SLIME
 show the same docstrings and lambda lists.

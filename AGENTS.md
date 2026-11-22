@@ -30,7 +30,8 @@ Start architecture or implementation only when requested.
 - Setup, verification, tmux isolation, and pull requests:
   [.github/CONTRIBUTING.md](.github/CONTRIBUTING.md).
 - Documentation, comments, and commit messages:
-  [.github/WRITING.md](.github/WRITING.md).
+  [.github/WRITING.md](.github/WRITING.md), including
+  [Examples](.github/WRITING.md#examples) for all reader-facing code.
 - Support scripts: what may stay, their language, layout and checks:
   [.github/SCRIPTS.md](.github/SCRIPTS.md).
 
